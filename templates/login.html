@@ -12,10 +12,14 @@
         <header>
             <h2>Seend</h2>
         </header>
-        <div class="group-form active" style="max-width: 400px; margin: 50px auto;">
+        <div class="welcome-message">
+            <h1>¡Bienvenido a Seend!</h1>
+            <p>Conecta con amigos, comparte momentos y disfruta de una experiencia única.</p>
+        </div>
+        <div class="group-form active">
             <h3>Iniciar Sesión o Registrarse</h3>
             {% if error %}
-                <p style="color: #f44336;">{{ error }}</p>
+                <p class="error-message">{{ error }}</p>
             {% endif %}
             <form method="POST">
                 <input type="text" name="username" placeholder="Usuario" required>
