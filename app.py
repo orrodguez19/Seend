@@ -1,215 +1,291 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify
-from flask_socketio import SocketIO, emit, join_room, leave_room
-import sqlite3
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response
+from flask_socketio import SocketIO, emit, join_room, leave_room
+from pymongo import MongoClient
+from bson import ObjectId
+from werkzeug.security import generate_password_hash, check_password_hash
+from dotenv import load_dotenv
+
+# Configuración inicial
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'seend-secret-2025')
-socketio = SocketIO(app)
+app.secret_key = os.environ.get('JWT_SECRET', 'default-secret-key')
+app.config.update(
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SAMESITE='None',
+    PERMANENT_SESSION_LIFETIME=timedelta(days=7)
+)
 
-def init_db():
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  username TEXT UNIQUE, 
-                  password TEXT, 
-                  email TEXT, 
-                  bio TEXT DEFAULT 'Usuario nuevo',
-                  phone TEXT,
-                  dob TEXT,
-                  profile_image TEXT DEFAULT 'https://www.svgrepo.com/show/452030/avatar-default.svg')''')
-    c.execute('''CREATE TABLE IF NOT EXISTS messages 
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
-                  sender_id INTEGER, 
-                  receiver_id INTEGER, 
-                  text TEXT, 
-                  timestamp TEXT, 
-                  status TEXT DEFAULT 'sent',
-                  is_read INTEGER DEFAULT 0)''')  # Nuevo campo para rastrear si el mensaje fue leído
-    conn.commit()
-    conn.close()
+# Socket.IO configurado para Render
+socketio = SocketIO(app, 
+                   cors_allowed_origins="*",
+                   async_mode='eventlet',
+                   logger=True,
+                   engineio_logger=True)
 
+# Conexión a MongoDB Atlas
+mongo_uri = os.environ.get('MONGO_URI')
+client = MongoClient(mongo_uri, connectTimeoutMS=30000, socketTimeoutMS=None)
+db = client.get_database('seend')
+
+# Colecciones
+users_collection = db.users
+messages_collection = db.messages
+groups_collection = db.groups
+
+# Crear índices (solo una vez al inicio)
+if 'users' not in db.list_collection_names():
+    users_collection.create_index('username', unique=True)
+    users_collection.create_index('email', unique=True)
+    messages_collection.create_index([('sender_id', 1), ('receiver_id', 1)])
+    groups_collection.create_index('members')
+
+# Helpers
+def get_current_user():
+    if 'user_id' not in session:
+        return None
+    return users_collection.find_one({'_id': ObjectId(session['user_id'])})
+
+# Rutas principales
 @app.route('/')
 def index():
-    if 'user_id' not in session:
+    if not get_current_user():
         return redirect(url_for('login'))
     return render_template('chat.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        action = request.form['action']
-        username = request.form['username']
-        password = request.form['password']
-        conn = sqlite3.connect('database.db')
-        c = conn.cursor()
+        action = request.form.get('action')
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+
         if action == 'login':
-            c.execute("SELECT id, username FROM users WHERE username=? AND password=?", (username, password))
-            user = c.fetchone()
-            if user:
-                session['user_id'] = user[0]
-                session['username'] = user[1]
-                conn.close()
+            user = users_collection.find_one({'username': username})
+            if user and check_password_hash(user['password'], password):
+                session['user_id'] = str(user['_id'])
+                session['username'] = user['username']
                 return redirect(url_for('index'))
-            conn.close()
-            return render_template('login.html', error="Usuario o contraseña incorrectos")
+            return render_template('login.html', error="Credenciales inválidas")
+
         elif action == 'register':
-            email = request.form['email']
-            try:
-                c.execute("INSERT INTO users (username, password, email) VALUES (?, ?, ?)", (username, password, email))
-                conn.commit()
-                c.execute("SELECT id, username FROM users WHERE username=?", (username,))
-                user = c.fetchone()
-                session['user_id'] = user[0]
-                session['username'] = user[1]
-                conn.close()
-                return redirect(url_for('index'))
-            except sqlite3.IntegrityError:
-                conn.close()
-                return render_template('login.html', error="El usuario ya existe")
+            email = request.form.get('email', '').strip()
+            if not email:
+                return render_template('login.html', error="Email es requerido")
+
+            existing_user = users_collection.find_one({'$or': [
+                {'username': username},
+                {'email': email}
+            ]})
+            if existing_user:
+                return render_template('login.html', error="Usuario o email ya existen")
+
+            new_user = {
+                'username': username,
+                'password': generate_password_hash(password),
+                'email': email,
+                'profile_image': 'https://www.svgrepo.com/show/452030/avatar-default.svg',
+                'last_online': datetime.utcnow(),
+                'created_at': datetime.utcnow(),
+                'is_online': True
+            }
+            result = users_collection.insert_one(new_user)
+            session['user_id'] = str(result.inserted_id)
+            return redirect(url_for('index'))
+
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
-    session.pop('user_id', None)
-    session.pop('username', None)
+    if 'user_id' in session:
+        users_collection.update_one(
+            {'_id': ObjectId(session['user_id'])},
+            {'$set': {'is_online': False}}
+        )
+    session.clear()
     return redirect(url_for('login'))
 
+# API Endpoints
 @app.route('/api/users', methods=['GET'])
-def get_users():
-    if 'user_id' not in session:
+def api_users():
+    if not get_current_user():
         return jsonify({'error': 'No autenticado'}), 401
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute("SELECT id, username, email, bio, phone, dob, profile_image FROM users")
-    users = [{'id': row[0], 'name': row[1], 'email': row[2], 'bio': row[3], 'phone': row[4], 'dob': row[5], 
-              'profile_image': row[6], 'lastSeen': 'En línea', 'isOnline': True} for row in c.fetchall()]
-    conn.close()
-    return jsonify(users)
 
-@app.route('/api/messages/<int:receiver_id>', methods=['GET'])
-def get_messages(receiver_id):
-    if 'user_id' not in session:
+    users = list(users_collection.find(
+        {'_id': {'$ne': ObjectId(session['user_id'])}},
+        {'username': 1, 'profile_image': 1, 'is_online': 1, 'last_online': 1}
+    ))
+
+    formatted_users = []
+    for user in users:
+        formatted_users.append({
+            'id': str(user['_id']),
+            'name': user['username'],
+            'profile_image': user.get('profile_image'),
+            'isOnline': user.get('is_online', False),
+            'lastSeen': user.get('last_online', datetime.utcnow()).strftime('%H:%M')
+        })
+
+    return jsonify(formatted_users)
+
+@app.route('/api/messages/<receiver_id>', methods=['GET'])
+def api_messages(receiver_id):
+    if not get_current_user():
         return jsonify({'error': 'No autenticado'}), 401
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute("SELECT id, sender_id, receiver_id, text, timestamp, status, is_read FROM messages WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?) ORDER BY timestamp",
-              (session['user_id'], receiver_id, receiver_id, session['user_id']))
-    messages = [{'id': row[0], 'sender_id': row[1], 'receiver_id': row[2], 'text': row[3], 'timestamp': row[4], 'status': row[5], 'is_read': row[6]} for row in c.fetchall()]
-    conn.close()
-    return jsonify(messages)
+
+    messages = list(messages_collection.find({
+        '$or': [
+            {'sender_id': ObjectId(session['user_id']), 'receiver_id': ObjectId(receiver_id)},
+            {'sender_id': ObjectId(receiver_id), 'receiver_id': ObjectId(session['user_id'])}
+        ]
+    }).sort('timestamp', 1))
+
+    formatted_messages = []
+    for msg in messages:
+        formatted_messages.append({
+            'id': str(msg['_id']),
+            'sender_id': str(msg['sender_id']),
+            'receiver_id': str(msg['receiver_id']),
+            'text': msg['text'],
+            'timestamp': msg['timestamp'].isoformat(),
+            'status': msg.get('status', 'sent')
+        })
+
+    return jsonify(formatted_messages)
 
 @app.route('/api/update_profile', methods=['POST'])
-def update_profile():
-    if 'user_id' not in session:
+def api_update_profile():
+    if not get_current_user():
         return jsonify({'error': 'No autenticado'}), 401
+
     data = request.get_json()
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    for field, value in data.items():
-        c.execute(f"UPDATE users SET {field}=? WHERE id=?", (value, session['user_id']))
-    conn.commit()
-    conn.close()
+    if not data:
+        return jsonify({'error': 'Datos inválidos'}), 400
+
+    updates = {}
+    for field in ['username', 'email', 'bio', 'phone', 'dob']:
+        if field in data:
+            updates[field] = data[field]
+
+    if updates:
+        users_collection.update_one(
+            {'_id': ObjectId(session['user_id'])},
+            {'$set': updates}
+        )
+
     return jsonify({'success': True})
 
+@app.route('/api/upload_profile_image', methods=['POST'])
+def api_upload_profile_image():
+    if not get_current_user():
+        return jsonify({'error': 'No autenticado'}), 401
+
+    if 'image' not in request.files:
+        return jsonify({'error': 'No se subió archivo'}), 400
+
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({'error': 'Archivo no válido'}), 400
+
+    # Guardar archivo localmente (en producción usa S3/Cloudinary)
+    os.makedirs('static/uploads', exist_ok=True)
+    filename = f"user_{session['user_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.jpg"
+    filepath = os.path.join('static', 'uploads', filename)
+    file.save(filepath)
+
+    image_url = f'/static/uploads/{filename}'
+    users_collection.update_one(
+        {'_id': ObjectId(session['user_id'])},
+        {'$set': {'profile_image': image_url}}
+    )
+
+    return jsonify({
+        'success': True,
+        'imageUrl': image_url
+    })
+
+# WebSocket Handlers
 @socketio.on('connect')
 def handle_connect():
-    if 'user_id' in session:
-        join_room(str(session['user_id']))
-        emit('user_status', {'userId': session['user_id'], 'isOnline': True, 'lastSeen': datetime.now().strftime('%H:%M')}, broadcast=True)
+    user = get_current_user()
+    if user:
+        join_room(str(user['_id']))
+        users_collection.update_one(
+            {'_id': user['_id']},
+            {'$set': {'is_online': True, 'last_online': datetime.utcnow()}}
+        )
+        emit('user_status', {
+            'userId': str(user['_id']),
+            'isOnline': True,
+            'lastSeen': datetime.utcnow().strftime('%H:%M')
+        }, broadcast=True)
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    if 'user_id' in session:
-        leave_room(str(session['user_id']))
-        emit('user_status', {'userId': session['user_id'], 'isOnline': False, 'lastSeen': datetime.now().strftime('%H:%M')}, broadcast=True)
+    user = get_current_user()
+    if user:
+        leave_room(str(user['_id']))
+        users_collection.update_one(
+            {'_id': user['_id']},
+            {'$set': {'is_online': False}}
+        )
+        emit('user_status', {
+            'userId': str(user['_id']),
+            'isOnline': False,
+            'lastSeen': datetime.utcnow().strftime('%H:%M')
+        }, broadcast=True)
 
 @socketio.on('send_message')
-def handle_message(data):
-    sender_id = session.get('user_id')
-    if not sender_id:
+def handle_send_message(data):
+    user = get_current_user()
+    if not user:
         return
-    
-    receiver_id = data['receiver_id']
-    text = data['text']
-    timestamp = data['timestamp']
-    
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute("INSERT INTO messages (sender_id, receiver_id, text, timestamp) VALUES (?, ?, ?, ?)",
-              (sender_id, receiver_id, text, timestamp))
-    message_id = c.lastrowid
-    conn.commit()
-    conn.close()
-    
-    message = {'id': message_id, 'sender_id': sender_id, 'receiver_id': receiver_id, 'text': text, 'timestamp': timestamp, 'status': 'sent', 'is_read': 0}
-    
-    # Notificar a ambos usuarios para agregar el chat si no existe
-    emit('new_message', message, room=str(receiver_id))
-    emit('new_message', message, room=str(sender_id))
-    
-    # Notificar creación de chat privado si es nuevo
-    if not any(chat['memberId'] == receiver_id and not chat['isGroup'] for chat in chats_data(sender_id)):
-        emit('new_chat', {'id': message_id, 'name': get_username(receiver_id), 'memberId': receiver_id, 'isGroup': False, 'lastMessage': text, 'unreadCount': 1}, room=str(sender_id))
-        emit('new_chat', {'id': message_id, 'name': get_username(sender_id), 'memberId': sender_id, 'isGroup': False, 'lastMessage': text, 'unreadCount': 1}, room=str(receiver_id))
+
+    message = {
+        'sender_id': user['_id'],
+        'receiver_id': ObjectId(data['receiver_id']),
+        'text': data['text'],
+        'timestamp': datetime.utcnow(),
+        'status': 'sent'
+    }
+
+    result = messages_collection.insert_one(message)
+    message['_id'] = str(result.inserted_id)
+    message['sender_id'] = str(user['_id'])
+    message['receiver_id'] = data['receiver_id']
+
+    emit('new_message', message, room=message['receiver_id'])
+    emit('new_message', message, room=str(user['_id']))
 
 @socketio.on('create_group')
-def handle_group_creation(data):
-    creator_id = session.get('user_id')
-    if not creator_id:
+def handle_create_group(data):
+    user = get_current_user()
+    if not user:
         return
-    
-    group_id = data['id']
-    group_name = data['name']
-    members = data['members']
-    
-    group_data = {'id': group_id, 'name': group_name, 'creatorId': creator_id, 'members': members, 'isGroup': True, 'lastMessage': 'Grupo creado', 'unreadCount': 0}
-    
-    # Notificar a todos los miembros del grupo
-    for member_id in members:
-        emit('new_chat', group_data, room=str(member_id))
 
-@socketio.on('message_delivered')
-def handle_delivered(data):
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute("UPDATE messages SET status='delivered' WHERE id=?", (data['messageId'],))
-    conn.commit()
-    conn.close()
-    emit('message_delivered', data, room=str(data['receiver_id']))
+    group_data = {
+        'name': data['name'],
+        'creator_id': user['_id'],
+        'members': [ObjectId(m) for m in data['members']] + [user['_id']],
+        'created_at': datetime.utcnow()
+    }
 
-@socketio.on('message_read')
-def handle_read(data):
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute("UPDATE messages SET status='read', is_read=1 WHERE id=?", (data['messageId'],))
-    conn.commit()
-    conn.close()
-    emit('message_read', data, room=str(data['receiver_id']))
+    result = groups_collection.insert_one(group_data)
+    group_id = str(result.inserted_id)
 
-@socketio.on('typing')
-def handle_typing(data):
-    emit('typing', data, room=str(data['chatId']))
-
-@socketio.on('profile_update')
-def handle_profile_update(data):
-    emit('profile_update', data, broadcast=True)
-
-def get_username(user_id):
-    conn = sqlite3.connect('database.db')
-    c = conn.cursor()
-    c.execute("SELECT username FROM users WHERE id=?", (user_id,))
-    result = c.fetchone()
-    conn.close()
-    return result[0] if result else "Usuario"
-
-def chats_data(user_id):
-    # Esto es una simulación, en una app real deberías persistir chats en la base de datos
-    return []  # Por ahora, devolvemos una lista vacía ya que chats se maneja en el frontend
+    for member_id in group_data['members']:
+        emit('new_chat', {
+            'id': group_id,
+            'name': group_data['name'],
+            'isGroup': True,
+            'lastMessage': 'Grupo creado'
+        }, room=str(member_id))
 
 if __name__ == '__main__':
-    init_db()
     port = int(os.environ.get('PORT', 5000))
-    socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    if os.environ.get('RENDER'):
+        socketio.run(app, host='0.0.0.0', port=port, debug=False)
+    else:
+        socketio.run(app, debug=True, port=port)
