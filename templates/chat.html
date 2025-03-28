@@ -14,7 +14,14 @@
         <div id="screen-chats" class="screen active">
             <header>
                 <h2>Chats</h2>
-                <a href="{{ url_for('logout') }}" class="nav-btn">Cerrar Sesión</a>
+                <div class="header-actions">
+                    <button class="nav-btn" onclick="showScreen('screen-profile')">
+                        <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
+                    </button>
+                    <button class="nav-btn" onclick="location.href='{{ url_for('logout') }}'">
+                        <svg viewBox="0 0 24 24"><path d="M10 20H5V4h5v2H7v12h3v2zm7-15l-1.41-1.41L11.17 8l4.42 4.41L17 11l-4-4h7v2h-7l4 4z"/></svg>
+                    </button>
+                </div>
             </header>
             <div id="chatList">
                 <p class="empty-message" id="emptyMessage">Inicie una nueva conversación</p>
@@ -46,7 +53,7 @@
         <div id="screen-conversation" class="screen">
             <header>
                 <button class="nav-btn" onclick="showScreen('screen-chats')"><svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
-                <div class="chat-header-info">
+                <div class="chat-header-info" onclick="showChatInfo()">
                     <img id="chatUserImage" class="chat-header-image" src="" alt="">
                     <div class="chat-header-text">
                         <h2 id="chatTitle">Chat</h2>
@@ -57,13 +64,57 @@
             </header>
             <div class="conversation-container" id="conversationArea"></div>
             <div class="input-container">
-                <input type="text" id="messageInput" placeholder="Escribe un mensaje..." onkeypress="handleKeyPress(event)">
+                <input type="text" id="messageInput" placeholder="Escribe un mensaje..." onkeypress="handleKeyPress(event)" oninput="sendTypingStatus()">
                 <button onclick="sendMessage()">
                     <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
                 </button>
             </div>
         </div>
+        <div id="screen-profile" class="screen">
+            <header>
+                <button class="nav-btn" onclick="showScreen('screen-chats')">
+                    <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                </button>
+                <h2>Mi Perfil</h2>
+                <div class="nav-btn"></div>
+            </header>
+            <div class="profile-container">
+                <div class="profile-info">
+                    <img id="profileImage" src="https://www.svgrepo.com/show/452030/avatar-default.svg" alt="Profile">
+                    <div class="profile-field">
+                        <strong id="profileUsername"></strong>
+                        <button class="edit-btn" data-field="username">
+                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
+                    </div>
+                    <div class="profile-field">
+                        <p id="profileBio"></p>
+                        <button class="edit-btn" data-field="bio">
+                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
+                    </div>
+                    <div class="profile-field">
+                        <p id="profileEmail"></p>
+                        <button class="edit-btn" data-field="email">
+                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
+                    </div>
+                    <div class="profile-field">
+                        <p id="profilePhone"></p>
+                        <button class="edit-btn" data-field="phone">
+                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
+                    </div>
+                    <div class="profile-field">
+                        <p id="profileDob"></p>
+                        <button class="edit-btn" data-field="dob">
+                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
 </body>
-                                                 </html>
+    </html>
