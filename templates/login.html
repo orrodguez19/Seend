@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seend - Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <header>
+            <h2>Seend</h2>
+        </header>
+        <div class="group-form active" style="max-width: 400px; margin: 50px auto;">
+            <h3>Iniciar Sesión o Registrarse</h3>
+            {% if error %}
+                <p style="color: #f44336;">{{ error }}</p>
+            {% endif %}
+            <form method="POST">
+                <input type="text" name="username" placeholder="Usuario" required>
+                <input type="password" name="password" placeholder="Contraseña" required>
+                <input type="email" name="email" placeholder="Email (solo registro)" id="emailField">
+                <button type="submit" name="action" value="login">Iniciar Sesión</button>
+                <button type="submit" name="action" value="register" class="cancel">Registrarse</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const emailField = document.getElementById('emailField');
+            emailField.style.display = 'none';
+            document.querySelector('button[value="register"]').addEventListener('click', () => {
+                emailField.style.display = 'block';
+                emailField.required = true;
+            });
+            document.querySelector('button[value="login"]').addEventListener('click', () => {
+                emailField.style.display = 'none';
+                emailField.required = false;
+            });
+        });
+    </script>
+</body>
+</html>
