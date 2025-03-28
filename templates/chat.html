@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="username" content="{{ session['username'] }}">
+    <title>Seend - App de Mensajería</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <div id="screen-chats" class="screen active">
+            <header>
+                <h2>Chats</h2>
+                <a href="{{ url_for('logout') }}" class="nav-btn">Cerrar Sesión</a>
+            </header>
+            <div id="chatList">
+                <p class="empty-message" id="emptyMessage">Inicie una nueva conversación</p>
+            </div>
+            <div class="fab" id="openNewChat">+</div>
+        </div>
+        <div id="screen-new-chat" class="screen">
+            <header>
+                <button class="nav-btn" onclick="showScreen('screen-chats')"><svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
+                <h2>Usuarios Públicos</h2>
+                <button class="nav-btn" onclick="showScreen('screen-group-create')"><svg viewBox="0 0 24 24"><path d="M16 11h5v2h-5v5h-2v-5H9v-2h5V6h2v5z"/></svg></button>
+            </header>
+            <div class="list" id="usersList"></div>
+        </div>
+        <div id="screen-group-create" class="screen">
+            <header>
+                <button class="nav-btn" onclick="showScreen('screen-new-chat')"><svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
+                <h2>Nuevo Grupo</h2>
+                <div class="nav-btn"></div>
+            </header>
+            <div class="group-form active">
+                <input type="text" id="groupName" placeholder="Nombre del grupo" required>
+                <div class="selected-count" id="selectedCount">0 usuarios seleccionados</div>
+                <div id="groupUsersList"></div>
+                <button onclick="createGroup()">Crear grupo</button>
+                <button class="cancel" onclick="showScreen('screen-new-chat')">Cancelar</button>
+            </div>
+        </div>
+        <div id="screen-conversation" class="screen">
+            <header>
+                <button class="nav-btn" onclick="showScreen('screen-chats')"><svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
+                <div class="chat-header-info">
+                    <img id="chatUserImage" class="chat-header-image" src="" alt="">
+                    <div class="chat-header-text">
+                        <h2 id="chatTitle">Chat</h2>
+                        <div id="chatStatus" class="chat-header-status">En línea</div>
+                    </div>
+                </div>
+                <div class="nav-btn"></div>
+            </header>
+            <div class="conversation-container" id="conversationArea"></div>
+            <div class="input-container">
+                <input type="text" id="messageInput" placeholder="Escribe un mensaje..." onkeypress="handleKeyPress(event)">
+                <button onclick="sendMessage()">
+                    <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+</body>
+                                                 </html>
