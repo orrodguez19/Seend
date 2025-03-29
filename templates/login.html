@@ -6,7 +6,6 @@
     <title>Seend - Login</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <!-- Add SocketIO script -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
@@ -19,9 +18,7 @@
         </div>
         <div class="group-form active">
             <h3>Iniciar Sesión o Registrarse</h3>
-            {% if error %}
-                <p class="error-message">{{ error }}</p>
-            {% endif %}
+            <p class="error-message"></p> <!-- Siempre presente, vacío por defecto -->
             <form id="authForm" method="POST">
                 <input type="text" name="username" placeholder="Usuario" required>
                 <input type="password" name="password" placeholder="Contraseña" required>
@@ -37,13 +34,13 @@
             const authForm = document.getElementById('authForm');
             const loginBtn = document.getElementById('loginBtn');
             const registerBtn = document.getElementById('registerBtn');
+            const errorMessage = document.querySelector('.error-message');
 
-            // Handle form submission
             authForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const formData = new FormData(authForm);
                 const action = e.submitter.value;
-                
+
                 if (action === 'register') {
                     emailField.style.display = 'block';
                     emailField.required = true;
@@ -57,32 +54,24 @@
                         method: 'POST',
                         body: formData
                     });
+                    const data = await response.json();
 
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (data.token) {
-                            // Store token and user_id in localStorage
-                            localStorage.setItem('token', data.token);
-                            localStorage.setItem('user_id', data.user_id);
-                            // Redirect to chat page
-                            window.location.href = '/';
-                        }
+                    if (data.success && data.token) {
+                        localStorage.setItem('token', data.token);
+                        localStorage.setItem('user_id', data.user_id);
+                        window.location.href = '/'; // Redirige a chat.html
                     } else {
-                        const errorData = await response.text();
-                        // If it's HTML, it means login failed with error message
-                        if (errorData.includes('<html')) {
-                            document.querySelector('.error-message').textContent = 
-                                'Usuario o contraseña incorrectos';
-                        }
+                        errorMessage.textContent = data.error || 'Error desconocido';
+                        errorMessage.style.color = 'red';
                     }
                 } catch (error) {
                     console.error('Error:', error);
-                    document.querySelector('.error-message').textContent = 
-                        'Error al conectar con el servidor';
+                    errorMessage.textContent = 'Error al conectar con el servidor';
+                    errorMessage.style.color = 'red';
                 }
             });
 
-            // Toggle email field visibility
+            // Toggle email field visibility (opcional, ya manejado en submit)
             registerBtn.addEventListener('click', () => {
                 emailField.style.display = 'block';
                 emailField.required = true;
