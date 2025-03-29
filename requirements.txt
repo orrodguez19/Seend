@@ -9,7 +9,7 @@ passlib==1.7.4
 PyJWT==2.7.0
 
 # Firebase
-firebase-admin==6.1.0
+firebase-admin>=6.0.0
 google-cloud-firestore==2.11.1
 google-api-core==2.11.1
 grpcio==1.56.0
