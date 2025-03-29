@@ -50,32 +50,35 @@ def index():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        action = request.form['action']
-        username = request.form['username']
-        password = request.form['password']
-        
-        if action == 'login':
-            user = users_collection.find_one({"username": username, "password": password})
-            if user:
-                token = jwt.encode({'user_id': str(user['_id']), 'exp': int(datetime.utcnow().timestamp() + 3600)}, app.secret_key, algorithm="HS256")
-                return jsonify({'token': token, 'user_id': str(user['_id']), 'success': True})
-            return jsonify({'error': 'Usuario o contraseña incorrectos', 'success': False}), 401
-        elif action == 'register':
-            email = request.form['email']
-            if users_collection.find_one({"username": username}):
-                return jsonify({'error': 'El usuario ya existe', 'success': False}), 400
-            user = {
-                "username": username,
-                "password": password,
-                "email": email,
-                "bio": "Usuario nuevo",
-                "phone": None,
-                "dob": None,
-                "profile_image": "https://www.svgrepo.com/show/452030/avatar-default.svg"
-            }
-            result = users_collection.insert_one(user)
-            token = jwt.encode({'user_id': str(result.inserted_id), 'exp': int(datetime.utcnow().timestamp() + 3600)}, app.secret_key, algorithm="HS256")
-            return jsonify({'token': token, 'user_id': str(result.inserted_id), 'success': True})
+        try:
+            action = request.form['action']
+            username = request.form['username']
+            password = request.form['password']
+            
+            if action == 'login':
+                user = users_collection.find_one({"username": username, "password": password})
+                if user:
+                    token = jwt.encode({'user_id': str(user['_id']), 'exp': int(datetime.utcnow().timestamp() + 3600)}, app.secret_key, algorithm="HS256")
+                    return jsonify({'token': token, 'user_id': str(user['_id']), 'success': True})
+                return jsonify({'error': 'Usuario o contraseña incorrectos', 'success': False}), 401
+            elif action == 'register':
+                email = request.form['email']
+                if users_collection.find_one({"username": username}):
+                    return jsonify({'error': 'El usuario ya existe', 'success': False}), 400
+                user = {
+                    "username": username,
+                    "password": password,
+                    "email": email,
+                    "bio": "Usuario nuevo",
+                    "phone": None,
+                    "dob": None,
+                    "profile_image": "https://www.svgrepo.com/show/452030/avatar-default.svg"
+                }
+                result = users_collection.insert_one(user)
+                token = jwt.encode({'user_id': str(result.inserted_id), 'exp': int(datetime.utcnow().timestamp() + 3600)}, app.secret_key, algorithm="HS256")
+                return jsonify({'token': token, 'user_id': str(result.inserted_id), 'success': True})
+        except Exception as e:
+            return jsonify({'error': f'Error del servidor: {str(e)}', 'success': False}), 500
     return render_template('login.html')
 
 @app.route('/logout')
