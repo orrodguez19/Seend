@@ -3,11 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="username" content="">
-    <title>Seend - App de Mensajería</title>
+    <title>Seend - Chat</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
+    <script src="https://js.pusher.com/8.2/pusher.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -53,7 +52,7 @@
         <div id="screen-conversation" class="screen">
             <header>
                 <button class="nav-btn" onclick="showScreen('screen-chats')"><svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
-                <div class="chat-header-info" onclick="showChatInfo()">
+                <div class="chat-header-info" onclick="showUserProfile()">
                     <img id="chatUserImage" class="chat-header-image" src="" alt="">
                     <div class="chat-header-text">
                         <h2 id="chatTitle">Chat</h2>
@@ -66,7 +65,7 @@
             </header>
             <div class="conversation-container" id="conversationArea"></div>
             <div class="input-container">
-                <input type="text" id="messageInput" placeholder="Escribe un mensaje..." onkeypress="handleKeyPress(event)" oninput="sendTypingStatus()">
+                <input type="text" id="messageInput" placeholder="Escribe un mensaje..." onkeypress="handleKeyPress(event)">
                 <button onclick="sendMessage()">
                     <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
                 </button>
@@ -81,43 +80,95 @@
                 <div class="nav-btn"></div>
             </header>
             <div class="profile-container">
-                <div class="profile-info">
+                <div class="profile-header">
                     <img id="profileImage" src="https://www.svgrepo.com/show/452030/avatar-default.svg" alt="Profile">
+                    <button class="edit-btn edit-image-btn" onclick="document.getElementById('profileImageInput').click()">
+                        <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                    </button>
+                    <input type="file" id="profileImageInput" accept="image/*" style="display: none;" onchange="uploadProfileImage()">
+                </div>
+                <div class="profile-details">
                     <div class="profile-field">
-                        <input type="file" id="profileImageInput" accept="image/*" style="display: none;" onchange="uploadProfileImage()">
-                        <button class="edit-btn" data-field="profile_image" onclick="document.getElementById('profileImageInput').click()">
-                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                        </button>
+                        <label>Usuario</label>
+                        <div class="field-content">
+                            <span id="profileUsername"></span>
+                            <button class="edit-btn" data-field="username">
+                                <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="profile-field">
-                        <strong id="profileUsername"></strong>
-                        <button class="edit-btn" data-field="username">
-                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                        </button>
+                        <label>Bio</label>
+                        <div class="field-content">
+                            <span id="profileBio"></span>
+                            <button class="edit-btn" data-field="bio">
+                                <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="profile-field">
-                        <p id="profileBio"></p>
-                        <button class="edit-btn" data-field="bio">
-                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                        </button>
+                        <label>Email</label>
+                        <div class="field-content">
+                            <span id="profileEmail"></span>
+                            <button class="edit-btn" data-field="email">
+                                <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="profile-field">
-                        <p id="profileEmail"></p>
-                        <button class="edit-btn" data-field="email">
-                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                        </button>
+                        <label>Teléfono</label>
+                        <div class="field-content">
+                            <span id="profilePhone"></span>
+                            <button class="edit-btn" data-field="phone">
+                                <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                            </button>
+                        </div>
                     </div>
                     <div class="profile-field">
-                        <p id="profilePhone"></p>
-                        <button class="edit-btn" data-field="phone">
-                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                        </button>
+                        <label>Fecha de Nacimiento</label>
+                        <div class="field-content">
+                            <span id="profileDob"></span>
+                            <button class="edit-btn" data-field="dob">
+                                <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <button class="delete-account-btn" onclick="deleteAccount()">Eliminar Cuenta</button>
+            </div>
+        </div>
+        <div id="screen-user-profile" class="screen">
+            <header>
+                <button class="nav-btn" onclick="showScreen('screen-conversation')">
+                    <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                </button>
+                <h2>Perfil</h2>
+                <div class="nav-btn"></div>
+            </header>
+            <div class="profile-container">
+                <div class="profile-header">
+                    <img id="userProfileImage" src="https://www.svgrepo.com/show/452030/avatar-default.svg" alt="Profile">
+                </div>
+                <div class="profile-details">
+                    <div class="profile-field">
+                        <label>Usuario</label>
+                        <span id="userProfileUsername"></span>
                     </div>
                     <div class="profile-field">
-                        <p id="profileDob"></p>
-                        <button class="edit-btn" data-field="dob">
-                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                        </button>
+                        <label>Bio</label>
+                        <span id="userProfileBio"></span>
+                    </div>
+                    <div class="profile-field">
+                        <label>Email</label>
+                        <span id="userProfileEmail"></span>
+                    </div>
+                    <div class="profile-field">
+                        <label>Teléfono</label>
+                        <span id="userProfilePhone"></span>
+                    </div>
+                    <div class="profile-field">
+                        <label>Fecha de Nacimiento</label>
+                        <span id="userProfileDob"></span>
                     </div>
                 </div>
             </div>
@@ -125,4 +176,4 @@
     </div>
     <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
 </body>
-                                                                                        </html>
+                            </html>
