@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Seend - Chat</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="/static/css/styles.css">
     <script src="https://js.pusher.com/8.2/pusher.min.js"></script>
 </head>
 <body>
     <div class="app-container">
+        <!-- Pantalla de chats -->
         <div id="screen-chats" class="screen active">
             <header>
                 <h2>Chats</h2>
@@ -17,7 +18,7 @@
                     <button class="nav-btn" onclick="showScreen('screen-profile')">
                         <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                     </button>
-                    <button class="nav-btn" onclick="location.href='{{ url_for('logout') }}'">
+                    <button class="nav-btn" onclick="logout()">
                         <svg viewBox="0 0 24 24"><path d="M10 20H5V4h5v2H7v12h3v2zm7-15l-1.41-1.41L11.17 8l4.42 4.41L17 11l-4-4h7v2h-7l4 4z"/></svg>
                     </button>
                 </div>
@@ -27,17 +28,27 @@
             </div>
             <div class="fab" id="openNewChat">+</div>
         </div>
+
+        <!-- Pantalla de nuevo chat -->
         <div id="screen-new-chat" class="screen">
             <header>
-                <button class="nav-btn" onclick="showScreen('screen-chats')"><svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
+                <button class="nav-btn" onclick="showScreen('screen-chats')">
+                    <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                </button>
                 <h2>Usuarios Públicos</h2>
-                <button class="nav-btn" onclick="showScreen('screen-group-create')"><svg viewBox="0 0 24 24"><path d="M16 11h5v2h-5v5h-2v-5H9v-2h5V6h2v5z"/></svg></button>
+                <button class="nav-btn" onclick="showScreen('screen-group-create')">
+                    <svg viewBox="0 0 24 24"><path d="M16 11h5v2h-5v5h-2v-5H9v-2h5V6h2v5z"/></svg>
+                </button>
             </header>
             <div class="list" id="usersList"></div>
         </div>
+
+        <!-- Pantalla de creación de grupo -->
         <div id="screen-group-create" class="screen">
             <header>
-                <button class="nav-btn" onclick="showScreen('screen-new-chat')"><svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
+                <button class="nav-btn" onclick="showScreen('screen-new-chat')">
+                    <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                </button>
                 <h2>Nuevo Grupo</h2>
                 <div class="nav-btn"></div>
             </header>
@@ -49,9 +60,13 @@
                 <button class="cancel" onclick="showScreen('screen-new-chat')">Cancelar</button>
             </div>
         </div>
+
+        <!-- Pantalla de conversación -->
         <div id="screen-conversation" class="screen">
             <header>
-                <button class="nav-btn" onclick="showScreen('screen-chats')"><svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg></button>
+                <button class="nav-btn" onclick="showScreen('screen-chats')">
+                    <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                </button>
                 <div class="chat-header-info" onclick="showUserProfile()">
                     <img id="chatUserImage" class="chat-header-image" src="" alt="">
                     <div class="chat-header-text">
@@ -71,6 +86,8 @@
                 </button>
             </div>
         </div>
+
+        <!-- Pantalla de perfil -->
         <div id="screen-profile" class="screen">
             <header>
                 <button class="nav-btn" onclick="showScreen('screen-chats')">
@@ -137,6 +154,8 @@
                 <button class="delete-account-btn" onclick="deleteAccount()">Eliminar Cuenta</button>
             </div>
         </div>
+
+        <!-- Pantalla de perfil de usuario -->
         <div id="screen-user-profile" class="screen">
             <header>
                 <button class="nav-btn" onclick="showScreen('screen-conversation')">
@@ -174,6 +193,24 @@
             </div>
         </div>
     </div>
-    <script src="{{ url_for('static', filename='js/scripts.js') }}"></script>
+
+    <script src="/static/js/scripts.js"></script>
+    <script>
+        // Función de logout mejorada
+        function logout() {
+            if (confirm('¿Estás seguro de que deseas cerrar sesión?')) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user_id');
+                window.location.href = '/logout';
+            }
+        }
+
+        // Verificar autenticación al cargar
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!localStorage.getItem('token')) {
+                window.location.href = '/login';
+            }
+        });
+    </script>
 </body>
-                            </html>
+    </html>
