@@ -1,291 +1,248 @@
-import os
-from datetime import datetime, timedelta
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, make_response
+from flask import Flask, render_template, request, redirect, url_for, jsonify
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from pymongo import MongoClient
-from bson import ObjectId
-from werkzeug.security import generate_password_hash, check_password_hash
-from dotenv import load_dotenv
-
-# Configuración inicial
-load_dotenv()
+import os
+from datetime import datetime
+from werkzeug.utils import secure_filename
+import jwt
+from functools import wraps
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('JWT_SECRET', 'default-secret-key')
-app.config.update(
-    SESSION_COOKIE_SECURE=True,
-    SESSION_COOKIE_SAMESITE='None',
-    PERMANENT_SESSION_LIFETIME=timedelta(days=7)
-)
+app.secret_key = os.environ.get('JWT_SECRET', 'grgifHFQhEjiHjeJf849JFAJhfHF4VJS')
+socketio = SocketIO(app)
 
-# Socket.IO configurado para Render
-socketio = SocketIO(app, 
-                   cors_allowed_origins="*",
-                   async_mode='eventlet',
-                   logger=True,
-                   engineio_logger=True)
+# Configuración de MongoDB
+MONGO_URI = os.environ.get('MONGO_URI', 'mongodb+srv://orrodguez19:qnVW5zyeQuHO98CG@cluster.p6wa3.mongodb.net/?retryWrites=true&w=majority&appName=Cluster')
+client = MongoClient(MONGO_URI)
+db = client['seend_db']  # Nombre de la base de datos
+users_collection = db['users']
+messages_collection = db['messages']
 
-# Conexión a MongoDB Atlas
-mongo_uri = os.environ.get('MONGO_URI')
-client = MongoClient(mongo_uri, connectTimeoutMS=30000, socketTimeoutMS=None)
-db = client.get_database('seend')
+# Configuración para subir imágenes
+UPLOAD_FOLDER = 'static/uploads'
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Colecciones
-users_collection = db.users
-messages_collection = db.messages
-groups_collection = db.groups
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-# Crear índices (solo una vez al inicio)
-if 'users' not in db.list_collection_names():
-    users_collection.create_index('username', unique=True)
-    users_collection.create_index('email', unique=True)
-    messages_collection.create_index([('sender_id', 1), ('receiver_id', 1)])
-    groups_collection.create_index('members')
+# Middleware para verificar token JWT
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = request.headers.get('Authorization')
+        if not token or not token.startswith('Bearer '):
+            return jsonify({'error': 'Token requerido'}), 401
+        try:
+            token = token.split(" ")[1]
+            payload = jwt.decode(token, app.secret_key, algorithms=["HS256"])
+            request.user_id = payload['user_id']
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Token inválido'}), 401
+        return f(*args, **kwargs)
+    return decorated
 
-# Helpers
-def get_current_user():
-    if 'user_id' not in session:
-        return None
-    return users_collection.find_one({'_id': ObjectId(session['user_id'])})
-
-# Rutas principales
 @app.route('/')
 def index():
-    if not get_current_user():
-        return redirect(url_for('login'))
     return render_template('chat.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        action = request.form.get('action')
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '').strip()
-
+        action = request.form['action']
+        username = request.form['username']
+        password = request.form['password']
+        
         if action == 'login':
-            user = users_collection.find_one({'username': username})
-            if user and check_password_hash(user['password'], password):
-                session['user_id'] = str(user['_id'])
-                session['username'] = user['username']
-                return redirect(url_for('index'))
-            return render_template('login.html', error="Credenciales inválidas")
-
+            user = users_collection.find_one({"username": username, "password": password})
+            if user:
+                token = jwt.encode({'user_id': str(user['_id']), 'exp': datetime.utcnow().timestamp() + 3600}, app.secret_key, algorithm="HS256")
+                return jsonify({'token': token, 'user_id': str(user['_id'])})
+            return render_template('login.html', error="Usuario o contraseña incorrectos")
         elif action == 'register':
-            email = request.form.get('email', '').strip()
-            if not email:
-                return render_template('login.html', error="Email es requerido")
-
-            existing_user = users_collection.find_one({'$or': [
-                {'username': username},
-                {'email': email}
-            ]})
-            if existing_user:
-                return render_template('login.html', error="Usuario o email ya existen")
-
-            new_user = {
-                'username': username,
-                'password': generate_password_hash(password),
-                'email': email,
-                'profile_image': 'https://www.svgrepo.com/show/452030/avatar-default.svg',
-                'last_online': datetime.utcnow(),
-                'created_at': datetime.utcnow(),
-                'is_online': True
+            email = request.form['email']
+            if users_collection.find_one({"username": username}):
+                return render_template('login.html', error="El usuario ya existe")
+            user = {
+                "username": username,
+                "password": password,  # En producción, usa hashing
+                "email": email,
+                "bio": "Usuario nuevo",
+                "phone": None,
+                "dob": None,
+                "profile_image": "https://www.svgrepo.com/show/452030/avatar-default.svg"
             }
-            result = users_collection.insert_one(new_user)
-            session['user_id'] = str(result.inserted_id)
-            return redirect(url_for('index'))
-
+            result = users_collection.insert_one(user)
+            token = jwt.encode({'user_id': str(result.inserted_id), 'exp': datetime.utcnow().timestamp() + 3600}, app.secret_key, algorithm="HS256")
+            return jsonify({'token': token, 'user_id': str(result.inserted_id)})
     return render_template('login.html')
 
 @app.route('/logout')
 def logout():
-    if 'user_id' in session:
-        users_collection.update_one(
-            {'_id': ObjectId(session['user_id'])},
-            {'$set': {'is_online': False}}
-        )
-    session.clear()
     return redirect(url_for('login'))
 
-# API Endpoints
 @app.route('/api/users', methods=['GET'])
-def api_users():
-    if not get_current_user():
-        return jsonify({'error': 'No autenticado'}), 401
-
-    users = list(users_collection.find(
-        {'_id': {'$ne': ObjectId(session['user_id'])}},
-        {'username': 1, 'profile_image': 1, 'is_online': 1, 'last_online': 1}
-    ))
-
-    formatted_users = []
-    for user in users:
-        formatted_users.append({
-            'id': str(user['_id']),
-            'name': user['username'],
-            'profile_image': user.get('profile_image'),
-            'isOnline': user.get('is_online', False),
-            'lastSeen': user.get('last_online', datetime.utcnow()).strftime('%H:%M')
-        })
-
-    return jsonify(formatted_users)
+@token_required
+def get_users():
+    users = list(users_collection.find())
+    return jsonify([{
+        'id': str(user['_id']),
+        'name': user['username'],
+        'email': user['email'],
+        'bio': user.get('bio', 'Usuario nuevo'),
+        'phone': user.get('phone'),
+        'dob': user.get('dob'),
+        'profile_image': user.get('profile_image', 'https://www.svgrepo.com/show/452030/avatar-default.svg'),
+        'lastSeen': 'En línea',
+        'isOnline': True
+    } for user in users])
 
 @app.route('/api/messages/<receiver_id>', methods=['GET'])
-def api_messages(receiver_id):
-    if not get_current_user():
-        return jsonify({'error': 'No autenticado'}), 401
-
+@token_required
+def get_messages(receiver_id):
     messages = list(messages_collection.find({
-        '$or': [
-            {'sender_id': ObjectId(session['user_id']), 'receiver_id': ObjectId(receiver_id)},
-            {'sender_id': ObjectId(receiver_id), 'receiver_id': ObjectId(session['user_id'])}
+        "$or": [
+            {"sender_id": request.user_id, "receiver_id": receiver_id},
+            {"sender_id": receiver_id, "receiver_id": request.user_id}
         ]
-    }).sort('timestamp', 1))
-
-    formatted_messages = []
-    for msg in messages:
-        formatted_messages.append({
-            'id': str(msg['_id']),
-            'sender_id': str(msg['sender_id']),
-            'receiver_id': str(msg['receiver_id']),
-            'text': msg['text'],
-            'timestamp': msg['timestamp'].isoformat(),
-            'status': msg.get('status', 'sent')
-        })
-
-    return jsonify(formatted_messages)
+    }).sort("timestamp", 1))
+    return jsonify([{
+        'id': str(msg['_id']),
+        'sender_id': msg['sender_id'],
+        'receiver_id': msg['receiver_id'],
+        'text': msg['text'],
+        'timestamp': msg['timestamp'],
+        'status': msg.get('status', 'sent'),
+        'is_read': msg.get('is_read', 0)
+    } for msg in messages])
 
 @app.route('/api/update_profile', methods=['POST'])
-def api_update_profile():
-    if not get_current_user():
-        return jsonify({'error': 'No autenticado'}), 401
-
+@token_required
+def update_profile():
     data = request.get_json()
-    if not data:
-        return jsonify({'error': 'Datos inválidos'}), 400
-
-    updates = {}
-    for field in ['username', 'email', 'bio', 'phone', 'dob']:
-        if field in data:
-            updates[field] = data[field]
-
-    if updates:
-        users_collection.update_one(
-            {'_id': ObjectId(session['user_id'])},
-            {'$set': updates}
-        )
-
+    users_collection.update_one({"_id": ObjectId(request.user_id)}, {"$set": data})
     return jsonify({'success': True})
 
-@app.route('/api/upload_profile_image', methods=['POST'])
-def api_upload_profile_image():
-    if not get_current_user():
-        return jsonify({'error': 'No autenticado'}), 401
-
-    if 'image' not in request.files:
-        return jsonify({'error': 'No se subió archivo'}), 400
-
-    file = request.files['image']
+@app.route('/api/update_profile_image', methods=['POST'])
+@token_required
+def update_profile_image():
+    if 'profile_image' not in request.files:
+        return jsonify({'error': 'No se proporcionó ninguna imagen'}), 400
+    
+    file = request.files['profile_image']
     if file.filename == '':
-        return jsonify({'error': 'Archivo no válido'}), 400
+        return jsonify({'error': 'No se seleccionó ningún archivo'}), 400
+    
+    if file and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        unique_filename = f"{request.user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}_{filename}"
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        file.save(file_path)
+        
+        image_url = url_for('static', filename=f'uploads/{unique_filename}', _external=True)
+        
+        users_collection.update_one({"_id": ObjectId(request.user_id)}, {"$set": {"profile_image": image_url}})
+        return jsonify({'success': True, 'image_url': image_url})
+    
+    return jsonify({'error': 'Formato de archivo no permitido'}), 400
 
-    # Guardar archivo localmente (en producción usa S3/Cloudinary)
-    os.makedirs('static/uploads', exist_ok=True)
-    filename = f"user_{session['user_id']}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.jpg"
-    filepath = os.path.join('static', 'uploads', filename)
-    file.save(filepath)
-
-    image_url = f'/static/uploads/{filename}'
-    users_collection.update_one(
-        {'_id': ObjectId(session['user_id'])},
-        {'$set': {'profile_image': image_url}}
-    )
-
-    return jsonify({
-        'success': True,
-        'imageUrl': image_url
+@app.route('/api/delete_chat/<chat_id>', methods=['DELETE'])
+@token_required
+def delete_chat(chat_id):
+    messages_collection.delete_many({
+        "$or": [
+            {"sender_id": request.user_id, "receiver_id": chat_id},
+            {"sender_id": chat_id, "receiver_id": request.user_id}
+        ]
     })
+    return jsonify({'success': True})
 
-# WebSocket Handlers
 @socketio.on('connect')
 def handle_connect():
-    user = get_current_user()
-    if user:
-        join_room(str(user['_id']))
-        users_collection.update_one(
-            {'_id': user['_id']},
-            {'$set': {'is_online': True, 'last_online': datetime.utcnow()}}
-        )
-        emit('user_status', {
-            'userId': str(user['_id']),
-            'isOnline': True,
-            'lastSeen': datetime.utcnow().strftime('%H:%M')
-        }, broadcast=True)
+    if 'Authorization' in request.headers:
+        token = request.headers['Authorization'].split(" ")[1]
+        try:
+            payload = jwt.decode(token, app.secret_key, algorithms=["HS256"])
+            join_room(payload['user_id'])
+            emit('user_status', {'userId': payload['user_id'], 'isOnline': True, 'lastSeen': datetime.now().strftime('%H:%M')}, broadcast=True)
+        except jwt.InvalidTokenError:
+            pass
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    user = get_current_user()
-    if user:
-        leave_room(str(user['_id']))
-        users_collection.update_one(
-            {'_id': user['_id']},
-            {'$set': {'is_online': False}}
-        )
-        emit('user_status', {
-            'userId': str(user['_id']),
-            'isOnline': False,
-            'lastSeen': datetime.utcnow().strftime('%H:%M')
-        }, broadcast=True)
+    if 'Authorization' in request.headers:
+        token = request.headers['Authorization'].split(" ")[1]
+        try:
+            payload = jwt.decode(token, app.secret_key, algorithms=["HS256"])
+            leave_room(payload['user_id'])
+            emit('user_status', {'userId': payload['user_id'], 'isOnline': False, 'lastSeen': datetime.now().strftime('%H:%M')}, broadcast=True)
+        except jwt.InvalidTokenError:
+            pass
 
 @socketio.on('send_message')
-def handle_send_message(data):
-    user = get_current_user()
-    if not user:
+def handle_message(data):
+    if 'Authorization' not in request.headers:
         return
-
+    token = request.headers['Authorization'].split(" ")[1]
+    payload = jwt.decode(token, app.secret_key, algorithms=["HS256"])
+    sender_id = payload['user_id']
+    
     message = {
-        'sender_id': user['_id'],
-        'receiver_id': ObjectId(data['receiver_id']),
-        'text': data['text'],
-        'timestamp': datetime.utcnow(),
-        'status': 'sent'
+        "sender_id": sender_id,
+        "receiver_id": data['receiver_id'],
+        "text": data['text'],
+        "timestamp": data['timestamp'],
+        "status": "sent",
+        "is_read": 0
     }
-
     result = messages_collection.insert_one(message)
     message['_id'] = str(result.inserted_id)
-    message['sender_id'] = str(user['_id'])
-    message['receiver_id'] = data['receiver_id']
-
-    emit('new_message', message, room=message['receiver_id'])
-    emit('new_message', message, room=str(user['_id']))
+    message['id'] = message['_id']
+    
+    emit('new_message', message, room=data['receiver_id'])
+    emit('new_message', message, room=sender_id)
 
 @socketio.on('create_group')
-def handle_create_group(data):
-    user = get_current_user()
-    if not user:
+def handle_group_creation(data):
+    if 'Authorization' not in request.headers:
         return
-
+    token = request.headers['Authorization'].split(" ")[1]
+    payload = jwt.decode(token, app.secret_key, algorithms=["HS256"])
+    creator_id = payload['user_id']
+    
     group_data = {
+        'id': data['id'],
         'name': data['name'],
-        'creator_id': user['_id'],
-        'members': [ObjectId(m) for m in data['members']] + [user['_id']],
-        'created_at': datetime.utcnow()
+        'creatorId': creator_id,
+        'members': data['members'],
+        'isGroup': True,
+        'lastMessage': 'Grupo creado',
+        'unreadCount': 0
     }
+    
+    for member_id in data['members']:
+        emit('new_chat', group_data, room=str(member_id))
 
-    result = groups_collection.insert_one(group_data)
-    group_id = str(result.inserted_id)
+@socketio.on('message_delivered')
+def handle_delivered(data):
+    messages_collection.update_one({"_id": ObjectId(data['messageId'])}, {"$set": {"status": "delivered"}})
+    emit('message_delivered', data, room=data['receiver_id'])
 
-    for member_id in group_data['members']:
-        emit('new_chat', {
-            'id': group_id,
-            'name': group_data['name'],
-            'isGroup': True,
-            'lastMessage': 'Grupo creado'
-        }, room=str(member_id))
+@socketio.on('message_read')
+def handle_read(data):
+    messages_collection.update_one({"_id": ObjectId(data['messageId'])}, {"$set": {"status": "read", "is_read": 1}})
+    emit('message_read', data, room=data['receiver_id'])
+
+@socketio.on('typing')
+def handle_typing(data):
+    emit('typing', data, room=str(data['chatId']))
+
+@socketio.on('profile_update')
+def handle_profile_update(data):
+    emit('profile_update', data, broadcast=True)
 
 if __name__ == '__main__':
+    if not os.path.exists(UPLOAD_FOLDER):
+        os.makedirs(UPLOAD_FOLDER)
     port = int(os.environ.get('PORT', 5000))
-    if os.environ.get('RENDER'):
-        socketio.run(app, host='0.0.0.0', port=port, debug=False)
-    else:
-        socketio.run(app, debug=True, port=port)
+    socketio.run(app, host='0.0.0.0', port=port, debug=False)
