@@ -1,131 +1,240 @@
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, status, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, UploadFile, File, Form, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
-from fastapi.security import OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
-from firebase_admin import credentials, firestore, initialize_app
-from pusher import Pusher
+from fastapi.middleware.cors import CORSMiddleware
+from mega import Mega
+import sqlite3
+import io
+import uuid
+import logging
+import secrets
 from datetime import datetime, timedelta
-import os
-import jwt
-import json
 from typing import Optional
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Firebase Initialization with error handling
-try:
-    firebase_config = json.loads(os.getenv("FIREBASE_CREDENTIALS", "{}"))
-    cred = credentials.Certificate(firebase_config)
-    firebase_app = initialize_app(cred)
-    db = firestore.client()
-    users_collection = db.collection('users')
-    messages_collection = db.collection('messages')
-except ValueError as e:
-    raise Exception(f"Failed to initialize Firebase: Invalid credentials - {str(e)}")
-except Exception as e:
-    raise Exception(f"Failed to initialize Firebase: {str(e)}")
-
-# Pusher Configuration
-pusher_client = Pusher(
-    app_id=os.getenv("PUSHER_APP_ID"),
-    key=os.getenv("PUSHER_KEY"),
-    secret=os.getenv("PUSHER_SECRET"),
-    cluster=os.getenv("PUSHER_CLUSTER"),
-    ssl=True
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")  # Fallback for local dev
-ALGORITHM = "HS256"
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Helper functions
-def sanitize_filename(filename: str) -> str:
-    keepcharacters = ('-', '_', '.')
-    return "".join(c for c in filename if c.isalnum() or c in keepcharacters).rstrip()
+# Configuración MEGA (usa variables de entorno en producción)
+mega = Mega().login('smorlando676@gmail.com', 'mO*061119')
+DB_NAME = "chat_app.db"
 
-async def get_current_user(token: str = Depends(oauth2_scheme)):
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections = {}
+        self.writing_status = {}
+        self.user_info = {}
+
+    async def update_presence(self, user_id: str, online: bool):
+        message = {
+            'type': 'presence',
+            'user_id': user_id,
+            'online': online,
+            'username': self.user_info.get(user_id, {}).get('username', ''),
+            'avatar': self.user_info.get(user_id, {}).get('avatar', '')
+        }
+        for uid, ws in list(self.active_connections.items()):
+            try: 
+                await ws.send_json(message)
+            except:
+                await self.disconnect(uid)
+
+    async def connect(self, websocket: WebSocket, user_id: str, username: str, avatar: str):
+        await websocket.accept()
+        self.active_connections[user_id] = websocket
+        self.user_info[user_id] = {'username': username, 'avatar': avatar}
+        await self.update_presence(user_id, True)
+
+    async def disconnect(self, user_id: str):
+        if user_id in self.active_connections:
+            del self.active_connections[user_id]
+            await self.update_presence(user_id, False)
+
+manager = ConnectionManager()
+
+def get_db_connection():
+    conn = sqlite3.connect(':memory:')
+    db_bytes = mega.download(mega.find(DB_NAME)) if mega.find(DB_NAME) else io.BytesIO()
+    if db_bytes.getbuffer().nbytes > 0:
+        conn.executescript(db_bytes.read().decode('utf-8'))
+    return conn
+
+def save_db(conn):
+    new_db = io.BytesIO()
+    conn.backup(sqlite3.connect(':memory:')).dump(new_db)
+    mega.upload(DB_NAME, new_db)
+
+@app.on_event("startup")
+def init_db():
+    conn = get_db_connection()
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id = payload.get("user_id")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token: No user_id found")
-        return {"user_id": user_id}
-    except jwt.ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token has expired")
-    except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            bio TEXT DEFAULT '',
+            profile_image TEXT DEFAULT '/static/default-avatar.png',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS tokens (
+            token TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            expires_at DATETIME NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )""")
+        save_db(conn)
+    finally:
+        conn.close()
 
-# Routes remain largely the same; only showing key changes for brevity
+@app.websocket("/ws/{user_id}")
+async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str):
+    conn = get_db_connection()
+    try:
+        if not conn.execute("SELECT 1 FROM tokens WHERE token = ? AND user_id = ? AND expires_at > datetime('now')", 
+                          (token, user_id)).fetchone():
+            await websocket.close(code=1008)
+            return
+        
+        user = conn.execute("SELECT username, profile_image FROM users WHERE id = ?", (user_id,)).fetchone()
+        if not user:
+            await websocket.close(code=1008)
+            return
+            
+        await manager.connect(websocket, user_id, user[0], user[1])
+        while True:
+            data = await websocket.receive_json()
+            if data['type'] == 'message':
+                message_id = str(uuid.uuid4())
+                conn.execute("INSERT INTO messages VALUES (?, ?, ?, ?, datetime('now'))",
+                           (message_id, user_id, data['receiver_id'], data['text']))
+                save_db(conn)
+                await manager.send_personal_message({
+                    'type': 'new_message',
+                    'id': message_id,
+                    'sender_id': user_id,
+                    'text': data['text'],
+                    'timestamp': datetime.now().isoformat()
+                }, data['receiver_id'])
+    except WebSocketDisconnect:
+        await manager.disconnect(user_id)
+    finally:
+        conn.close()
+
+@app.post("/register")
+async def register(username: str = Form(...), email: str = Form(...), password: str = Form(...)):
+    conn = get_db_connection()
+    try:
+        if conn.execute("SELECT 1 FROM users WHERE username = ? OR email = ?", (username, email)).fetchone():
+            raise HTTPException(400, detail="Usuario o email ya registrado")
+        
+        user_id = str(uuid.uuid4())
+        conn.execute("INSERT INTO users (id, username, email, password) VALUES (?, ?, ?, ?)",
+                   (user_id, username, email, password))
+        
+        token = secrets.token_hex(32)
+        conn.execute("INSERT INTO tokens VALUES (?, ?, datetime('now', '+7 days'))",
+                   (token, user_id))
+        
+        save_db(conn)
+        return {"token": token, "user_id": user_id}
+    finally:
+        conn.close()
+
+@app.post("/login")
+async def login(username: str = Form(...), password: str = Form(...)):
+    conn = get_db_connection()
+    try:
+        user = conn.execute("SELECT id, profile_image FROM users WHERE username = ? AND password = ?",
+                          (username, password)).fetchone()
+        if not user:
+            raise HTTPException(401, detail="Credenciales inválidas")
+        
+        token = secrets.token_hex(32)
+        conn.execute("INSERT OR REPLACE INTO tokens VALUES (?, ?, datetime('now', '+7 days'))",
+                   (token, user[0]))
+        
+        save_db(conn)
+        return {"token": token, "user_id": user[0], "profile_image": user[1]}
+    finally:
+        conn.close()
+
+@app.get("/api/profile")
+async def get_profile(user_id: str):
+    conn = get_db_connection()
+    try:
+        profile = conn.execute("""
+            SELECT username, email, bio, profile_image 
+            FROM users WHERE id = ?""", (user_id,)).fetchone()
+        return {
+            "username": profile[0],
+            "email": profile[1],
+            "bio": profile[2] or "",
+            "profile_image": profile[3]
+        }
+    finally:
+        conn.close()
+
+@app.post("/api/update-profile")
+async def update_profile(
+    user_id: str = Form(...),
+    username: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    bio: Optional[str] = Form(None)
+):
+    conn = get_db_connection()
+    try:
+        if username:
+            conn.execute("UPDATE users SET username = ? WHERE id = ?", (username, user_id))
+        if email:
+            conn.execute("UPDATE users SET email = ? WHERE id = ?", (email, user_id))
+        if bio:
+            conn.execute("UPDATE users SET bio = ? WHERE id = ?", (bio, user_id))
+        
+        save_db(conn)
+        return {"status": "success"}
+    finally:
+        conn.close()
+
+@app.post("/api/update-avatar")
+async def update_avatar(user_id: str = Form(...), file: UploadFile = File(...)):
+    if not file.content_type.startswith('image/'):
+        raise HTTPException(400, detail="Solo se permiten imágenes")
+    
+    file_path = f"static/avatars/{user_id}.jpg"
+    with open(file_path, "wb") as buffer:
+        buffer.write(await file.read())
+    
+    conn = get_db_connection()
+    try:
+        conn.execute("UPDATE users SET profile_image = ? WHERE id = ?", 
+                   (f"/{file_path}", user_id))
+        save_db(conn)
+        return {"profile_image": f"/{file_path}"}
+    finally:
+        conn.close()
+
 @app.get("/")
 async def root():
     return RedirectResponse(url="/login")
 
-@app.get("/login")
-async def login_page():
-    return FileResponse("templates/login.html")
-
 @app.get("/chat")
-async def chat_interface(current_user: dict = Depends(get_current_user)):
+async def chat_page():
     return FileResponse("templates/chat.html")
-
-@app.post("/login")
-async def auth_handler(
-    action: str = Form(...),
-    username: str = Form(...),
-    password: str = Form(...),
-    email: Optional[str] = Form(None)
-):
-    try:
-        if action == "login":
-            query = users_collection.where('username', '==', username).where('password', '==', password)
-            user_ref = list(query.stream())
-            
-            if not user_ref:
-                return JSONResponse({"error": "Incorrect credentials", "success": False}, status_code=401)
-            
-            user = user_ref[0].to_dict()
-            token = jwt.encode({
-                'user_id': user_ref[0].id,
-                'exp': datetime.utcnow() + timedelta(hours=1)
-            }, SECRET_KEY, algorithm=ALGORITHM)
-            
-            return JSONResponse({"token": token, "user_id": user_ref[0].id, "success": True})
-
-        elif action == "register":
-            if not email:
-                return JSONResponse({"error": "Email required", "success": False}, status_code=400)
-            
-            if list(users_collection.where('username', '==', username).stream()):
-                return JSONResponse({"error": "User already exists", "success": False}, status_code=400)
-            
-            user_data = {
-                "username": username,
-                "password": password,  # Note: In production, hash this!
-                "email": email,
-                "bio": "New user",
-                "phone": None,
-                "dob": None,
-                "profile_image": "https://www.svgrepo.com/show/452030/avatar-default.svg"
-            }
-            
-            user_ref = users_collection.document()
-            user_ref.set(user_data)
-            token = jwt.encode({
-                'user_id': user_ref.id,
-                'exp': datetime.utcnow() + timedelta(hours=1)
-            }, SECRET_KEY, algorithm=ALGORITHM)
-            
-            return JSONResponse({"token": token, "user_id": user_ref.id, "success": True})
-
-        return JSONResponse({"error": "Invalid action", "success": False}, status_code=400)
-    
-    except Exception as e:
-        return JSONResponse({"error": f"Server error: {str(e)}", "success": False}, status_code=500)
-
-# Other endpoints remain unchanged for this example...
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 5000))
-    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run(app, host="0.0.0.0", port=5000)
