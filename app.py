@@ -171,7 +171,7 @@ def handle_connect():
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    if 'Authorization' in request.headers 🙂:
+    if 'Authorization' in request.headers: # 🙂
         token = request.headers['Authorization'].split(" ")[1]
         try:
             payload = jwt.decode(token, app.secret_key, algorithms=["HS256"])
