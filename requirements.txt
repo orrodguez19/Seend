@@ -4,4 +4,3 @@ websockets==11.0.3
 mega.py==1.0.8
 python-multipart==0.0.6
 passlib==1.7.4
-sqlite3==3.39.4
