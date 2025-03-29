@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, sta
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
-from firebase_admin import credentials, firestore, initialize_app
+from firebase_admin import credentials, firestore, initialize_app, apps
 from pusher import Pusher
 from datetime import datetime, timedelta
 import os
@@ -13,14 +13,25 @@ from typing import Optional
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Configuración desde variables de entorno
-firebase_config = json.loads(os.getenv("FIREBASE_CREDENTIALS"))
-cred = credentials.Certificate(firebase_config)
-firebase_app = initialize_app(cred)
-db = firestore.client()
+# Configuración segura de Firebase
+def get_firebase_app():
+    if not apps:
+        firebase_config = json.loads(os.getenv("FIREBASE_CREDENTIALS"))
+        cred = credentials.Certificate(firebase_config)
+        return initialize_app(cred)
+    return apps[0]
+
+def get_firestore_db():
+    app = get_firebase_app()
+    return firestore.client(app)
+
+# Inicialización de servicios
+firebase_app = get_firebase_app()
+db = get_firestore_db()
 users_collection = db.collection('users')
 messages_collection = db.collection('messages')
 
+# Configuración de Pusher
 pusher_client = Pusher(
     app_id=os.getenv("PUSHER_APP_ID"),
     key=os.getenv("PUSHER_KEY"),
@@ -29,6 +40,7 @@ pusher_client = Pusher(
     ssl=True
 )
 
+# Configuración de autenticación
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -178,7 +190,6 @@ async def delete_chat(
     receiver_id: str,
     current_user: dict = Depends(get_current_user)
 ):
-    # Eliminar todos los mensajes entre los usuarios
     messages = messages_collection.where(
         "sender_id", "in", [current_user["user_id"], receiver_id]
     ).where(
@@ -223,10 +234,8 @@ async def update_profile(
 
 @app.delete("/api/delete_account")
 async def delete_account(current_user: dict = Depends(get_current_user)):
-    # Eliminar usuario y todos sus mensajes
     users_collection.document(current_user['user_id']).delete()
     
-    # Eliminar mensajes enviados y recibidos
     sent_messages = messages_collection.where("sender_id", "==", current_user['user_id']).stream()
     received_messages = messages_collection.where("receiver_id", "==", current_user['user_id']).stream()
     
@@ -246,4 +255,4 @@ async def logout():
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 5000))
-    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=False)
