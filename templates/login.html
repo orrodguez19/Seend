@@ -3,236 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seend - Iniciar Sesión</title>
-    
-    <!-- Fuentes -->
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap" rel="stylesheet">
-    
-    <!-- Favicon -->
-    <link rel="icon" href="{{ url_for('static', filename='images/favicon.ico') }}" type="image/x-icon">
-    
-    <!-- CSS -->
+    <meta name="username" content="{{ session['username'] if session['username'] else '' }}">
+    <title>Seend - Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    
-    <!-- Meta tags -->
-    <meta name="description" content="Inicia sesión en Seend, la app de mensajería instantánea">
-    <meta property="og:title" content="Seend - Iniciar Sesión">
-    <meta property="og:description" content="Conecta con tus amigos en tiempo real">
-    <meta property="og:image" content="{{ url_for('static', filename='images/og-image.jpg') }}">
-    <meta property="og:url" content="{{ url_for('login', _external=True) }}">
-    <meta name="twitter:card" content="summary_large_image">
-    
-    <style>
-        /* Estilos específicos para login */
-        .login-container {
-            max-width: 500px;
-            margin: 0 auto;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            min-height: 70vh;
-        }
-        
-        .login-header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        
-        .login-header h1 {
-            color: var(--primary-color);
-            margin-bottom: 10px;
-        }
-        
-        .login-form {
-            background-color: var(--card-bg);
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        
-        .login-form h3 {
-            text-align: center;
-            margin-bottom: 20px;
-            color: var(--primary-color);
-        }
-        
-        .login-form input {
-            width: 100%;
-            padding: 12px 15px;
-            margin-bottom: 15px;
-            border: 1px solid var(--primary-lighter);
-            border-radius: 8px;
-            font-size: 1rem;
-            transition: all 0.3s;
-        }
-        
-        .login-form input:focus {
-            border-color: var(--primary-light);
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(66, 165, 245, 0.2);
-        }
-        
-        .login-form button {
-            width: 100%;
-            padding: 12px;
-            background-color: var(--primary-light);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .login-form button:hover {
-            background-color: var(--primary-color);
-        }
-        
-        .login-form button.cancel {
-            background-color: var(--error-color);
-            margin-top: 10px;
-        }
-        
-        .login-form button.cancel:hover {
-            background-color: var(--error-dark);
-        }
-        
-        .form-footer {
-            text-align: center;
-            margin-top: 20px;
-            color: var(--text-secondary);
-        }
-        
-        @media (max-width: 600px) {
-            .login-form {
-                padding: 20px;
-            }
-        }
-    </style>
 </head>
 <body>
     <div class="app-container">
         <header>
             <h2>Seend</h2>
         </header>
-        
-        <div class="login-container">
-            <div class="login-header">
-                <h1>¡Bienvenido a Seend!</h1>
-                <p>Conecta con amigos, comparte momentos y disfruta de una experiencia única.</p>
-            </div>
-            
-            <div class="login-form">
+        <div class="welcome-message">
+            <h1>¡Bienvenido a Seend!</h1>
+            <p>Conecta con amigos, comparte momentos y disfruta de una experiencia única.</p>
+        </div>
+        <div class="screen active" id="screen-login">
+            <div class="group-form">
                 <h3>Iniciar Sesión o Registrarse</h3>
-                
                 {% if error %}
                     <p class="error-message">{{ error }}</p>
                 {% endif %}
-                
-                <form method="POST" id="authForm">
-                    <input type="text" 
-                           name="username" 
-                           placeholder="Usuario" 
-                           required
-                           aria-label="Nombre de usuario">
-                    
-                    <input type="password" 
-                           name="password" 
-                           placeholder="Contraseña" 
-                           required
-                           aria-label="Contraseña">
-                    
-                    <input type="email" 
-                           name="email" 
-                           placeholder="Email (solo registro)" 
-                           id="emailField"
-                           aria-label="Email">
-                    
-                    <button type="submit" 
-                            name="action" 
-                            value="login"
-                            aria-label="Iniciar sesión">
-                        Iniciar Sesión
-                    </button>
-                    
-                    <button type="submit" 
-                            name="action" 
-                            value="register" 
-                            class="cancel"
-                            aria-label="Registrarse">
-                        Registrarse
-                    </button>
+                <form id="authForm" method="POST">
+                    <div class="form-group">
+                        <input type="text" name="username" placeholder="Usuario" required>
+                    </div>
+                    <div class="form-group">
+                        <input type="password" name="password" placeholder="Contraseña" required>
+                    </div>
+                    <div class="form-group" id="emailGroup" style="display: none;">
+                        <input type="email" name="email" id="emailField" placeholder="Email">
+                    </div>
+                    <div class="button-group">
+                        <button type="submit" name="action" value="login" id="loginBtn">Iniciar Sesión</button>
+                        <button type="button" id="toggleRegister">Registrarse</button>
+                    </div>
                 </form>
-                
-                <div class="form-footer">
-                    <p>Al continuar, aceptas nuestros <a href="#">Términos</a> y <a href="#">Privacidad</a></p>
-                </div>
             </div>
         </div>
     </div>
-
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            const form = document.getElementById('authForm');
+            const emailGroup = document.getElementById('emailGroup');
             const emailField = document.getElementById('emailField');
-            const authForm = document.getElementById('authForm');
-            const registerBtn = document.querySelector('button[value="register"]');
-            const loginBtn = document.querySelector('button[value="login"]');
-            
-            // Configuración inicial
-            emailField.style.display = 'none';
-            emailField.required = false;
-            
-            // Manejo del formulario
-            registerBtn.addEventListener('click', () => {
-                emailField.style.display = 'block';
-                emailField.required = true;
+            const loginBtn = document.getElementById('loginBtn');
+            const toggleRegisterBtn = document.getElementById('toggleRegister');
+            let isRegisterMode = false;
+
+            toggleRegisterBtn.addEventListener('click', () => {
+                isRegisterMode = !isRegisterMode;
+                if (isRegisterMode) {
+                    emailGroup.style.display = 'block';
+                    emailField.required = true;
+                    toggleRegisterBtn.textContent = 'Iniciar Sesión';
+                    loginBtn.textContent = 'Registrarse';
+                    loginBtn.name = 'action';
+                    loginBtn.value = 'register';
+                } else {
+                    emailGroup.style.display = 'none';
+                    emailField.required = false;
+                    toggleRegisterBtn.textContent = 'Registrarse';
+                    loginBtn.textContent = 'Iniciar Sesión';
+                    loginBtn.name = 'action';
+                    loginBtn.value = 'login';
+                }
             });
-            
-            loginBtn.addEventListener('click', () => {
-                emailField.style.display = 'none';
-                emailField.required = false;
-            });
-            
-            // Validación del formulario
-            authForm.addEventListener('submit', (e) => {
-                const username = e.target.username.value.trim();
-                const password = e.target.password.value.trim();
-                
-                if (!username || !password) {
+
+            form.addEventListener('submit', (e) => {
+                if (!form.checkValidity()) {
                     e.preventDefault();
-                    alert('Por favor completa todos los campos');
-                    return;
+                    alert('Por favor, completa todos los campos requeridos correctamente.');
                 }
-                
-                if (e.submitter.value === 'register') {
-                    const email = e.target.email.value.trim();
-                    if (!email) {
-                        e.preventDefault();
-                        alert('Por favor ingresa un email válido');
-                        return;
-                    }
-                }
-            });
-            
-            // Mostrar/ocultar contraseña (opcional)
-            const passwordField = document.querySelector('input[name="password"]');
-            const togglePassword = document.createElement('span');
-            togglePassword.innerHTML = '💭';
-            togglePassword.style.position = 'absolute';
-            togglePassword.style.right = '15px';
-            togglePassword.style.top = '50%';
-            togglePassword.style.transform = 'translateY(-50%)';
-            togglePassword.style.cursor = 'pointer';
-            
-            passwordField.style.position = 'relative';
-            passwordField.parentNode.insertBefore(togglePassword, passwordField.nextSibling);
-            
-            togglePassword.addEventListener('click', () => {
-                const type = passwordField.getAttribute('type') === 'password' ? 'text' : 'password';
-                passwordField.setAttribute('type', type);
             });
         });
     </script>
 </body>
-    </html>
+</html>
