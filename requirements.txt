@@ -1,6 +1,6 @@
 fastapi==0.109.1
 uvicorn==0.27.0
 python-multipart==0.0.6
-mega.py==1.1.0
+megasync==4.9.6
 psycopg2-binary==2.9.9
 python-dotenv==1.0.1
