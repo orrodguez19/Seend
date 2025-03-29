@@ -33,17 +33,20 @@ def token_required(f):
     def decorated(*args, **kwargs):
         token = request.headers.get('Authorization')
         if not token or not token.startswith('Bearer '):
-            return jsonify({'error': 'Token requerido'}), 401
+            # Redirigir a login si no hay token o no es Bearer
+            return redirect(url_for('login'))
         try:
             token = token.split(" ")[1]
             payload = jwt.decode(token, app.secret_key, algorithms=["HS256"])
             request.user_id = payload['user_id']
         except jwt.InvalidTokenError:
-            return jsonify({'error': 'Token inválido'}), 401
+            # Redirigir a login si el token es inválido
+            return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated
 
 @app.route('/')
+@token_required
 def index():
     return render_template('chat.html')
 
@@ -51,6 +54,9 @@ def index():
 def login():
     if request.method == 'POST':
         try:
+            if 'action' not in request.form or 'username' not in request.form or 'password' not in request.form:
+                return jsonify({'error': 'Faltan campos requeridos: action, username o password', 'success': False}), 400
+            
             action = request.form['action']
             username = request.form['username']
             password = request.form['password']
@@ -62,6 +68,8 @@ def login():
                     return jsonify({'token': token, 'user_id': str(user['_id']), 'success': True})
                 return jsonify({'error': 'Usuario o contraseña incorrectos', 'success': False}), 401
             elif action == 'register':
+                if 'email' not in request.form:
+                    return jsonify({'error': 'El campo email es requerido para registro', 'success': False}), 400
                 email = request.form['email']
                 if users_collection.find_one({"username": username}):
                     return jsonify({'error': 'El usuario ya existe', 'success': False}), 400
@@ -77,6 +85,8 @@ def login():
                 result = users_collection.insert_one(user)
                 token = jwt.encode({'user_id': str(result.inserted_id), 'exp': int(datetime.utcnow().timestamp() + 3600)}, app.secret_key, algorithm="HS256")
                 return jsonify({'token': token, 'user_id': str(result.inserted_id), 'success': True})
+            else:
+                return jsonify({'error': 'Acción inválida', 'success': False}), 400
         except Exception as e:
             return jsonify({'error': f'Error del servidor: {str(e)}', 'success': False}), 500
     return render_template('login.html')
@@ -246,7 +256,6 @@ def handle_profile_update(data):
     emit('profile_update', data, broadcast=True)
 
 if __name__ == '__main__':
-    # Esto solo se ejecuta si corres el archivo directamente (desarrollo local)
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
     port = int(os.environ.get('PORT', 5000))
