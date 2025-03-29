@@ -1,32 +1,5 @@
-# Core FastAPI
-fastapi==0.112.0
-uvicorn==0.34.0
-python-multipart==0.0.9
-
-# Autenticación
-python-jose==3.3.0
-passlib==1.7.4
-PyJWT==2.8.0
-
-# Firebase
+fastapi==0.110.0
+uvicorn==0.29.0
 firebase-admin==6.5.0
-google-cloud-firestore==2.15.0
-google-api-core==2.17.0
-grpcio==1.62.0
-grpcio-status==1.62.0
-
-# Pusher
 pusher==3.3.2
-
-# Utilidades
-python-dotenv==1.0.1
-python-dateutil==2.9.0
-requests==2.32.0
-six==1.16.0
-typing-extensions==4.10.0
-
-# Procesamiento de imágenes
-Pillow==10.2.0
-
-# Seguridad
-cryptography==42.0.5
+pyjwt==2.8.0
