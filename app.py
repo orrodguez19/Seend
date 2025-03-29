@@ -3,13 +3,14 @@ from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from mega import Mega
-import sqlite3
 import io
 import uuid
 import logging
 import secrets
 from datetime import datetime, timedelta
 from typing import Optional
+from psycopg2 import pool
+from psycopg2.extras import RealDictCursor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -29,6 +30,25 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 # Configuración MEGA (usa variables de entorno en producción)
 mega = Mega().login('smorlando676@gmail.com', 'mO*061119')
 DB_NAME = "chat_app.db"
+
+# Pool de conexiones PostgreSQL
+postgresql_pool = pool.SimpleConnectionPool(
+    minconn=1,
+    maxconn=10,
+    host="dpg-cvk4cc8dl3ps73fomqq0-a",
+    database="seend",
+    user="seend_user",
+    password="0pXiVWU99WyqRu39J0HcNESGIp5xTeQM",
+    port="5432"
+)
+
+def get_db_connection():
+    conn = postgresql_pool.getconn()
+    conn.autocommit = True
+    return conn
+
+def close_db_connection(conn):
+    postgresql_pool.putconn(conn)
 
 class ConnectionManager:
     def __init__(self):
@@ -63,130 +83,147 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-def get_db_connection():
-    conn = sqlite3.connect(':memory:')
-    db_bytes = mega.download(mega.find(DB_NAME)) if mega.find(DB_NAME) else io.BytesIO()
-    if db_bytes.getbuffer().nbytes > 0:
-        conn.executescript(db_bytes.read().decode('utf-8'))
-    return conn
-
-def save_db(conn):
-    new_db = io.BytesIO()
-    conn.backup(sqlite3.connect(':memory:')).dump(new_db)
-    mega.upload(DB_NAME, new_db)
-
 @app.on_event("startup")
 def init_db():
     conn = get_db_connection()
     try:
-        conn.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            bio TEXT DEFAULT '',
-            profile_image TEXT DEFAULT '/static/default-avatar.png',
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
-        conn.execute("""
-        CREATE TABLE IF NOT EXISTS tokens (
-            token TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            expires_at DATETIME NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )""")
-        save_db(conn)
+        with conn.cursor() as cursor:
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id TEXT PRIMARY KEY,
+                username TEXT UNIQUE NOT NULL,
+                email TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                bio TEXT DEFAULT '',
+                profile_image TEXT DEFAULT '/static/default-avatar.png',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )""")
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS tokens (
+                token TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                expires_at TIMESTAMP NOT NULL,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )""")
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id TEXT PRIMARY KEY,
+                sender_id TEXT NOT NULL,
+                receiver_id TEXT NOT NULL,
+                text TEXT NOT NULL,
+                timestamp TIMESTAMP NOT NULL,
+                FOREIGN KEY(sender_id) REFERENCES users(id),
+                FOREIGN KEY(receiver_id) REFERENCES users(id)
+            )""")
     finally:
-        conn.close()
+        close_db_connection(conn)
 
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str):
     conn = get_db_connection()
     try:
-        if not conn.execute("SELECT 1 FROM tokens WHERE token = ? AND user_id = ? AND expires_at > datetime('now')", 
-                          (token, user_id)).fetchone():
-            await websocket.close(code=1008)
-            return
-        
-        user = conn.execute("SELECT username, profile_image FROM users WHERE id = ?", (user_id,)).fetchone()
-        if not user:
-            await websocket.close(code=1008)
-            return
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT 1 FROM tokens WHERE token = %s AND user_id = %s AND expires_at > NOW()", 
+                         (token, user_id))
+            if not cursor.fetchone():
+                await websocket.close(code=1008)
+                return
             
-        await manager.connect(websocket, user_id, user[0], user[1])
-        while True:
-            data = await websocket.receive_json()
-            if data['type'] == 'message':
-                message_id = str(uuid.uuid4())
-                conn.execute("INSERT INTO messages VALUES (?, ?, ?, ?, datetime('now'))",
-                           (message_id, user_id, data['receiver_id'], data['text']))
-                save_db(conn)
-                await manager.send_personal_message({
-                    'type': 'new_message',
-                    'id': message_id,
-                    'sender_id': user_id,
-                    'text': data['text'],
-                    'timestamp': datetime.now().isoformat()
-                }, data['receiver_id'])
+            cursor.execute("SELECT username, profile_image FROM users WHERE id = %s", (user_id,))
+            user = cursor.fetchone()
+            if not user:
+                await websocket.close(code=1008)
+                return
+                
+            await manager.connect(websocket, user_id, user[0], user[1])
+            while True:
+                data = await websocket.receive_json()
+                if data['type'] == 'message':
+                    message_id = str(uuid.uuid4())
+                    cursor.execute("""
+                        INSERT INTO messages (id, sender_id, receiver_id, text, timestamp)
+                        VALUES (%s, %s, %s, %s, NOW())
+                    """, (message_id, user_id, data['receiver_id'], data['text']))
+                    await manager.send_personal_message({
+                        'type': 'new_message',
+                        'id': message_id,
+                        'sender_id': user_id,
+                        'text': data['text'],
+                        'timestamp': datetime.now().isoformat()
+                    }, data['receiver_id'])
     except WebSocketDisconnect:
         await manager.disconnect(user_id)
     finally:
-        conn.close()
+        close_db_connection(conn)
 
 @app.post("/register")
 async def register(username: str = Form(...), email: str = Form(...), password: str = Form(...)):
     conn = get_db_connection()
     try:
-        if conn.execute("SELECT 1 FROM users WHERE username = ? OR email = ?", (username, email)).fetchone():
-            raise HTTPException(400, detail="Usuario o email ya registrado")
-        
-        user_id = str(uuid.uuid4())
-        conn.execute("INSERT INTO users (id, username, email, password) VALUES (?, ?, ?, ?)",
-                   (user_id, username, email, password))
-        
-        token = secrets.token_hex(32)
-        conn.execute("INSERT INTO tokens VALUES (?, ?, datetime('now', '+7 days'))",
-                   (token, user_id))
-        
-        save_db(conn)
-        return {"token": token, "user_id": user_id}
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT 1 FROM users WHERE username = %s OR email = %s", (username, email))
+            if cursor.fetchone():
+                raise HTTPException(400, detail="Usuario o email ya registrado")
+            
+            user_id = str(uuid.uuid4())
+            cursor.execute("""
+                INSERT INTO users (id, username, email, password)
+                VALUES (%s, %s, %s, %s)
+            """, (user_id, username, email, password))
+            
+            token = secrets.token_hex(32)
+            cursor.execute("""
+                INSERT INTO tokens (token, user_id, expires_at)
+                VALUES (%s, %s, NOW() + INTERVAL '7 days')
+            """, (token, user_id))
+            
+            return {"token": token, "user_id": user_id}
     finally:
-        conn.close()
+        close_db_connection(conn)
 
 @app.post("/login")
 async def login(username: str = Form(...), password: str = Form(...)):
     conn = get_db_connection()
     try:
-        user = conn.execute("SELECT id, profile_image FROM users WHERE username = ? AND password = ?",
-                          (username, password)).fetchone()
-        if not user:
-            raise HTTPException(401, detail="Credenciales inválidas")
-        
-        token = secrets.token_hex(32)
-        conn.execute("INSERT OR REPLACE INTO tokens VALUES (?, ?, datetime('now', '+7 days'))",
-                   (token, user[0]))
-        
-        save_db(conn)
-        return {"token": token, "user_id": user[0], "profile_image": user[1]}
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT id, profile_image FROM users 
+                WHERE username = %s AND password = %s
+            """, (username, password))
+            user = cursor.fetchone()
+            if not user:
+                raise HTTPException(401, detail="Credenciales inválidas")
+            
+            token = secrets.token_hex(32)
+            cursor.execute("""
+                INSERT INTO tokens (token, user_id, expires_at)
+                VALUES (%s, %s, NOW() + INTERVAL '7 days')
+                ON CONFLICT (token) DO UPDATE
+                SET expires_at = NOW() + INTERVAL '7 days'
+            """, (token, user[0]))
+            
+            return {"token": token, "user_id": user[0], "profile_image": user[1]}
     finally:
-        conn.close()
+        close_db_connection(conn)
 
 @app.get("/api/profile")
 async def get_profile(user_id: str):
     conn = get_db_connection()
     try:
-        profile = conn.execute("""
-            SELECT username, email, bio, profile_image 
-            FROM users WHERE id = ?""", (user_id,)).fetchone()
-        return {
-            "username": profile[0],
-            "email": profile[1],
-            "bio": profile[2] or "",
-            "profile_image": profile[3]
-        }
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                SELECT username, email, bio, profile_image 
+                FROM users WHERE id = %s
+            """, (user_id,))
+            profile = cursor.fetchone()
+            return {
+                "username": profile[0],
+                "email": profile[1],
+                "bio": profile[2] or "",
+                "profile_image": profile[3]
+            }
     finally:
-        conn.close()
+        close_db_connection(conn)
 
 @app.post("/api/update-profile")
 async def update_profile(
@@ -197,17 +234,17 @@ async def update_profile(
 ):
     conn = get_db_connection()
     try:
-        if username:
-            conn.execute("UPDATE users SET username = ? WHERE id = ?", (username, user_id))
-        if email:
-            conn.execute("UPDATE users SET email = ? WHERE id = ?", (email, user_id))
-        if bio:
-            conn.execute("UPDATE users SET bio = ? WHERE id = ?", (bio, user_id))
-        
-        save_db(conn)
-        return {"status": "success"}
+        with conn.cursor() as cursor:
+            if username:
+                cursor.execute("UPDATE users SET username = %s WHERE id = %s", (username, user_id))
+            if email:
+                cursor.execute("UPDATE users SET email = %s WHERE id = %s", (email, user_id))
+            if bio:
+                cursor.execute("UPDATE users SET bio = %s WHERE id = %s", (bio, user_id))
+            
+            return {"status": "success"}
     finally:
-        conn.close()
+        close_db_connection(conn)
 
 @app.post("/api/update-avatar")
 async def update_avatar(user_id: str = Form(...), file: UploadFile = File(...)):
@@ -220,12 +257,14 @@ async def update_avatar(user_id: str = Form(...), file: UploadFile = File(...)):
     
     conn = get_db_connection()
     try:
-        conn.execute("UPDATE users SET profile_image = ? WHERE id = ?", 
-                   (f"/{file_path}", user_id))
-        save_db(conn)
-        return {"profile_image": f"/{file_path}"}
+        with conn.cursor() as cursor:
+            cursor.execute("""
+                UPDATE users SET profile_image = %s 
+                WHERE id = %s
+            """, (f"/{file_path}", user_id))
+            return {"profile_image": f"/{file_path}"}
     finally:
-        conn.close()
+        close_db_connection(conn)
 
 @app.get("/")
 async def root():
