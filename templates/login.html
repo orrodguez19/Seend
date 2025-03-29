@@ -3,10 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="username" content="{{ session['username'] if session['username'] else '' }}">
     <title>Seend - Login</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <!-- Add SocketIO script -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -15,65 +16,81 @@
         </header>
         <div class="welcome-message">
             <h1>¡Bienvenido a Seend!</h1>
-            <p>Conecta con amigos, comparte momentos y disfruta de una experiencia única.</p>
         </div>
-        <div class="screen active" id="screen-login">
-            <div class="group-form">
-                <h3>Iniciar Sesión o Registrarse</h3>
-                {% if error %}
-                    <p class="error-message">{{ error }}</p>
-                {% endif %}
-                <form id="authForm" method="POST">
-                    <div class="form-group">
-                        <input type="text" name="username" placeholder="Usuario" required>
-                    </div>
-                    <div class="form-group">
-                        <input type="password" name="password" placeholder="Contraseña" required>
-                    </div>
-                    <div class="form-group" id="emailGroup" style="display: none;">
-                        <input type="email" name="email" id="emailField" placeholder="Email">
-                    </div>
-                    <div class="button-group">
-                        <button type="submit" name="action" value="login" id="loginBtn">Iniciar Sesión</button>
-                        <button type="button" id="toggleRegister">Registrarse</button>
-                    </div>
-                </form>
-            </div>
+        <div class="group-form active">
+            <h3>Iniciar Sesión o Registrarse</h3>
+            {% if error %}
+                <p class="error-message">{{ error }}</p>
+            {% endif %}
+            <form id="authForm" method="POST">
+                <input type="text" name="username" placeholder="Usuario" required>
+                <input type="password" name="password" placeholder="Contraseña" required>
+                <input type="email" name="email" placeholder="Email (solo registro)" id="emailField" style="display: none;">
+                <button type="submit" name="action" value="login" id="loginBtn">Iniciar Sesión</button>
+                <button type="submit" name="action" value="register" class="cancel" id="registerBtn">Registrarse</button>
+            </form>
         </div>
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const form = document.getElementById('authForm');
-            const emailGroup = document.getElementById('emailGroup');
             const emailField = document.getElementById('emailField');
+            const authForm = document.getElementById('authForm');
             const loginBtn = document.getElementById('loginBtn');
-            const toggleRegisterBtn = document.getElementById('toggleRegister');
-            let isRegisterMode = false;
+            const registerBtn = document.getElementById('registerBtn');
 
-            toggleRegisterBtn.addEventListener('click', () => {
-                isRegisterMode = !isRegisterMode;
-                if (isRegisterMode) {
-                    emailGroup.style.display = 'block';
+            // Handle form submission
+            authForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const formData = new FormData(authForm);
+                const action = e.submitter.value;
+                
+                if (action === 'register') {
+                    emailField.style.display = 'block';
                     emailField.required = true;
-                    toggleRegisterBtn.textContent = 'Iniciar Sesión';
-                    loginBtn.textContent = 'Registrarse';
-                    loginBtn.name = 'action';
-                    loginBtn.value = 'register';
                 } else {
-                    emailGroup.style.display = 'none';
+                    emailField.style.display = 'none';
                     emailField.required = false;
-                    toggleRegisterBtn.textContent = 'Registrarse';
-                    loginBtn.textContent = 'Iniciar Sesión';
-                    loginBtn.name = 'action';
-                    loginBtn.value = 'login';
+                }
+
+                try {
+                    const response = await fetch('/login', {
+                        method: 'POST',
+                        body: formData
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (data.token) {
+                            // Store token and user_id in localStorage
+                            localStorage.setItem('token', data.token);
+                            localStorage.setItem('user_id', data.user_id);
+                            // Redirect to chat page
+                            window.location.href = '/';
+                        }
+                    } else {
+                        const errorData = await response.text();
+                        // If it's HTML, it means login failed with error message
+                        if (errorData.includes('<html')) {
+                            document.querySelector('.error-message').textContent = 
+                                'Usuario o contraseña incorrectos';
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    document.querySelector('.error-message').textContent = 
+                        'Error al conectar con el servidor';
                 }
             });
 
-            form.addEventListener('submit', (e) => {
-                if (!form.checkValidity()) {
-                    e.preventDefault();
-                    alert('Por favor, completa todos los campos requeridos correctamente.');
-                }
+            // Toggle email field visibility
+            registerBtn.addEventListener('click', () => {
+                emailField.style.display = 'block';
+                emailField.required = true;
+            });
+
+            loginBtn.addEventListener('click', () => {
+                emailField.style.display = 'none';
+                emailField.required = false;
             });
         });
     </script>
