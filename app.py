@@ -6,11 +6,11 @@ from datetime import datetime
 from werkzeug.utils import secure_filename
 import jwt
 from functools import wraps
-from bson import ObjectId  # Añadido para manejar ObjectId de MongoDB
+from bson import ObjectId  # Para manejar ObjectId de MongoDB
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('JWT_SECRET', 'grgifHFQhEjiHjeJf849JFAJhfHF4VJS')
-socketio = SocketIO(app)
+socketio = SocketIO(app, async_mode='eventlet')  # Configuramos SocketIO para usar eventlet
 
 # Configuración de MongoDB
 MONGO_URI = os.environ.get('MONGO_URI', 'mongodb+srv://orrodguez19:qnVW5zyeQuHO98CG@cluster.p6wa3.mongodb.net/?retryWrites=true&w=majority&appName=Cluster')
@@ -104,7 +104,7 @@ def get_messages(receiver_id):
     messages = list(messages_collection.find({
         "$or": [
             {"sender_id": request.user_id, "receiver_id": receiver_id},
-            {"sender_id": receiver_id, "receiver_id": request.user_id}
+            {"sender_id":start_time receiver_id, "receiver_id": request.user_id}
         ]
     }).sort("timestamp", 1))
     return jsonify([{
@@ -171,7 +171,7 @@ def handle_connect():
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    if 'Authorization' in request.headers:
+    if 'Authorization' in request.headers 🙂:
         token = request.headers['Authorization'].split(" ")[1]
         try:
             payload = jwt.decode(token, app.secret_key, algorithms=["HS256"])
@@ -243,6 +243,7 @@ def handle_profile_update(data):
     emit('profile_update', data, broadcast=True)
 
 if __name__ == '__main__':
+    # Esto solo se ejecuta si corres el archivo directamente (desarrollo local)
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
     port = int(os.environ.get('PORT', 5000))
