@@ -7,46 +7,54 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/styles.css">
 </head>
-<body class="bg-gray-100 flex items-center justify-center h-screen">
-    <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
-        <h1 class="text-2xl font-semibold text-center text-blue-900 mb-6">Seend</h1>
-        <form id="authForm" method="POST" class="space-y-4">
-            <input type="text" name="username" placeholder="Usuario" class="w-full p-3 border rounded-md" required>
-            <input type="password" name="password" placeholder="Contraseña" class="w-full p-3 border rounded-md" required>
-            <input type="email" name="email" placeholder="Email (solo registro)" id="emailField" class="w-full p-3 border rounded-md hidden">
-            <button type="submit" name="action" value="login" id="loginBtn" class="w-full bg-blue-600 text-white p-3 rounded-md hover:bg-blue-700">Iniciar Sesión</button>
-            <button type="submit" name="action" value="register" id="registerBtn" class="w-full bg-gray-200 text-blue-900 p-3 rounded-md hover:bg-gray-300">Registrarse</button>
+<body class="auth-body">
+    <div class="auth-container">
+        <h1 class="auth-title">Seend</h1>
+        <form id="authForm" class="auth-form">
+            <input type="text" id="username" placeholder="Usuario" required>
+            <input type="password" id="password" placeholder="Contraseña" required>
+            <input type="email" id="email" placeholder="Email" class="hidden">
+            <div class="auth-buttons">
+                <button type="button" id="loginBtn" class="btn-primary">Iniciar Sesión</button>
+                <button type="button" id="registerBtn" class="btn-secondary">Registrarse</button>
+            </div>
         </form>
-        <p id="error" class="text-red-500 text-center mt-4 hidden"></p>
+        <p id="errorMsg" class="error-message hidden"></p>
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const emailField = document.getElementById('emailField');
-            const authForm = document.getElementById('authForm');
-            const errorElement = document.getElementById('error');
+            const emailField = document.getElementById('email');
+            const loginBtn = document.getElementById('loginBtn');
+            const registerBtn = document.getElementById('registerBtn');
+            const errorMsg = document.getElementById('errorMsg');
 
-            // Verificar si ya está autenticado
-            if (localStorage.getItem('token')) {
-                window.location.href = '/chat';
-                return;
-            }
+            // Cambiar entre login/registro
+            registerBtn.addEventListener('click', () => {
+                emailField.classList.remove('hidden');
+                loginBtn.classList.add('hidden');
+                registerBtn.textContent = 'Crear Cuenta';
+                registerBtn.classList.replace('btn-secondary', 'btn-primary');
+            });
 
-            authForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const formData = new FormData(authForm);
-                const action = e.submitter.value;
-                
-                // Mostrar/ocultar campo de email según acción
-                if (action === 'register') {
-                    emailField.classList.remove('hidden');
-                    emailField.required = true;
-                } else {
-                    emailField.classList.add('hidden');
-                    emailField.required = false;
+            // Manejador de autenticación
+            const handleAuth = async (isRegister) => {
+                const username = document.getElementById('username').value.trim();
+                const password = document.getElementById('password').value.trim();
+                const email = isRegister ? document.getElementById('email').value.trim() : null;
+
+                if (!username || !password || (isRegister && !email)) {
+                    showError('Todos los campos son requeridos');
+                    return;
                 }
 
                 try {
-                    const response = await fetch('/login', {
+                    const endpoint = isRegister ? '/register' : '/login';
+                    const formData = new FormData();
+                    formData.append('username', username);
+                    formData.append('password', password);
+                    if (isRegister) formData.append('email', email);
+
+                    const response = await fetch(endpoint, {
                         method: 'POST',
                         body: formData
                     });
@@ -54,29 +62,28 @@
                     const data = await response.json();
 
                     if (!response.ok) {
-                        throw new Error(data.error || 'Error desconocido');
+                        throw new Error(data.detail || 'Error en la autenticación');
                     }
 
-                    if (data.success) {
-                        localStorage.setItem('token', data.token);
-                        localStorage.setItem('user_id', data.user_id);
-                        window.location.href = '/chat';
-                    } else {
-                        showError(data.error || 'Error en la autenticación');
-                    }
+                    localStorage.setItem('token', data.token);
+                    localStorage.setItem('user_id', data.user_id);
+                    window.location.href = '/chat';
                 } catch (error) {
-                    showError(error.message || 'Error al conectar con el servidor');
+                    showError(error.message);
                 }
-            });
+            };
 
-            function showError(message) {
-                errorElement.textContent = message;
-                errorElement.classList.remove('hidden');
-                setTimeout(() => {
-                    errorElement.classList.add('hidden');
-                }, 5000);
-            }
+            // Event listeners
+            loginBtn.addEventListener('click', () => handleAuth(false));
+            registerBtn.addEventListener('click', () => handleAuth(true));
+
+            // Mostrar errores
+            const showError = (message) => {
+                errorMsg.textContent = message;
+                errorMsg.classList.remove('hidden');
+                setTimeout(() => errorMsg.classList.add('hidden'), 5000);
+            };
         });
     </script>
 </body>
-                </html>
+</html>
