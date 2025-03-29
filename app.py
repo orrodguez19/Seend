@@ -6,6 +6,7 @@ from datetime import datetime
 from werkzeug.utils import secure_filename
 import jwt
 from functools import wraps
+from bson import ObjectId  # Añadido para manejar ObjectId de MongoDB
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('JWT_SECRET', 'grgifHFQhEjiHjeJf849JFAJhfHF4VJS')
@@ -65,7 +66,7 @@ def login():
                 return render_template('login.html', error="El usuario ya existe")
             user = {
                 "username": username,
-                "password": password,  # En producción, usa hashing
+                "password": password,  # En producción, usa hashing como bcrypt
                 "email": email,
                 "bio": "Usuario nuevo",
                 "phone": None,
@@ -245,4 +246,4 @@ if __name__ == '__main__':
     if not os.path.exists(UPLOAD_FOLDER):
         os.makedirs(UPLOAD_FOLDER)
     port = int(os.environ.get('PORT', 5000))
-    socketio.run(app, host='0.0.0.0', port=port, depuración=False, allow_unsafe_werkzeug=True)
+    socketio.run(app, host='0.0.0.0', port=port)
