@@ -57,7 +57,7 @@ def login():
         if action == 'login':
             user = users_collection.find_one({"username": username, "password": password})
             if user:
-                token = jwt.encode({'user_id': str(user['_id']), 'exp': datetime.utcnow().timestamp() + 3600}, app.secret_key, algorithm="HS256")
+                token = jwt.encode({'user_id': str(user['_id']), 'exp': int(datetime.utcnow().timestamp() + 3600)}, app.secret_key, algorithm="HS256")
                 return jsonify({'token': token, 'user_id': str(user['_id'])})
             return render_template('login.html', error="Usuario o contraseña incorrectos")
         elif action == 'register':
@@ -74,7 +74,7 @@ def login():
                 "profile_image": "https://www.svgrepo.com/show/452030/avatar-default.svg"
             }
             result = users_collection.insert_one(user)
-            token = jwt.encode({'user_id': str(result.inserted_id), 'exp': datetime.utcnow().timestamp() + 3600}, app.secret_key, algorithm="HS256")
+            token = jwt.encode({'user_id': str(result.inserted_id), 'exp': int(datetime.utcnow().timestamp() + 3600)}, app.secret_key, algorithm="HS256")
             return jsonify({'token': token, 'user_id': str(result.inserted_id)})
     return render_template('login.html')
 
@@ -104,7 +104,7 @@ def get_messages(receiver_id):
     messages = list(messages_collection.find({
         "$or": [
             {"sender_id": request.user_id, "receiver_id": receiver_id},
-            {"sender_id":start_time receiver_id, "receiver_id": request.user_id}
+            {"sender_id": receiver_id, "receiver_id": request.user_id}
         ]
     }).sort("timestamp", 1))
     return jsonify([{
@@ -171,7 +171,7 @@ def handle_connect():
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    if 'Authorization' in request.headers: # 🙂
+    if 'Authorization' in request.headers:
         token = request.headers['Authorization'].split(" ")[1]
         try:
             payload = jwt.decode(token, app.secret_key, algorithms=["HS256"])
