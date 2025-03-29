@@ -58,15 +58,15 @@ def login():
             user = users_collection.find_one({"username": username, "password": password})
             if user:
                 token = jwt.encode({'user_id': str(user['_id']), 'exp': int(datetime.utcnow().timestamp() + 3600)}, app.secret_key, algorithm="HS256")
-                return jsonify({'token': token, 'user_id': str(user['_id'])})
-            return render_template('login.html', error="Usuario o contraseña incorrectos")
+                return jsonify({'token': token, 'user_id': str(user['_id']), 'success': True})
+            return jsonify({'error': 'Usuario o contraseña incorrectos', 'success': False}), 401
         elif action == 'register':
             email = request.form['email']
             if users_collection.find_one({"username": username}):
-                return render_template('login.html', error="El usuario ya existe")
+                return jsonify({'error': 'El usuario ya existe', 'success': False}), 400
             user = {
                 "username": username,
-                "password": password,  # En producción, usa hashing como bcrypt
+                "password": password,
                 "email": email,
                 "bio": "Usuario nuevo",
                 "phone": None,
@@ -75,7 +75,7 @@ def login():
             }
             result = users_collection.insert_one(user)
             token = jwt.encode({'user_id': str(result.inserted_id), 'exp': int(datetime.utcnow().timestamp() + 3600)}, app.secret_key, algorithm="HS256")
-            return jsonify({'token': token, 'user_id': str(result.inserted_id)})
+            return jsonify({'token': token, 'user_id': str(result.inserted_id), 'success': True})
     return render_template('login.html')
 
 @app.route('/logout')
