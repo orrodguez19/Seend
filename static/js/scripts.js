@@ -1,440 +1,242 @@
-let users = [];
-let chats = [];
-let selectedUsers = [];
+const token = localStorage.getItem('token');
+const userId = localStorage.getItem('user_id');
 let currentChat = null;
-let currentUserId = null;
-let socket;
 
-const DOM = {
-    chatList: document.getElementById("chatList"),
-    usersList: document.getElementById("usersList"),
-    groupUsersList: document.getElementById("groupUsersList"),
-    conversationArea: document.getElementById("conversationArea"),
-    messageInput: document.getElementById("messageInput"),
-    chatTitle: document.getElementById("chatTitle"),
-    chatUserImage: document.getElementById("chatUserImage"),
-    chatStatus: document.getElementById("chatStatus"),
-    selectedCount: document.getElementById("selectedCount"),
-    profileImage: document.getElementById("profileImage"),
-    profileUsername: document.getElementById("profileUsername"),
-    profileBio: document.getElementById("profileBio"),
-    profileEmail: document.getElementById("profileEmail"),
-    profilePhone: document.getElementById("profilePhone"),
-    profileDob: document.getElementById("profileDob"),
-    emptyMessage: document.getElementById("emptyMessage")
-};
-
-function sanitizeInput(input) {
-    const div = document.createElement('div');
-    div.textContent = input;
-    return div.innerHTML;
-}
-
-function showScreen(screenId) {
-    document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
-    document.getElementById(screenId).classList.add('active');
-    if (screenId === 'screen-new-chat') loadUsers();
-    if (screenId === 'screen-group-create') loadGroupUsers();
-    if (screenId === 'screen-profile') loadProfile();
-    if (screenId === 'screen-conversation' && currentChat) {
-        fetch(`/api/messages/${currentChat.isGroup ? currentChat.id : currentChat.memberId}`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        })
-        .then(response => response.json())
-        .then(messages => {
-            messages.forEach(msg => {
-                if (msg.receiver_id === currentUserId && !msg.is_read) {
-                    socket.emit('message_read', { messageId: msg.id, receiver_id: msg.sender_id });
-                }
-            });
-        });
+// Configurar Pusher
+const pusher = new Pusher('10ace857b488cb959660', {
+    cluster: 'us3',
+    encrypted: true,
+    authEndpoint: '/pusher-auth',
+    auth: { headers: { 'Authorization': 'Bearer ' + token } }
+});
+const channel = pusher.subscribe('private-' + userId);
+channel.bind('new_message', (data) => {
+    if (data.receiver_id === currentChat || data.sender_id === currentChat) {
+        displayMessage(data);
     }
-}
+});
+channel.bind('profile_update', updateProfile);
 
-function loadUsers() {
-    fetch('/api/users', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-    })
-    .then(response => response.json())
-    .then(data => {
-        users = data;
-        DOM.usersList.innerHTML = "";
-        users.forEach(user => {
-            if (user.id !== currentUserId) {
-                const div = document.createElement("div");
-                div.classList.add("list-item");
-                div.innerHTML = `<img src="${user.profile_image}" alt="${user.name}"><div class="details"><strong>${user.name}</strong><p>${user.lastSeen}</p></div>`;
-                div.onclick = () => startChat(user.id);
-                DOM.usersList.appendChild(div);
-            }
-        });
+// Mostrar pantallas
+function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('active');
+        screen.style.transform = 'translateX(100%)';
     });
+    const targetScreen = document.getElementById(screenId);
+    targetScreen.classList.add('active');
+    targetScreen.style.transform = 'translateX(0)';
 }
 
-function loadGroupUsers() {
-    DOM.groupUsersList.innerHTML = "";
+// Cargar lista de chats
+async function loadChats() {
+    const response = await fetch('/api/users', {
+        headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const users = await response.json();
+    const chatList = document.getElementById('chatList');
+    chatList.innerHTML = '';
     users.forEach(user => {
-        if (user.id !== currentUserId) {
-            const div = document.createElement("div");
-            div.classList.add("list-item");
-            div.innerHTML = `<img src="${user.profile_image}" alt="${user.name}"><div class="details"><strong>${user.name}</strong><p>${user.lastSeen}</p></div><input type="checkbox" id="user-${user.id}" onchange="updateSelectedUsers(${user.id})">`;
-            DOM.groupUsersList.appendChild(div);
+        if (user.id !== userId) {
+            const div = document.createElement('div');
+            div.className = 'list-item';
+            div.innerHTML = `
+                <img src="${user.profile_image}" alt="${user.name}">
+                <div class="details">
+                    <strong>${user.name}</strong>
+                    <p>${user.isOnline ? 'En línea' : 'Últ. vez: ' + user.lastSeen}</p>
+                </div>
+            `;
+            div.onclick = () => startChat(user.id, user.name, user.profile_image, user.isOnline ? 'En línea' : 'Últ. vez: ' + user.lastSeen);
+            chatList.appendChild(div);
         }
     });
-    updateSelectedCount();
+    if (users.length <= 1) document.getElementById('emptyMessage').style.display = 'block';
 }
 
-function updateSelectedUsers(userId) {
-    const checkbox = document.getElementById(`user-${userId}`);
-    if (checkbox.checked) {
-        if (!selectedUsers.includes(userId)) selectedUsers.push(userId);
-    } else {
-        selectedUsers = selectedUsers.filter(id => id !== userId);
-    }
-    updateSelectedCount();
+// Cargar lista de usuarios para nuevo chat
+async function loadUsers() {
+    const response = await fetch('/api/users', {
+        headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const users = await response.json();
+    const usersList = document.getElementById('usersList');
+    usersList.innerHTML = '';
+    users.forEach(user => {
+        if (user.id !== userId) {
+            const div = document.createElement('div');
+            div.className = 'list-item';
+            div.innerHTML = `
+                <img src="${user.profile_image}" alt="${user.name}">
+                <div class="details">
+                    <strong>${user.name}</strong>
+                    <p>${user.bio || 'Usuario nuevo'}</p>
+                </div>
+            `;
+            div.onclick = () => startChat(user.id, user.name, user.profile_image, user.isOnline ? 'En línea' : 'Últ. vez: ' + user.lastSeen);
+            usersList.appendChild(div);
+        }
+    });
 }
 
-function updateSelectedCount() {
-    DOM.selectedCount.textContent = `${selectedUsers.length} usuario${selectedUsers.length !== 1 ? 's' : ''} seleccionado${selectedUsers.length !== 1 ? 's' : ''}`;
+// Iniciar chat
+async function startChat(receiverId, name, image, status) {
+    currentChat = receiverId;
+    showScreen('screen-conversation');
+    document.getElementById('chatTitle').textContent = name;
+    document.getElementById('chatUserImage').src = image;
+    document.getElementById('chatStatus').textContent = status;
+    const response = await fetch(`/api/messages/${receiverId}`, {
+        headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const messages = await response.json();
+    const conversationArea = document.getElementById('conversationArea');
+    conversationArea.innerHTML = '';
+    messages.forEach(displayMessage);
 }
 
-function createGroup() {
-    const groupName = sanitizeInput(document.getElementById('groupName').value.trim());
-    if (!groupName) return alert("Por favor ingresa un nombre para el grupo");
-    if (selectedUsers.length < 2) return alert("Selecciona al menos 2 usuarios para crear un grupo");
-    const newGroup = {id: Date.now(), name: groupName, creatorId: currentUserId, members: selectedUsers.concat(currentUserId), isGroup: true, messages: [], lastMessage: 'Grupo creado', unreadCount: 0};
-    chats.push(newGroup);
-    updateChatList();
-    socket.emit('create_group', newGroup);
-    document.getElementById('groupName').value = '';
-    selectedUsers = [];
-    updateSelectedCount();
-    showScreen('screen-chats');
-    openConversation(newGroup);
+// Mostrar mensaje
+function displayMessage(msg) {
+    const conversationArea = document.getElementById('conversationArea');
+    const div = document.createElement('div');
+    div.className = `message ${msg.sender_id === userId ? 'sent' : 'received'}`;
+    div.innerHTML = `${msg.text} <div class="message-status">${new Date(msg.timestamp).toLocaleTimeString()}</div>`;
+    conversationArea.appendChild(div);
+    conversationArea.scrollTop = conversationArea.scrollHeight;
 }
 
-function startChat(userId) {
-    const existingChat = chats.find(chat => !chat.isGroup && chat.memberId === userId);
-    if (existingChat) return openConversation(existingChat);
-    const user = users.find(u => u.id === userId);
-    const newChat = {id: Date.now(), name: user.name, memberId: userId, isGroup: false, messages: [], lastMessage: '', unreadCount: 0};
-    chats.push(newChat);
-    updateChatList();
-    openConversation(newChat);
-}
-
-function updateChatList() {
-    DOM.chatList.innerHTML = chats.length === 0 ? `<p class="empty-message">Inicie una nueva conversación</p>` : chats.map(chat => `
-        <div class="list-item" onclick="openConversation(chats[${chats.indexOf(chat)}])">
-            ${chat.isGroup ? `<svg viewBox="0 0 24 24" width="50" height="50" fill="#0D47A1" style="margin-right:12px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM9 12c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm7 0c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/></svg>` : `<img src="${chat.isGroup ? 'https://www.svgrepo.com/show/452030/avatar-default.svg' : users.find(u => u.id === chat.memberId)?.profile_image}" alt="${chat.name}">`}
-            <div class="details">
-                <strong>${chat.name}</strong>
-                <p>${chat.lastMessage || 'Sin mensajes'}</p>
-            </div>
-            ${chat.unreadCount > 0 ? `<span class="unread-count">${chat.unreadCount}</span>` : ''}
-            <button class="delete-chat-btn" onclick="event.stopPropagation(); deleteChat(${chat.id})">
-                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-            </button>
-        </div>`).join('');
-}
-
-function deleteChat(chatId) {
-    if (confirm('¿Estás seguro de que quieres eliminar este chat?')) {
-        fetch(`/api/delete_chat/${chatId}`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                'Content-Type': 'application/json'
-            }
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                chats = chats.filter(chat => chat.id !== chatId);
-                updateChatList();
-                if (currentChat && currentChat.id === chatId) {
-                    showScreen('screen-chats');
-                    currentChat = null;
-                }
-            } else {
-                alert('Error al eliminar el chat');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            alert('Error al eliminar el chat');
-        });
-    }
-}
-
-function deleteConversation() {
-    if (!currentChat) return;
-    deleteChat(currentChat.id);
-}
-
-function openConversation(chat) {
-    currentChat = chat;
-    DOM.chatTitle.textContent = chat.name;
-    if (!chat.isGroup) {
-        const user = users.find(u => u.id === chat.memberId);
-        DOM.chatUserImage.src = user.profile_image;
-        DOM.chatStatus.textContent = user.isOnline ? "En línea" : user.lastSeen;
-        fetch(`/api/messages/${chat.memberId}`, {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-        })
-        .then(response => response.json())
-        .then(messages => {
-            DOM.conversationArea.innerHTML = messages.length > 0 ? messages.map(msg => `
-                <div class="message ${msg.sender_id === currentUserId ? 'sent' : 'received'}" data-id="${msg.id}">${msg.text}<div class="message-status">${formatTime(new Date(msg.timestamp))}${msg.sender_id === currentUserId ? getStatusIcon(msg.status) : ''}</div></div>`).join('') : `<div class="message received">¡Hola! Este es el inicio de tu conversación.</div>`;
-            DOM.conversationArea.scrollTop = DOM.conversationArea.scrollHeight;
-            chat.unreadCount = 0;
-            updateChatList();
-        });
-    } else {
-        DOM.chatUserImage.src = "https://www.svgrepo.com/show/452030/avatar-default.svg";
-        DOM.chatStatus.textContent = `${chat.members.length} miembros`;
-        DOM.conversationArea.innerHTML = chat.messages.length > 0 ? chat.messages.map(msg => `
-            <div class="message ${msg.sender_id === currentUserId ? 'sent' : 'received'}" data-id="${msg.id}">${msg.text}<div class="message-status">${formatTime(new Date(msg.timestamp))}${msg.sender_id === currentUserId ? getStatusIcon(msg.status) : ''}</div></div>`).join('') : `<div class="message received">¡Este es el inicio del grupo!</div>`;
-        DOM.conversationArea.scrollTop = DOM.conversationArea.scrollHeight;
-        chat.unreadCount = 0;
-        updateChatList();
-    }
-    showScreen("screen-conversation");
-}
-
-function formatTime(date) {
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-}
-
-function getStatusIcon(status) {
-    if (!status || status === 'sent') return '<svg viewBox="0 0 24 24"><path fill="#1976D2" d="M18 8l-8 8-4-4-1.5 1.5L10 19l9.5-9.5z"/></svg>';
-    if (status === 'delivered') return '<svg viewBox="0 0 24 24"><path fill="#1976D2" d="M18 8l-8 8-4-4-1.5 1.5L10 19l9.5-9.5z"/></svg>';
-    if (status === 'read') return '<svg viewBox="0 0 24 24"><path fill="#4CAF50" d="M18 8l-8 8-4-4-1.5 1.5L10 19l9.5-9.5z"/></svg>';
-    return '';
-}
-
-function sendMessage() {
-    const input = DOM.messageInput;
-    const text = sanitizeInput(input.value.trim());
+// Enviar mensaje
+async function sendMessage() {
+    const text = document.getElementById('messageInput').value;
     if (!text || !currentChat) return;
-
-    const timestamp = new Date().toISOString();
-    const message = {
-        receiver_id: currentChat.isGroup ? currentChat.id : currentChat.memberId,
-        text: text,
-        timestamp: timestamp,
-        status: 'sent'
-    };
-    
-    socket.emit('send_message', message);
-    input.value = '';
-    currentChat.lastMessage = text;
-    updateChatList();
+    const response = await fetch('/api/send_message', {
+        method: 'POST',
+        headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ receiver_id: currentChat, text })
+    });
+    const data = await response.json();
+    if (data.success) document.getElementById('messageInput').value = '';
 }
 
 function handleKeyPress(event) {
     if (event.key === 'Enter') sendMessage();
 }
 
-function loadProfile() {
-    const user = users.find(u => u.id === currentUserId);
-    DOM.profileImage.src = user.profile_image;
-    DOM.profileUsername.textContent = user.name;
-    DOM.profileBio.textContent = user.bio || "Usuario nuevo";
-    DOM.profileEmail.textContent = user.email;
-    DOM.profilePhone.textContent = user.phone || "No especificado";
-    DOM.profileDob.textContent = user.dob || "No especificado";
-
-    document.querySelectorAll('.edit-btn').forEach(btn => {
-        btn.onclick = () => {
-            if (btn.dataset.field === 'profile_image') {
-                // No hacemos nada aquí, el input file maneja la subida
-            } else {
-                toggleEdit(btn, user);
-            }
-        };
+// Eliminar conversación
+async function deleteConversation() {
+    if (!currentChat) return;
+    const response = await fetch(`/api/delete_chat/${currentChat}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + token }
     });
-}
-
-function toggleEdit(btn, user) {
-    const field = btn.dataset.field;
-    const element = DOM[`profile${field.charAt(0).toUpperCase() + field.slice(1)}`];
-    if (btn.classList.contains('save')) {
-        const newValue = sanitizeInput(element.querySelector('input').value);
-        updateProfile(field, newValue);
-        element.innerHTML = newValue;
-        btn.classList.remove('save');
-        btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>';
-    } else {
-        const currentValue = element.textContent;
-        element.innerHTML = `<input type="text" value="${currentValue}">`;
-        btn.classList.add('save');
-        btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h4l3 3 3-3h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 17l-3-3h6l-3 3zm5-3H7V6h10v10z"/></svg>';
+    if (response.ok) {
+        showScreen('screen-chats');
+        loadChats();
     }
 }
 
-function updateProfile(field, value) {
-    fetch('/api/update_profile', {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: JSON.stringify({ [field]: value })
-    })
-    .then(response => response.json())
-    .then(data => {
-        users.find(u => u.id === currentUserId)[field] = value;
-        socket.emit('profile_update', { userId: currentUserId, field, value });
+// Cargar perfil propio
+async function loadProfile() {
+    const response = await fetch('/api/users', {
+        headers: { 'Authorization': 'Bearer ' + token }
     });
+    const users = await response.json();
+    const user = users.find(u => u.id === userId);
+    document.getElementById('profileImage').src = user.profile_image;
+    document.getElementById('profileUsername').textContent = user.name;
+    document.getElementById('profileBio').textContent = user.bio || 'Usuario nuevo';
+    document.getElementById('profileEmail').textContent = user.email;
+    document.getElementById('profilePhone').textContent = user.phone || 'No especificado';
+    document.getElementById('profileDob').textContent = user.dob || 'No especificado';
 }
 
-function uploadProfileImage() {
+// Mostrar perfil de usuario
+async function showUserProfile() {
+    const response = await fetch('/api/users', {
+        headers: { 'Authorization': 'Bearer ' + token }
+    });
+    const users = await response.json();
+    const user = users.find(u => u.id === currentChat);
+    document.getElementById('userProfileImage').src = user.profile_image;
+    document.getElementById('userProfileUsername').textContent = user.name;
+    document.getElementById('userProfileBio').textContent = user.bio || 'Usuario nuevo';
+    document.getElementById('userProfileEmail').textContent = user.email;
+    document.getElementById('userProfilePhone').textContent = user.phone || 'No especificado';
+    document.getElementById('userProfileDob').textContent = user.dob || 'No especificado';
+    showScreen('screen-user-profile');
+}
+
+// Subir imagen de perfil
+async function uploadProfileImage() {
     const fileInput = document.getElementById('profileImageInput');
-    const file = fileInput.files[0];
-    if (!file) return;
-
     const formData = new FormData();
-    formData.append('profile_image', file);
-
-    fetch('/api/update_profile_image', {
+    formData.append('profile_image', fileInput.files[0]);
+    const response = await fetch('/api/update_profile_image', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+        headers: { 'Authorization': 'Bearer ' + token },
         body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            const reader = new FileReader();
-            reader.onload = () => {
-                DOM.profileImage.src = reader.result;
-                users.find(u => u.id === currentUserId).profile_image = data.image_url;
-                socket.emit('profile_update', { userId: currentUserId, field: 'profile_image', value: data.image_url });
-            };
-            reader.readAsDataURL(file);
-        } else {
-            alert('Error al subir la imagen');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error al subir la imagen');
     });
+    const data = await response.json();
+    if (data.success) loadProfile();
 }
 
-function showChatInfo() {
-    if (!currentChat.isGroup) {
-        const user = users.find(u => u.id === currentChat.memberId);
-        showScreen('screen-profile');
-        loadProfile(user);
-        document.querySelectorAll('.edit-btn').forEach(btn => btn.style.display = 'none');
-    } else if (currentChat.creatorId === currentUserId) {
-        showScreen('screen-profile');
-        DOM.profileImage.src = "https://www.svgrepo.com/show/452030/avatar-default.svg";
-        DOM.profileUsername.textContent = currentChat.name;
-        DOM.profileBio.textContent = currentChat.bio || "Grupo nuevo";
-        DOM.profileEmail.textContent = `${currentChat.members.length} miembros`;
-        DOM.profilePhone.style.display = 'none';
-        DOM.profileDob.style.display = 'none';
-    }
-}
-
-function sendTypingStatus() {
-    socket.emit('typing', { chatId: currentChat.id || currentChat.memberId });
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    socket = io.connect(location.protocol + '//' + document.domain + ':' + location.port);
-    
-    if (localStorage.getItem('userId')) {
-        currentUserId = localStorage.getItem('userId');
-    }
-
-    fetch('/api/users', {
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-    })
-    .then(response => response.json())
-    .then(data => {
-        users = data;
-        if (!currentUserId) {
-            // El username ahora vendrá del token JWT en el backend, no de meta tag
-            currentUserId = localStorage.getItem('userId');
-        }
-        updateChatList();
-        document.getElementById("openNewChat").addEventListener("click", () => showScreen("screen-new-chat"));
-    });
-
-    socket.on('new_message', (msg) => {
-        const isCurrentChat = currentChat && ((currentChat.isGroup && msg.receiver_id === currentChat.id) || (!currentChat.isGroup && (msg.sender_id === currentChat.memberId || msg.receiver_id === currentChat.memberId)));
-        let chat = chats.find(c => (c.isGroup && c.id === msg.receiver_id) || (!c.isGroup && (c.memberId === msg.sender_id || c.memberId === msg.receiver_id)));
-        
-        if (!chat) {
-            chat = {id: msg.id, name: users.find(u => u.id === (msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id))?.name, 
-                    memberId: msg.sender_id === currentUserId ? msg.receiver_id : msg.sender_id, isGroup: false, messages: [], lastMessage: msg.text, unreadCount: 0};
-            chats.push(chat);
-        }
-        
-        chat.lastMessage = msg.text;
-        if (!isCurrentChat && msg.receiver_id === currentUserId) {
-            chat.unreadCount = (chat.unreadCount || 0) + 1;
-        }
-        
-        updateChatList();
-        
-        if (isCurrentChat) {
-            const messageDiv = document.createElement("div");
-            messageDiv.className = `message ${msg.sender_id === currentUserId ? 'sent' : 'received'}`;
-            messageDiv.dataset.id = msg.id;
-            messageDiv.innerHTML = `${msg.text}<div class="message-status">${formatTime(new Date(msg.timestamp))}${msg.sender_id === currentUserId ? getStatusIcon(msg.status) : ''}</div>`;
-            DOM.conversationArea.appendChild(messageDiv);
-            DOM.conversationArea.scrollTop = DOM.conversationArea.scrollHeight;
-            socket.emit('message_delivered', { messageId: msg.id, receiver_id: msg.receiver_id });
-        }
-    });
-
-    socket.on('new_chat', (chatData) => {
-        if (!chats.find(c => c.id === chatData.id)) {
-            chats.push(chatData);
-            updateChatList();
-        }
-    });
-
-    socket.on('message_delivered', (data) => {
-        const msg = document.querySelector(`.message[data-id="${data.messageId}"]`);
-        if (msg) msg.querySelector('.message-status').innerHTML = `${formatTime(new Date())} ${getStatusIcon('delivered')}`;
-    });
-
-    socket.on('message_read', (data) => {
-        const msg = document.querySelector(`.message[data-id="${data.messageId}"]`);
-        if (msg) msg.querySelector('.message-status').innerHTML = `${formatTime(new Date())} ${getStatusIcon('read')}`;
-    });
-
-    socket.on('typing', (data) => {
-        if (currentChat && data.chatId === (currentChat.isGroup ? currentChat.id : currentChat.memberId)) {
-            DOM.chatStatus.textContent = 'Escribiendo...';
-            setTimeout(() => DOM.chatStatus.textContent = users.find(u => u.id === currentChat.memberId)?.isOnline ? "En línea" : "Última vez: " + users.find(u => u.id === currentChat.memberId)?.lastSeen, 2000);
-        }
-    });
-
-    socket.on('profile_update', (data) => {
-        const user = users.find(u => u.id === data.userId);
-        if (user) user[data.field] = data.value;
-        if (currentChat && currentChat.memberId === data.userId) {
-            DOM.chatTitle.textContent = user.name;
-        }
-    });
-
-    socket.on('user_status', (data) => {
-        const user = users.find(u => u.id === data.userId);
-        if (user) {
-            user.isOnline = data.isOnline;
-            user.lastSeen = data.lastSeen;
-            if (currentChat && currentChat.memberId === data.userId) {
-                DOM.chatStatus.textContent = user.isOnline ? "En línea" : `Última vez: ${user.lastSeen}`;
-            }
-            updateChatList();
+// Editar campos del perfil
+document.querySelectorAll('.edit-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+        const field = btn.dataset.field;
+        if (!field) return;
+        const currentValue = document.getElementById(`profile${field.charAt(0).toUpperCase() + field.slice(1)}`).textContent;
+        const newValue = prompt(`Editar ${field}`, currentValue);
+        if (newValue && newValue !== currentValue) {
+            const response = await fetch('/api/update_profile', {
+                method: 'POST',
+                headers: {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ [field]: newValue })
+            });
+            if (response.ok) loadProfile();
         }
     });
 });
+
+// Actualizar perfil
+function updateProfile(data) {
+    if (data.profile_image) document.getElementById('profileImage').src = data.profile_image;
+    loadChats();
+    if (currentChat) startChat(currentChat, document.getElementById('chatTitle').textContent, document.getElementById('chatUserImage').src, document.getElementById('chatStatus').textContent);
+}
+
+// Eliminar cuenta
+async function deleteAccount() {
+    if (confirm('¿Estás seguro de que deseas eliminar tu cuenta? Esta acción es irreversible.')) {
+        const response = await fetch('/api/delete_account', {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (response.ok) {
+            localStorage.clear();
+            window.location.href = '/logout';
+        } else {
+            alert('Error al eliminar la cuenta');
+        }
+    }
+}
+
+// Crear grupo (sin implementar completamente)
+function createGroup() {
+    alert('Funcionalidad de grupos no implementada aún');
+}
+
+// Inicializar
+if (window.location.pathname === '/') {
+    loadChats();
+    document.getElementById('openNewChat').addEventListener('click', () => {
+        showScreen('screen-new-chat');
+        loadUsers();
+    });
+}
