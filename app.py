@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends, HTTPException, UploadFile, File, Form, sta
 from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.staticfiles import StaticFiles
-from firebase_admin import credentials, firestore, initialize_app  # Importaciones corregidas
+from firebase_admin import credentials, firestore, initialize_app
 from pusher import Pusher
 from datetime import datetime, timedelta
 import os
@@ -10,17 +10,26 @@ import jwt
 import json
 from typing import Optional
 
+# Crear la instancia de la aplicación FastAPI
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Configuración desde variables de entorno
+# Configuración desde variables de entorno para Firebase
 firebase_config = json.loads(os.getenv("FIREBASE_CREDENTIALS"))
 cred = credentials.Certificate(firebase_config)
-firebase_app = initialize_app(cred)  # Inicialización simplificada
+
+# Inicializar Firebase solo si no está ya inicializado
+if not firebase_admin._apps:
+    firebase_app = initialize_app(cred)
+else:
+    firebase_app = firebase_admin.get_app()
+
+# Configurar Firestore
 db = firestore.client()
 users_collection = db.collection('users')
 messages_collection = db.collection('messages')
 
+# Configuración de Pusher
 pusher_client = Pusher(
     app_id=os.getenv("PUSHER_APP_ID"),
     key=os.getenv("PUSHER_KEY"),
@@ -29,6 +38,7 @@ pusher_client = Pusher(
     ssl=True
 )
 
+# Configuración de JWT
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = "HS256"
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -240,7 +250,8 @@ async def logout():
     response = RedirectResponse(url="/login")
     return response
 
+# Ejecución del servidor
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 5000))
-    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=True)
+    port = int(os.getenv("PORT", 5000))  # Usar PORT de Render o 10000 como fallback
+    uvicorn.run(app, host="0.0.0.0", port=port)  # Sin reload para Render
