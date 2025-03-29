@@ -1,338 +1,203 @@
 const token = localStorage.getItem('token');
 const userId = localStorage.getItem('user_id');
 let currentChat = null;
+let currentPost = null;
+let socket = null;
 
-// Configurar Pusher
-const pusher = new Pusher('10ace857b488cb959660', {
-    cluster: 'us3',
-    encrypted: true,
-    authEndpoint: '/pusher-auth',
-    auth: { headers: { 'Authorization': 'Bearer ' + token } }
-});
-
-const channel = pusher.subscribe('private-' + userId);
-channel.bind('new_message', (data) => {
-    if (data.receiver_id === currentChat || data.sender_id === currentChat) {
-        displayMessage(data);
-    }
-});
-channel.bind('profile_update', updateProfile);
-
-// Mostrar pantallas
+/* ========== FUNCIONES GENERALES ========== */
 function showScreen(screenId) {
-    document.querySelectorAll('.screen').forEach(screen => {
-        screen.classList.remove('active');
-        screen.style.transform = 'translateX(100%)';
+    document.querySelectorAll('.screen').forEach(s => {
+        s.classList.remove('active');
+        s.style.transform = 'translateX(100%)';
     });
-    const targetScreen = document.getElementById(screenId);
-    targetScreen.classList.add('active');
-    targetScreen.style.transform = 'translateX(0)';
+    const target = document.getElementById(screenId);
+    target.classList.add('active');
+    target.style.transform = 'translateX(0)';
 }
 
-// Cargar lista de chats
-async function loadChats() {
-    try {
-        const response = await fetch('/api/users', {
-            headers: { 'Authorization': 'Bearer ' + token }
-        });
-        const users = await response.json();
-        const chatList = document.getElementById('chatList');
-        chatList.innerHTML = '';
-        
-        if (users.length <= 1) {
-            document.getElementById('emptyMessage').style.display = 'block';
-            return;
+function switchTab(tab) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
+    document.getElementById(`${tab}-content`).classList.add('active');
+    document.getElementById('main-title').textContent = tab === 'chats' ? 'Chats' : 'Publicaciones';
+}
+
+/* ========== WEBSOCKET ========== */
+function connectWebSocket() {
+    socket = new WebSocket(`wss://${window.location.host}/ws/${userId}?token=${token}`);
+
+    socket.onopen = () => console.log("WebSocket connected");
+    socket.onclose = () => setTimeout(connectWebSocket, 5000);
+    socket.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        switch(data.type) {
+            case 'new_message':
+                if(data.receiver_id === currentChat || data.sender_id === currentChat) displayMessage(data);
+                break;
+            case 'presence':
+                updateUserStatus(data.user_id, data.online);
+                break;
+            case 'writing':
+                showWritingIndicator(data.user_id, data.status);
+                break;
+            case 'new_post':
+                addPost(data);
+                break;
+            case 'post_reaction':
+                updatePostReaction(data);
+                break;
+            case 'new_comment':
+                addCommentToPost(data);
+                break;
         }
-
-        users.forEach(user => {
-            if (user.id !== userId) {
-                const div = document.createElement('div');
-                div.className = 'list-item';
-                div.innerHTML = `
-                    <img src="${user.profile_image}" alt="${user.name}">
-                    <div class="details">
-                        <strong>${user.name}</strong>
-                        <p>${user.isOnline ? 'En línea' : 'Últ. vez: ' + user.lastSeen}</p>
-                    </div>
-                `;
-                div.onclick = () => startChat(user.id, user.name, user.profile_image, user.isOnline ? 'En línea' : 'Últ. vez: ' + user.lastSeen);
-                chatList.appendChild(div);
-            }
-        });
-    } catch (error) {
-        console.error('Error loading chats:', error);
-    }
+    };
 }
 
-// Cargar lista de usuarios para nuevo chat
-async function loadUsers() {
+/* ========== PERFIL DE USUARIO ========== */
+async function loadProfile() {
     try {
-        const response = await fetch('/api/users', {
+        const res = await fetch('/api/profile', {
             headers: { 'Authorization': 'Bearer ' + token }
         });
-        const users = await response.json();
-        const usersList = document.getElementById('usersList');
-        usersList.innerHTML = '';
+        const data = await res.json();
+
+        document.getElementById('profileUsername').textContent = data.username;
+        document.getElementById('profileBio').textContent = data.bio || "Sin biografía";
+        document.getElementById('profileEmail').textContent = data.email;
+        document.getElementById('profileImage').src = data.profile_image;
         
-        users.forEach(user => {
-            if (user.id !== userId) {
-                const div = document.createElement('div');
-                div.className = 'list-item';
-                div.innerHTML = `
-                    <img src="${user.profile_image}" alt="${user.name}">
-                    <div class="details">
-                        <strong>${user.name}</strong>
-                        <p>${user.bio || 'Usuario nuevo'}</p>
-                    </div>
-                `;
-                div.onclick = () => startChat(user.id, user.name, user.profile_image, user.isOnline ? 'En línea' : 'Últ. vez: ' + user.lastSeen);
-                usersList.appendChild(div);
-            }
-        });
-    } catch (error) {
-        console.error('Error loading users:', error);
+    } catch (e) {
+        console.error('Error loading profile:', e);
+        showError('Error al cargar el perfil');
     }
 }
 
-// Iniciar chat
-async function startChat(receiverId, name, image, status) {
+async function updateProfile(field, value) {
     try {
-        currentChat = receiverId;
-        showScreen('screen-conversation');
-        document.getElementById('chatTitle').textContent = name;
-        document.getElementById('chatUserImage').src = image;
-        document.getElementById('chatStatus').textContent = status;
-        
-        const response = await fetch(`/api/messages/${receiverId}`, {
-            headers: { 'Authorization': 'Bearer ' + token }
+        const res = await fetch('/api/update-profile', {
+            method: 'POST',
+            headers: {
+                'Authorization': 'Bearer ' + token,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ field, value })
         });
-        
-        if (!response.ok) throw new Error('Error fetching messages');
-        
-        const messages = await response.json();
-        const conversationArea = document.getElementById('conversationArea');
-        conversationArea.innerHTML = '';
-        
-        messages.forEach(msg => displayMessage(msg));
-        conversationArea.scrollTop = conversationArea.scrollHeight;
-    } catch (error) {
-        console.error('Error starting chat:', error);
+
+        if (!res.ok) throw new Error('Error al actualizar');
+        return true;
+    } catch (e) {
+        console.error('Error updating profile:', e);
+        showError('Error al actualizar');
+        return false;
     }
 }
 
-// Mostrar mensaje
-function displayMessage(msg) {
-    const conversationArea = document.getElementById('conversationArea');
-    const div = document.createElement('div');
-    div.className = `message ${msg.sender_id === userId ? 'sent' : 'received'}`;
-    div.innerHTML = `${msg.text} <div class="message-status">${new Date(msg.timestamp).toLocaleTimeString()}</div>`;
-    conversationArea.appendChild(div);
-    conversationArea.scrollTop = conversationArea.scrollHeight;
-}
-
-// Enviar mensaje
-async function sendMessage() {
-    const text = document.getElementById('messageInput').value.trim();
-    if (!text || !currentChat) return;
-    
+async function updateProfileImage(file) {
     try {
         const formData = new FormData();
-        formData.append('receiver_id', currentChat);
-        formData.append('text', text);
-        
-        const response = await fetch('/api/send_message', {
+        formData.append('image', file);
+
+        const res = await fetch('/api/update-avatar', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + token },
             body: formData
         });
-        
-        if (response.ok) {
-            document.getElementById('messageInput').value = '';
-        } else {
-            throw new Error('Error sending message');
+
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('profileImage').src = data.new_url;
+            return true;
         }
-    } catch (error) {
-        console.error('Error:', error);
+        throw new Error('Error al actualizar imagen');
+    } catch (e) {
+        console.error('Error updating profile image:', e);
+        showError('Error al cambiar la imagen');
+        return false;
     }
 }
 
-function handleKeyPress(event) {
-    if (event.key === 'Enter') sendMessage();
-}
+async function deleteAccount() {
+    if (!confirm('¿Estás seguro de eliminar tu cuenta? Esta acción no se puede deshacer.')) return;
 
-// Eliminar conversación
-async function deleteConversation() {
-    if (!currentChat || !confirm('¿Seguro que deseas eliminar esta conversación?')) return;
-    
     try {
-        const response = await fetch(`/api/delete_chat/${currentChat}`, {
+        const res = await fetch('/api/delete-account', {
             method: 'DELETE',
             headers: { 'Authorization': 'Bearer ' + token }
         });
-        
-        if (response.ok) {
-            showScreen('screen-chats');
-            loadChats();
+
+        if (res.ok) {
+            localStorage.clear();
+            window.location.href = '/login';
         } else {
-            throw new Error('Error deleting chat');
+            throw new Error('Error al eliminar cuenta');
         }
-    } catch (error) {
-        console.error('Error:', error);
+    } catch (e) {
+        console.error('Error deleting account:', e);
+        showError('Error al eliminar la cuenta');
     }
 }
 
-// Cargar perfil propio
-async function loadProfile() {
-    try {
-        const response = await fetch('/api/users', {
-            headers: { 'Authorization': 'Bearer ' + token }
-        });
-        const users = await response.json();
-        const user = users.find(u => u.id === userId);
-        
-        if (user) {
-            document.getElementById('profileImage').src = user.profile_image;
-            document.getElementById('profileUsername').textContent = user.name;
-            document.getElementById('profileBio').textContent = user.bio || 'Usuario nuevo';
-            document.getElementById('profileEmail').textContent = user.email;
-            document.getElementById('profilePhone').textContent = user.phone || 'No especificado';
-            document.getElementById('profileDob').textContent = user.dob || 'No especificado';
-        }
-    } catch (error) {
-        console.error('Error loading profile:', error);
-    }
-}
+function setupProfileEditButtons() {
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const field = btn.getAttribute('data-field');
+            const currentValue = document.getElementById(`profile${field.charAt(0).toUpperCase() + field.slice(1)}`).textContent;
+            const newValue = prompt(`Nuevo ${field}:`, currentValue);
 
-// Mostrar perfil de usuario
-async function showUserProfile() {
-    try {
-        const response = await fetch('/api/users', {
-            headers: { 'Authorization': 'Bearer ' + token }
-        });
-        const users = await response.json();
-        const user = users.find(u => u.id === currentChat);
-        
-        if (user) {
-            document.getElementById('userProfileImage').src = user.profile_image;
-            document.getElementById('userProfileUsername').textContent = user.name;
-            document.getElementById('userProfileBio').textContent = user.bio || 'Usuario nuevo';
-            document.getElementById('userProfileEmail').textContent = user.email;
-            document.getElementById('userProfilePhone').textContent = user.phone || 'No especificado';
-            document.getElementById('userProfileDob').textContent = user.dob || 'No especificado';
-            showScreen('screen-user-profile');
-        }
-    } catch (error) {
-        console.error('Error showing user profile:', error);
-    }
-}
-
-// Subir imagen de perfil
-async function uploadProfileImage() {
-    const fileInput = document.getElementById('profileImageInput');
-    if (!fileInput.files.length) return;
-    
-    try {
-        const formData = new FormData();
-        formData.append('file', fileInput.files[0]);
-        
-        const response = await fetch('/api/update_profile_image', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + token },
-            body: formData
-        });
-        
-        if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-                loadProfile();
-            }
-        }
-    } catch (error) {
-        console.error('Error uploading profile image:', error);
-    }
-}
-
-// Editar campos del perfil
-document.querySelectorAll('.edit-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-        const field = btn.dataset.field;
-        if (!field) return;
-        
-        const currentValue = document.getElementById(`profile${field.charAt(0).toUpperCase() + field.slice(1)}`).textContent;
-        const newValue = prompt(`Editar ${field}`, currentValue);
-        
-        if (newValue && newValue !== currentValue) {
-            try {
-                const response = await fetch('/api/update_profile', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': 'Bearer ' + token,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ [field]: newValue })
-                });
-                
-                if (response.ok) {
-                    loadProfile();
+            if (newValue && newValue !== currentValue) {
+                const success = await updateProfile(field, newValue);
+                if (success) {
+                    document.getElementById(`profile${field.charAt(0).toUpperCase() + field.slice(1)}`).textContent = newValue;
                 }
-            } catch (error) {
-                console.error('Error updating profile:', error);
             }
+        });
+    });
+
+    document.getElementById('profileImageInput').addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+            updateProfileImage(e.target.files[0]);
         }
     });
-});
-
-// Actualizar perfil
-function updateProfile(data) {
-    if (data.profile_image) {
-        document.getElementById('profileImage').src = data.profile_image;
-    }
-    loadChats();
-    if (currentChat) {
-        startChat(currentChat, 
-                document.getElementById('chatTitle').textContent, 
-                document.getElementById('chatUserImage').src, 
-                document.getElementById('chatStatus').textContent);
-    }
 }
 
-// Eliminar cuenta
-async function deleteAccount() {
-    if (confirm('¿Estás seguro de que deseas eliminar tu cuenta? Esta acción es irreversible.')) {
-        try {
-            const response = await fetch('/api/delete_account', {
-                method: 'DELETE',
-                headers: { 'Authorization': 'Bearer ' + token }
-            });
-            
-            if (response.ok) {
-                localStorage.clear();
-                window.location.href = '/logout';
-            }
-        } catch (error) {
-            console.error('Error deleting account:', error);
-            alert('Error al eliminar la cuenta');
-        }
-    }
-}
-
-// Crear grupo
-function createGroup() {
-    alert('Funcionalidad de grupos no implementada aún');
-}
-
-// Inicialización
+/* ========== INICIALIZACIÓN ========== */
 document.addEventListener('DOMContentLoaded', () => {
     if (!token || !userId) {
         window.location.href = '/login';
         return;
     }
 
-    loadChats();
+    connectWebSocket();
     loadProfile();
+    setupProfileEditButtons();
 
+    // Resto de inicializaciones...
     document.getElementById('openNewChat').addEventListener('click', () => {
         showScreen('screen-new-chat');
         loadUsers();
     });
+
+    document.getElementById('openNewPost').addEventListener('click', () => {
+        showScreen('screen-new-post');
+    });
+
+    document.getElementById('postImage').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            document.getElementById('imagePreview').innerHTML = `<img src="${e.target.result}">`;
+        };
+        reader.readAsDataURL(file);
+    });
 });
+
+/* ========== UTILIDADES ========== */
+function showError(message) {
+    const errorElement = document.createElement('div');
+    errorElement.className = 'error-message';
+    errorElement.textContent = message;
+    document.body.appendChild(errorElement);
+    setTimeout(() => errorElement.remove(), 5000);
+        }
