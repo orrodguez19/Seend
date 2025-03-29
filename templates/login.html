@@ -6,174 +6,55 @@
     <title>Seend - Login</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
-    <style>
-        .app-container {
-            text-align: center;
-            padding: 20px;
-            font-family: 'Poppins', sans-serif;
-        }
-        .welcome-message h1 {
-            font-size: 2.5em;
-            margin-bottom: 20px;
-        }
-        .button-container {
-            margin: 20px 0;
-        }
-        .big-button {
-            background-color: #4CAF50;
-            color: white;
-            padding: 15px 30px;
-            border: none;
-            border-radius: 10px;
-            font-size: 1.5em;
-            margin: 0 10px;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        .big-button:hover {
-            background-color: #45a049;
-        }
-        .big-button.register {
-            background-color: #2196F3;
-        }
-        .big-button.register:hover {
-            background-color: #1e87db;
-        }
-        .group-form {
-            display: none;
-            margin-top: 20px;
-        }
-        .group-form.active {
-            display: block;
-        }
-        .error-message {
-            color: red;
-            margin: 10px 0;
-        }
-        input {
-            display: block;
-            width: 80%;
-            max-width: 300px;
-            margin: 10px auto;
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-        }
-        button[type="submit"] {
-            background-color: #4CAF50;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-        button.cancel {
-            background-color: #2196F3;
-        }
-    </style>
 </head>
-<body>
-    <div class="app-container">
-        <header>
-            <h2>Seend</h2>
-        </header>
-        <div class="welcome-message">
-            <h1>¡Bienvenido a Seend!</h1>
-        </div>
-        <div class="button-container">
-            <button class="big-button" id="showLogin">Iniciar Sesión</button>
-            <button class="big-button register" id="showRegister">Registrarse</button>
-        </div>
-        <div class="group-form" id="loginFormContainer">
-            <h3>Iniciar Sesión</h3>
-            <p class="error-message"></p>
-            <form id="loginForm" method="POST">
-                <input type="text" name="username" placeholder="Usuario" required>
-                <input type="password" name="password" placeholder="Contraseña" required>
-                <button type="submit" name="action" value="login">Iniciar Sesión</button>
-            </form>
-        </div>
-        <div class="group-form" id="registerFormContainer">
-            <h3>Registrarse</h3>
-            <p class="error-message"></p>
-            <form id="registerForm" method="POST">
-                <input type="text" name="username" placeholder="Usuario" required>
-                <input type="password" name="password" placeholder="Contraseña" required>
-                <input type="email" name="email" placeholder="Email" required>
-                <button type="submit" name="action" value="register" class="cancel">Registrarse</button>
-            </form>
-        </div>
+<body class="bg-gray-100 flex items-center justify-center h-screen">
+    <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full">
+        <h1 class="text-2xl font-semibold text-center text-blue-900 mb-6">Seend</h1>
+        <form id="authForm" method="POST" class="space-y-4">
+            <input type="text" name="username" placeholder="Usuario" class="w-full p-3 border rounded-md" required>
+            <input type="password" name="password" placeholder="Contraseña" class="w-full p-3 border rounded-md" required>
+            <input type="email" name="email" placeholder="Email (solo registro)" id="emailField" class="w-full p-3 border rounded-md hidden">
+            <button type="submit" name="action" value="login" id="loginBtn" class="w-full bg-blue-600 text-white p-3 rounded-md hover:bg-blue-700">Iniciar Sesión</button>
+            <button type="submit" name="action" value="register" id="registerBtn" class="w-full bg-gray-200 text-blue-900 p-3 rounded-md hover:bg-gray-300">Registrarse</button>
+        </form>
+        <p id="error" class="text-red-500 text-center mt-4 hidden"></p>
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const showLoginBtn = document.getElementById('showLogin');
-            const showRegisterBtn = document.getElementById('showRegister');
-            const loginFormContainer = document.getElementById('loginFormContainer');
-            const registerFormContainer = document.getElementById('registerFormContainer');
-            const loginForm = document.getElementById('loginForm');
-            const registerForm = document.getElementById('registerForm');
+            const emailField = document.getElementById('emailField');
+            const authForm = document.getElementById('authForm');
 
-            // Mostrar formulario de login
-            showLoginBtn.addEventListener('click', () => {
-                loginFormContainer.classList.add('active');
-                registerFormContainer.classList.remove('active');
-            });
-
-            // Mostrar formulario de registro
-            showRegisterBtn.addEventListener('click', () => {
-                registerFormContainer.classList.add('active');
-                loginFormContainer.classList.remove('active');
-            });
-
-            // Manejar envío de formularios
-            const handleSubmit = async (e) => {
+            authForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
-                const form = e.target;
-                const formData = new FormData(form);
-                const action = formData.get('action');
+                const formData = new FormData(authForm);
+                const action = e.submitter.value;
+                formData.set('action', action);
+
+                if (action === 'register') {
+                    emailField.classList.remove('hidden');
+                    emailField.required = true;
+                } else {
+                    emailField.classList.add('hidden');
+                    emailField.required = false;
+                }
 
                 try {
-                    const response = await fetch('/login', {
-                        method: 'POST',
-                        body: formData
-                    });
+                    const response = await fetch('/login', { method: 'POST', body: formData });
                     const data = await response.json();
-
-                    if (data.success && data.token) {
+                    if (data.success) {
                         localStorage.setItem('token', data.token);
                         localStorage.setItem('user_id', data.user_id);
                         window.location.href = '/';
                     } else {
-                        const errorMessage = form.closest('.group-form').querySelector('.error-message');
-                        errorMessage.textContent = data.error || 'Error desconocido';
-                        errorMessage.style.color = 'red';
+                        document.getElementById('error').textContent = data.error;
+                        document.getElementById('error').classList.remove('hidden');
                     }
                 } catch (error) {
-                    console.error('Error:', error);
-                    const errorMessage = form.closest('.group-form').querySelector('.error-message');
-                    errorMessage.textContent = 'Error al conectar con el servidor';
-                    errorMessage.style.color = 'red';
+                    document.getElementById('error').textContent = 'Error al conectar con el servidor';
+                    document.getElementById('error').classList.remove('hidden');
                 }
-            };
-
-            loginForm.addEventListener('submit', handleSubmit);
-            registerForm.addEventListener('submit', handleSubmit);
-
-            // Verificar token al cargar la página
-            const token = localStorage.getItem('token');
-            if (token) {
-                fetch('/', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                }).then(response => {
-                    if (response.ok) {
-                        window.location.href = '/';
-                    }
-                });
-            }
+            });
         });
     </script>
 </body>
-    </html>
+</html>
