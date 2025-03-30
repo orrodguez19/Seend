@@ -6,11 +6,10 @@
     <title>Seend - Mensajería</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/styles.css">
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
 </head>
 <body>
     <div class="app-container">
-        <!-- Pantalla Principal -->
         <div id="screen-main" class="screen active">
             <header class="app-header">
                 <h2 id="main-title">Chats</h2>
@@ -18,404 +17,391 @@
                     <button class="icon-btn" onclick="showScreen('screen-profile')" aria-label="Perfil">
                         <svg viewBox="0 0 24 24"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>
                     </button>
-                    <button class="icon-btn" onclick="logout()" aria-label="Cerrar sesión">
-                        <svg viewBox="0 0 24 24"><path d="M10 20H5V4h5v2H7v12h3v2zm7-15l-1.41-1.41L11.17 8l4.42 4.41L17 11l-4-4h7v2h-7l4 4z"/></svg>
+                    <button class="icon-btn" onclick="logout()" aria-label="Cerrar Sesión">
+                        <svg viewBox="0 0 24 24"><path d="M10.09 15.59L11.5 17l5-5-5-5-1.41 1.41L10.09 13H4v2h6.09zM19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-6 16h-2v-4h2v4zm3-8h-2V7h2v4z"/></svg>
                     </button>
                 </div>
             </header>
-            
-            <div class="tabs">
-                <button class="tab-btn active" onclick="switchTab('chats')">Chats</button>
-                <button class="tab-btn" onclick="switchTab('publicaciones')">Publicaciones</button>
-            </div>
-            
-            <div id="chats-content" class="tab-content active">
-                <div id="chatList" class="list-container">
-                    <p class="empty-message">Inicie nueva conversación</p>
-                </div>
-                <button class="fab" id="openNewChat" aria-label="Nuevo chat">+</button>
-            </div>
-            
-            <div id="publicaciones-content" class="tab-content">
-                <div id="postsList" class="list-container">
-                    <p class="empty-message">No hay publicaciones</p>
-                </div>
-                <button class="fab" id="openNewPost" aria-label="Nueva publicación">
-                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+            <main class="app-content">
+                <div class="chats-list" id="chats">
+                    </div>
+            </main>
+            <nav class="app-nav">
+                <button id="openNewChat" class="nav-btn active">
+                    <svg viewBox="0 0 24 24"><path d="M21 6h-2v-4c0-1.1-.9-2-2-2H7c-1.1 0-2 .9-2 2v4H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-4 0V4h2v2h-2zm-8 0V4h6v2H9zM5 4h2v2H5V4zm16 14H3V8h18v10z"/></svg>
+                    <span>Chats</span>
                 </button>
-            </div>
+                <button id="openNewPost" class="nav-btn">
+                    <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0-1.41-1.41L15.19 7.81l3.75 3.75 1.41-1.41z"/></svg>
+                    <span>Nuevo Post</span>
+                </button>
+                <button class="nav-btn" onclick="showScreen('screen-feed')">
+                    <svg viewBox="0 0 24 24"><path d="M22 3.99c0-1.1-.9-2-2-2h-16c-1.1 0-2 .9-2 2v16.02c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V3.99zm-4 14.01h-4v-4h4v4zm0-6h-4v-4h4v4zm-6 6H6v-4h6v4zm0-6H6v-4h6v4zm8-4h-4V5h4v4zm-6 0H6V5h6v4z"/></svg>
+                    <span>Feed</span>
+                </button>
+            </nav>
         </div>
 
-        <!-- Pantalla de Perfil -->
-        <div id="screen-profile" class="screen">
-            <header class="app-header">
-                <button class="icon-btn" onclick="showScreen('screen-main')" aria-label="Volver">
-                    <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-                </button>
-                <h2>Mi Perfil</h2>
-            </header>
-            
-            <div class="profile-container">
-                <div class="profile-header">
-                    <img id="profileImage" src="/static/default-avatar.png" alt="Foto de perfil">
-                    <input type="file" id="profileImageInput" accept="image/*" class="hidden">
-                    <button class="edit-btn" onclick="document.getElementById('profileImageInput').click()" aria-label="Cambiar foto">
-                        <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                    </button>
-                </div>
-                
-                <div class="profile-details">
-                    <div class="profile-field">
-                        <label>Nombre</label>
-                        <div class="field-value" id="profileName"></div>
-                        <button class="edit-btn" data-field="name" aria-label="Editar nombre">
-                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                        </button>
-                    </div>
-                    <div class="profile-field">
-                        <label>Usuario</label>
-                        <div class="field-value" id="profileUsername"></div>
-                        <button class="edit-btn" data-field="username" aria-label="Editar usuario">
-                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                        </button>
-                    </div>
-                    <div class="profile-field">
-                        <label>Bio</label>
-                        <div class="field-value" id="profileBio">Sin biografía</div>
-                        <button class="edit-btn" data-field="bio" aria-label="Editar bio">
-                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-                        </button>
-                    </div>
-                </div>
-                
-                <button class="danger-btn" onclick="deleteAccount()">Eliminar Cuenta</button>
-            </div>
-        </div>
-
-        <!-- Pantalla Nuevo Chat -->
         <div id="screen-new-chat" class="screen">
-            <header class="app-header">
-                <button class="icon-btn" onclick="showScreen('screen-main')" aria-label="Volver">
-                    <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            <header class="screen-header">
+                <button class="back-btn" onclick="showScreen('screen-main')">
+                    <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
                 </button>
-                <h2>Usuarios <span id="userCount">0</span></h2>
+                <h2>Nuevo Chat</h2>
             </header>
-            <div class="search-container">
-                <input type="text" id="userSearch" placeholder="Buscar por @usuario">
-            </div>
-            <div class="list" id="usersList"></div>
-        </div>
-
-        <!-- Pantalla Conversación -->
-        <div id="screen-conversation" class="screen">
-            <header class="app-header">
-                <button class="icon-btn" onclick="showScreen('screen-main')" aria-label="Volver">
-                    <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-                </button>
-                <div class="chat-header-info">
-                    <img id="chatUserImage" class="chat-header-image" alt="Usuario">
-                    <div class="chat-header-text">
-                        <h2 id="chatTitle"></h2>
-                        <div id="chatStatus" class="chat-header-status"></div>
+            <main class="screen-content">
+                <input type="text" id="userSearch" placeholder="Buscar usuario...">
+                <div id="usersList">
                     </div>
-                </div>
-            </header>
-            <div class="conversation-container" id="conversationArea"></div>
-            <div class="input-container">
-                <input type="text" id="messageInput" placeholder="Escribe..." onkeypress="handleKeyPress(event)">
-                <button onclick="sendMessage()" aria-label="Enviar">
-                    <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-                </button>
-            </div>
+            </main>
         </div>
 
-        <!-- Pantalla Nueva Publicación -->
         <div id="screen-new-post" class="screen">
-            <header class="app-header">
-                <button class="icon-btn" onclick="showScreen('screen-main')" aria-label="Volver">
-                    <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+            <header class="screen-header">
+                <button class="back-btn" onclick="showScreen('screen-main')">
+                    <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
                 </button>
                 <h2>Nueva Publicación</h2>
             </header>
-            <div class="post-form">
-                <textarea id="postText" placeholder="¿Qué estás pensando?" rows="5"></textarea>
-                <div class="image-preview" id="imagePreview"></div>
+            <main class="screen-content post-form">
+                <textarea id="postText" placeholder="¿Qué estás pensando?"></textarea>
+                <div id="imagePreview"></div>
                 <div class="post-actions">
-                    <button class="action-btn" onclick="document.getElementById('postImage').click()" aria-label="Añadir imagen">
-                        <svg viewBox="0 0 24 24"><path d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-4.86 8.86l-3 3.87L9 13.14 6 17h12l-3.86-5.14z"/></svg>
+                    <input type="file" id="postImage" accept="image/*" style="display: none;">
+                    <button class="action-btn" onclick="document.getElementById('postImage').click()">
+                        <svg viewBox="0 0 24 24"><path d="M14.4 6L14 4H5v17h19V6h-9.6zM12 17c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6zM13 11h-2v2H9v-2H7v-2h2V7h2v2h2v2z"/></svg>
                     </button>
-                    <input type="file" id="postImage" accept="image/*" style="display:none;">
-                    <button class="post-btn" onclick="createPost()">Publicar</button>
+                    <button class="btn-primary" onclick="createPost()">Publicar</button>
                 </div>
-            </div>
+            </main>
+        </div>
+
+        <div id="screen-feed" class="screen">
+            <header class="screen-header">
+                <button class="back-btn" onclick="showScreen('screen-main')">
+                    <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                </button>
+                <h2>Feed</h2>
+            </header>
+            <main class="screen-content" id="feed">
+                </main>
+        </div>
+
+        <div id="screen-profile" class="screen">
+            <header class="screen-header">
+                <button class="back-btn" onclick="showScreen('screen-main')">
+                    <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                </button>
+                <h2>Perfil</h2>
+            </header>
+            <main class="screen-content profile-info">
+                <div id="profileImageContainer" class="profile-image">
+                    <img id="profileImg" src="" alt="Foto de perfil">
+                    <button id="uploadProfileImageBtn" class="edit-btn">
+                        <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0-1.41-1.41L15.19 7.81l3.75 3.75 1.41-1.41z"/></svg>
+                    </button>
+                    <input type="file" id="profileImageFile" accept="image/*" style="display: none;">
+                </div>
+                <div id="profileDetails">
+                    <p><strong>Nombre:</strong> <span id="profileName"></span> <button id="editNameBtn" class="edit-btn"><svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0-1.41-1.41L15.19 7.81l3.75 3.75 1.41-1.41z"/></svg></button></p>
+                    <p><strong>Usuario:</strong> <span id="profileUsername"></span></p>
+                    <div id="editNameInput" style="display:none;">
+                        <input type="text" id="newName" placeholder="Nuevo nombre">
+                        <button onclick="saveProfileName()">Guardar</button>
+                        <button onclick="setupProfileEditButtons()">Cancelar</button>
+                    </div>
+                </div>
+                <button class="btn-danger" onclick="deleteAccount()">Eliminar Cuenta</button>
+            </main>
+        </div>
+
+        <div id="screen-chat" class="screen">
+            <header class="screen-header chat-header">
+                <button class="back-btn" onclick="showScreen('screen-main')">
+                    <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                </button>
+                <div class="chat-info">
+                    <h2 id="chat-title"></h2>
+                    <span id="chat-header-status" class="chat-header-status offline"></span>
+                </div>
+            </header>
+            <main class="screen-content chat-content">
+                <div id="messages" class="messages-list">
+                    </div>
+            </main>
+            <footer class="chat-footer">
+                <input type="text" id="messageInput" placeholder="Escribe un mensaje...">
+                <button onclick="sendMessage()">Enviar</button>
+            </footer>
         </div>
     </div>
 
     <script>
-        const token = localStorage.getItem('token');
-        const userId = localStorage.getItem('user_id');
-        let socket = null;
+        const socket = io(`ws://${window.location.host}:5000`, { transports: ['websocket'] });
         let currentChat = null;
         let allUsers = [];
+        let isRegisterMode = false;
+        let userId = localStorage.getItem('user_id');
+        let token = localStorage.getItem('token');
 
-        function connectSocketIO() {
-            socket = io(`wss://${window.location.host}`, { transports: ['websocket'] });
-            
-            socket.on('connect', () => console.log('Connected to Socket.IO'));
-            socket.on('disconnect', () => setTimeout(connectSocketIO, 5000));
-            
-            socket.on('presence_update', (data) => updateUserStatus(data.user_id, data.online));
-            socket.on('new_post', (data) => addPost(data));
-            socket.on('new_message', (data) => displayMessage(data));
-            socket.on('avatar_updated', (data) => {
-                if (data.user_id === userId) document.getElementById('profileImage').src = data.profile_image;
-            });
-            socket.on('profile_updated', (data) => {
-                if (data.user_id === userId) {
-                    const field = data.field.charAt(0).toUpperCase() + data.field.slice(1);
-                    document.getElementById(`profile${field}`).textContent = data[data.field];
-                    const user = JSON.parse(localStorage.getItem('user_data'));
-                    user[data.field] = data[data.field];
-                    localStorage.setItem('user_data', JSON.stringify(user));
-                }
-            });
-            socket.on('account_deleted', () => {
-                localStorage.clear();
-                socket.disconnect();
-                window.location.href = '/login';
-            });
-            socket.on('delete_error', (data) => showError(data.message));
-            socket.on('user_count_update', (data) => {
-                document.getElementById('userCount').textContent = data.total_users;
-            });
-            socket.on('users_list', (data) => {
-                allUsers = data.users;
-                loadUsers('');
-            });
-        }
-
-        function showScreen(screenId) {
-            document.querySelectorAll('.screen').forEach(s => {
-                s.classList.remove('active');
-                s.style.transform = 'translateX(100%)';
-            });
-            const target = document.getElementById(screenId);
-            target.classList.add('active');
-            target.style.transform = 'translateX(0)';
-        }
-
-        function switchTab(tab) {
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
-            document.getElementById(`${tab}-content`).classList.add('active');
-            document.getElementById('main-title').textContent = tab === 'chats' ? 'Chats' : 'Publicaciones';
-        }
-
-        function showError(message) {
+        // Funciones compartidas
+        function showError(message, container = document.body) {
             const errorElement = document.createElement('div');
             errorElement.className = 'error-message';
             errorElement.textContent = message;
-            document.body.appendChild(errorElement);
+            container.appendChild(errorElement);
             setTimeout(() => errorElement.remove(), 5000);
         }
 
-        // Perfil
-        async function loadProfile() {
-            try {
-                const user = JSON.parse(localStorage.getItem('user_data'));
-                if (user) {
-                    document.getElementById('profileName').textContent = user.name;
-                    document.getElementById('profileUsername').textContent = user.username;
-                    document.getElementById('profileBio').textContent = user.bio || "Sin biografía";
-                    document.getElementById('profileImage').src = user.profile_image;
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            if (screenId === 'screen-chat') {
+                const chatTitle = document.getElementById('chat-title');
+                if (chatTitle && currentChat) {
+                    chatTitle.textContent = currentChat.name;
                 }
-            } catch (e) {
-                showError('Error al cargar el perfil');
+                loadChatMessages(currentChat ? currentChat.username : null);
+            } else if (screenId === 'screen-feed') {
+                loadPosts();
             }
         }
 
-        async function updateProfile(field, value) {
-            try {
-                socket.emit('update_profile', { field, value });
-                return true;
-            } catch (e) {
-                showError('Error al actualizar');
-                return false;
-            }
+        function handleAuthSuccess(data) {
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user_id', data.userId);
+            userId = data.userId;
+            token = data.token;
+            window.location.href = '/chat';
         }
 
-        async function updateProfileImage(file) {
-            try {
-                const reader = new FileReader();
-                reader.onload = () => {
-                    socket.emit('update_avatar', { file: { type: file.type, data: reader.result } });
-                };
-                reader.readAsDataURL(file);
-                return true;
-            } catch (e) {
-                showError('Error al cambiar la imagen');
-                return false;
-            }
+        function connectSocketIO() {
+            socket.on('connect', () => console.log('Connected to Socket.IO'));
+            socket.on('disconnect', () => setTimeout(connectSocketIO, 5000));
+
+            // Eventos de login.html
+            socket.on('username_status', (data) => {
+                if (!data.available && isRegisterMode) showError(data.message);
+            });
+            socket.on('registered', handleAuthSuccess);
+            socket.on('logged_in', handleAuthSuccess);
+            socket.on('register_error', (data) => showError(data.message));
+            socket.on('login_error', (data) => showError(data.message));
+
+            // Eventos de chat.html
+            socket.on('presence_update', (data) => {
+                if (window.location.pathname === '/chat') updateUserStatus(data.user_id, data.online);
+            });
+            socket.on('new_post', (data) => {
+                if (window.location.pathname === '/chat' && document.getElementById('feed')) {
+                    const feed = document.getElementById('feed');
+                    const postDiv = document.createElement('div');
+                    postDiv.className = 'post';
+                    postDiv.innerHTML = `<strong>${data.username}:</strong> <p>${data.text}</p>${data.image ? `<img src="${data.image}" style="max-width: 100%;">` : ''}`;
+                    feed.prepend(postDiv);
+                }
+            });
+            socket.on('posts_list', (data) => {
+                const feed = document.getElementById('feed');
+                if (feed) {
+                    feed.innerHTML = '';
+                    data.posts.forEach(post => {
+                        const postDiv = document.createElement('div');
+                        postDiv.className = 'post';
+                        postDiv.innerHTML = `<strong>${post.username}:</strong> <p>${post.text}</p>${post.image ? `<img src="${post.image}" style="max-width: 100%;">` : ''}`;
+                        feed.appendChild(postDiv);
+                    });
+                }
+            });
+            socket.on('users_list', (data) => {
+                const usersListDiv = document.getElementById('usersList');
+                if (usersListDiv) {
+                    usersListDiv.innerHTML = '';
+                    allUsers = data.users;
+                    allUsers.forEach(user => {
+                        const userDiv = document.createElement('div');
+                        userDiv.className = 'user-item';
+                        userDiv.innerHTML = `<span class="username">${user.username}</span> <span class="status ${user.online ? 'online' : 'offline'}"></span>`;
+                        userDiv.addEventListener('click', () => startChat(user));
+                        usersListDiv.appendChild(userDiv);
+                    });
+                }
+            });
+            socket.on('chat_messages', (data) => {
+                const messagesDiv = document.getElementById('messages');
+                if (messagesDiv && data.username === currentChat.username) {
+                    messagesDiv.innerHTML = '';
+                    data.messages.forEach(msg => {
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = 'message';
+                        messageDiv.textContent = `${msg.sender}: ${msg.text}`;
+                        messagesDiv.appendChild(messageDiv);
+                    });
+                    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                }
+            });
+            socket.on('message_received', (data) => {
+                if (currentChat && data.sender === currentChat.username) {
+                    const messagesDiv = document.getElementById('messages');
+                    if (messagesDiv) {
+                        const messageDiv = document.createElement('div');
+                        messageDiv.className = 'message';
+                        messageDiv.textContent = `${data.sender}: ${data.text}`;
+                        messagesDiv.appendChild(messageDiv);
+                        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+                    }
+                } else if (window.location.pathname === '/chat' && data.sender !== localStorage.getItem('username')) {
+                    loadChats(); // Reload chats to show new message
+                }
+            });
+            socket.on('profile_data', (data) => {
+                document.getElementById('profileName').textContent = data.name;
+                document.getElementById('profileUsername').textContent = data.username;
+                const profileImg = document.getElementById('profileImg');
+                if (profileImg) profileImg.src = data.profile_image || '/static/images/default_avatar.png';
+            });
+            socket.on('profile_updated', (data) => {
+                document.getElementById('profileName').textContent = data.name;
+                setupProfileEditButtons(); // Hide input after saving
+            });
+            socket.on('profile_image_updated', (data) => {
+                const profileImg = document.getElementById('profileImg');
+                if (profileImg) profileImg.src = data.profile_image;
+            });
+            socket.on('upload_error', (data) => showError(data.message, document.getElementById('screen-profile')));
+            socket.on('account_deleted', () => {
+                localStorage.clear();
+                window.location.href = '/login';
+            });
+            socket.on('delete_error', (data) => showError(data.message, document.getElementById('screen-profile')));
+            socket.on('auth_error', (data) => {
+                showError(data.message);
+                localStorage.clear();
+                window.location.href = '/login';
+            });
+            socket.on('error', (error) => console.error('Socket.IO Error:', error));
         }
 
-        async function deleteAccount() {
-            if (!confirm('¿Estás seguro de eliminar tu cuenta? Esta acción no se puede deshacer y eliminará todos tus datos del servidor.')) return;
-            socket.emit('delete_account');
+        function loadProfile() {
+            socket.emit('get_profile');
         }
 
         function setupProfileEditButtons() {
-            document.querySelectorAll('.edit-btn[data-field]').forEach(btn => {
-                btn.addEventListener('click', async () => {
-                    const field = btn.getAttribute('data-field');
-                    const currentValue = document.getElementById(`profile${field.charAt(0).toUpperCase() + field.slice(1)}`).textContent;
-                    const newValue = prompt(`Nuevo ${field}:`, currentValue);
-                    if (newValue && newValue !== currentValue) {
-                        const success = await updateProfile(field, newValue);
-                        if (success) {
-                            document.getElementById(`profile${field.charAt(0).toUpperCase() + field.slice(1)}`).textContent = newValue;
-                        }
-                    }
-                });
-            });
+            const editNameBtn = document.getElementById('editNameBtn');
+            const editNameInput = document.getElementById('editNameInput');
+            const profileNameSpan = document.getElementById('profileName');
 
-            document.getElementById('profileImageInput').addEventListener('change', (e) => {
-                if (e.target.files && e.target.files[0]) {
-                    updateProfileImage(e.target.files[0]);
+            if (editNameBtn && editNameInput && profileNameSpan) {
+                editNameBtn.onclick = () => {
+                    profileNameSpan.style.display = 'none';
+                    editNameBtn.style.display = 'none';
+                    editNameInput.style.display = 'block';
+                    document.getElementById('newName').value = profileNameSpan.textContent;
+                };
+                const cancelBtn = editNameInput.querySelector('button:last-child');
+                if (cancelBtn) {
+                    cancelBtn.onclick = () => {
+                        profileNameSpan.style.display = 'inline';
+                        editNameBtn.style.display = 'inline';
+                        editNameInput.style.display = 'none';
+                    };
                 }
-            });
-        }
-
-        // Chats
-        function loadUsers(searchTerm) {
-            const usersList = document.getElementById('usersList');
-            usersList.innerHTML = '';
-            const filteredUsers = allUsers.filter(user => 
-                user.username.toLowerCase().includes(searchTerm.toLowerCase())
-            );
-            filteredUsers.forEach(user => {
-                const userElement = document.createElement('div');
-                userElement.className = 'user-item';
-                userElement.innerHTML = `
-                    <img src="${user.profile_image}" class="user-avatar" alt="Avatar">
-                    <div>
-                        <strong>${user.name}</strong> @${user.username}
-                        <span class="status ${user.online ? 'online' : 'offline'}"></span>
-                    </div>
-                `;
-                userElement.onclick = () => startChat(user.id, user.name, user.profile_image);
-                usersList.appendChild(userElement);
-            });
-        }
-
-        function startChat(userId, name, avatar) {
-            currentChat = userId;
-            document.getElementById('chatTitle').textContent = name;
-            document.getElementById('chatUserImage').src = avatar;
-            document.getElementById('conversationArea').innerHTML = '';
-            showScreen('screen-conversation');
-        }
-
-        function displayMessage(message) {
-            if ((message.sender_id === currentChat && message.receiver_id === userId) || 
-                (message.sender_id === userId && message.receiver_id === currentChat)) {
-                const conversation = document.getElementById('conversationArea');
-                const msgElement = document.createElement('div');
-                msgElement.className = `message ${message.sender_id === userId ? 'sent' : 'received'}`;
-                msgElement.innerHTML = `
-                    <p>${message.text}</p>
-                    <small>${new Date(message.created_at).toLocaleTimeString()}</small>
-                `;
-                conversation.appendChild(msgElement);
-                conversation.scrollTop = conversation.scrollHeight;
             }
-            updateChatList(message);
+
+            const uploadBtn = document.getElementById('uploadProfileImageBtn');
+            const fileInput = document.getElementById('profileImageFile');
+            if (uploadBtn && fileInput) {
+                uploadBtn.onclick = () => fileInput.click();
+                fileInput.onchange = (event) => {
+                    const file = event.target.files[0];
+                    if (file) {
+                        const reader = new FileReader();
+                        reader.onload = (e) => {
+                            socket.emit('upload_profile_image', { image_data: e.target.result.split(',')[1] });
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                };
+            }
         }
 
-        function updateChatList(message) {
-            const chatList = document.getElementById('chatList');
-            const existingChat = document.querySelector(`.chat-item[data-user-id="${message.sender_id}"]`);
-            if (!existingChat && message.sender_id !== userId) {
-                const chatItem = document.createElement('div');
-                chatItem.className = 'chat-item';
-                chatItem.dataset.userId = message.sender_id;
-                chatItem.innerHTML = `
-                    <img src="${manager.user_info[message.sender_id]?.avatar || '/static/default-avatar.png'}" class="chat-avatar" alt="Avatar">
-                    <div>
-                        <strong>${manager.user_info[message.sender_id]?.name || 'Usuario'}</strong>
-                        <p>${message.text.slice(0, 20)}...</p>
-                    </div>
-                `;
-                chatItem.onclick = () => startChat(message.sender_id, manager.user_info[message.sender_id]?.name, manager.user_info[message.sender_id]?.avatar);
-                chatList.appendChild(chatItem);
+        function saveProfileName() {
+            const newName = document.getElementById('newName').value.trim();
+            if (newName) {
+                socket.emit('update_profile', { name: newName });
             }
+        }
+
+        function deleteAccount() {
+            if (confirm('¿Estás seguro de que deseas eliminar tu cuenta? Esta acción es irreversible.')) {
+                socket.emit('delete_account');
+            }
+        }
+
+        function loadUsers(query = '') {
+            const filteredUsers = allUsers.filter(user => user.username.toLowerCase().includes(query.toLowerCase()));
+            const usersListDiv = document.getElementById('usersList');
+            if (usersListDiv) {
+                usersListDiv.innerHTML = '';
+                filteredUsers.forEach(user => {
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'user-item';
+                    userDiv.innerHTML = `<span class="username">${user.username}</span> <span class="status ${user.online ? 'online' : 'offline'}"></span>`;
+                    userDiv.addEventListener('click', () => startChat(user));
+                    usersListDiv.appendChild(userDiv);
+                });
+            }
+        }
+
+        function startChat(user) {
+            currentChat = user;
+            showScreen('screen-chat');
         }
 
         function sendMessage() {
-            const text = document.getElementById('messageInput').value.trim();
-            if (text && currentChat) {
-                socket.emit('send_message', { receiver_id: currentChat, text });
-                document.getElementById('messageInput').value = '';
+            const messageInput = document.getElementById('messageInput');
+            if (messageInput.value.trim() && currentChat) {
+                socket.emit('send_message', { recipient: currentChat.username, text: messageInput.value });
+                messageInput.value = '';
             }
         }
 
-        function handleKeyPress(event) {
-            if (event.key === 'Enter') sendMessage();
-        }
-
-        function updateUserStatus(user_id, online) {
-            const status = document.querySelector(`#chatStatus`);
-            if (currentChat === user_id && status) {
-                status.textContent = online ? 'En línea' : 'Desconectado';
-                status.className = `chat-header-status ${online ? 'online' : 'offline'}`;
+        function loadChatMessages(username) {
+            if (username) {
+                socket.emit('get_chat_messages', { username: username });
             }
         }
 
-        // Publicaciones
-        function addPost(post) {
-            const postsList = document.getElementById('postsList');
-            postsList.innerHTML = '';
-            const postElement = document.createElement('div');
-            postElement.className = 'post-item';
-            postElement.innerHTML = `
-                <img src="${post.profile_image}" class="post-avatar" alt="Avatar">
-                <div>
-                    <strong>${post.name}</strong> @${post.username}
-                    <p>${post.text || ''}</p>
-                    ${post.image_path ? `<img src="${post.image_path}" class="post-image">` : ''}
-                    <small>${new Date(post.created_at).toLocaleString()}</small>
-                </div>
-            `;
-            postsList.appendChild(postElement);
+        function loadChats() {
+            // Implement logic to load the list of active chats if needed
+            socket.emit('get_users'); // For simplicity, reusing get_users to show online status
         }
 
-        async function createPost() {
-            const text = document.getElementById('postText').value.trim();
-            const file = document.getElementById('postImage').files[0];
-            if (!text && !file) {
-                showError('Debes incluir texto o una imagen');
-                return;
-            }
+        function loadPosts() {
+            socket.emit('get_posts');
+        }
 
-            try {
-                if (file) {
-                    const reader = new FileReader();
-                reader.onload = () => {
-                        socket.emit('create_post', {
-                            text,
-                            file: { type: file.type, data: reader.result }
-                        });
-                    };
-                    reader.readAsDataURL(file);
-                } else {
-                    socket.emit('create_post', { text });
-                }
+        function createPost() {
+            const postText = document.getElementById('postText').value.trim();
+            const imageInput = document.getElementById('postImage');
+            const file = imageInput.files[0];
+            let base64Image = null;
+
+            if (file) {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    base64Image = reader.result.split(',')[1];
+                    socket.emit('create_post', { text: postText, image: base64Image });
+                    document.getElementById('postText').value = '';
+                    document.getElementById('postImage').value = '';
+                    document.getElementById('imagePreview').innerHTML = '';
+                    showScreen('screen-feed');
+                };
+                reader.readAsDataURL(file);
+            } else {
+                socket.emit('create_post', { text: postText, image: null });
                 document.getElementById('postText').value = '';
-                document.getElementById('postImage').value = '';
-                document.getElementById('imagePreview').innerHTML = '';
-                showScreen('screen-main');
-            } catch (e) {
-                showError('Error al crear la publicación');
+                showScreen('screen-feed');
             }
         }
 
@@ -423,6 +409,13 @@
             localStorage.clear();
             socket.disconnect();
             window.location.href = '/login';
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessage();
+            }
         }
 
         // Inicialización
@@ -435,29 +428,44 @@
             connectSocketIO();
             loadProfile();
             setupProfileEditButtons();
+            loadChats(); // Load initial list of chats or users for new chat
 
-            document.getElementById('openNewChat').addEventListener('click', () => {
-                showScreen('screen-new-chat');
-                socket.emit('get_users');
-            });
+            const openNewChat = document.getElementById('openNewChat');
+            if (openNewChat) {
+                openNewChat.addEventListener('click', () => {
+                    showScreen('screen-new-chat');
+                    socket.emit('get_users');
+                });
+            }
 
-            document.getElementById('openNewPost').addEventListener('click', () => {
-                showScreen('screen-new-post');
-            });
+            const openNewPost = document.getElementById('openNewPost');
+            if (openNewPost) {
+                openNewPost.addEventListener('click', () => showScreen('screen-new-post'));
+            }
 
-            document.getElementById('postImage').addEventListener('change', (e) => {
-                const file = e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    document.getElementById('imagePreview').innerHTML = `<img src="${e.target.result}">`;
-                };
-                reader.readAsDataURL(file);
-            });
+            const postImage = document.getElementById('postImage');
+            if (postImage) {
+                postImage.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const imagePreview = document.getElementById('imagePreview');
+                        if (imagePreview) imagePreview.innerHTML = `<img src="${e.target.result}">`;
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
 
-            document.getElementById('userSearch').addEventListener('input', (e) => {
-                loadUsers(e.target.value.trim());
-            });
+            const userSearch = document.getElementById('userSearch');
+            if (userSearch) {
+                userSearch.addEventListener('input', (e) => loadUsers(e.target.value.trim()));
+            }
+
+            const messageInput = document.getElementById('messageInput');
+            if (messageInput) {
+                messageInput.addEventListener('keypress', handleKeyPress);
+            }
         });
     </script>
 </body>
