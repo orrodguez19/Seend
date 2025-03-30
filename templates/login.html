@@ -6,7 +6,7 @@
     <title>Seend - Inicio de Sesión</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/styles.css">
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
 </head>
 <body class="auth-body">
     <div class="auth-container">
@@ -24,48 +24,39 @@
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const socket = io(`wss://${window.location.host}`, { transports: ['websocket'] });
-            const nameField = document.getElementById('name');
+            const socket = io(`ws://${window.location.host}:5000`, { transports: ['websocket'] });
             const loginBtn = document.getElementById('loginBtn');
             const registerBtn = document.getElementById('registerBtn');
+            const nameInput = document.getElementById('name');
             const errorMsg = document.getElementById('errorMsg');
             let isRegisterMode = false;
 
-            registerBtn.addEventListener('click', (e) => {
-                if (!isRegisterMode) {
-                    e.preventDefault();
-                    nameField.classList.remove('hidden');
-                    loginBtn.classList.add('hidden');
-                    registerBtn.textContent = 'Crear Cuenta';
-                    registerBtn.classList.replace('btn-secondary', 'btn-primary');
-                    isRegisterMode = true;
-                }
-            });
-
-            const showError = (message) => {
+            function showError(message) {
                 errorMsg.textContent = message;
                 errorMsg.classList.remove('hidden');
                 setTimeout(() => errorMsg.classList.add('hidden'), 5000);
-            };
+            }
 
-            socket.on('connect', () => console.log('Socket connected'));
+            registerBtn.addEventListener('click', () => {
+                isRegisterMode = !isRegisterMode;
+                nameInput.classList.toggle('hidden', !isRegisterMode);
+                loginBtn.textContent = isRegisterMode ? 'Registrarse' : 'Iniciar Sesión';
+                registerBtn.textContent = isRegisterMode ? '¿Ya tienes cuenta? Iniciar Sesión' : '¿No tienes cuenta? Regístrate';
+            });
+
             socket.on('username_status', (data) => {
                 if (!data.available && isRegisterMode) showError(data.message);
             });
-            socket.on('registered', (data) => {
-                localStorage.setItem('token', data.session_id);
-                localStorage.setItem('user_id', data.user_id);
-                localStorage.setItem('user_data', JSON.stringify(data));
-                window.location.href = '/chat';
-            });
-            socket.on('logged_in', (data) => {
-                localStorage.setItem('token', data.session_id);
-                localStorage.setItem('user_id', data.user_id);
-                localStorage.setItem('user_data', JSON.stringify(data));
-                window.location.href = '/chat';
-            });
+            socket.on('registered', handleAuthSuccess);
+            socket.on('logged_in', handleAuthSuccess);
             socket.on('register_error', (data) => showError(data.message));
             socket.on('login_error', (data) => showError(data.message));
+
+            function handleAuthSuccess(data) {
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('user_id', data.userId);
+                window.location.href = '/chat';
+            }
 
             document.getElementById('username').addEventListener('input', () => {
                 if (isRegisterMode) {
