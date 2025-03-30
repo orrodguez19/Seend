@@ -2,359 +2,247 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-    <title>Seend</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seend Chat</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        *{margin:0;padding:0;box-sizing:border-box;font-family:'Poppins',sans-serif;-webkit-tap-highlight-color:transparent}
-        :root{
-            --primary:#1e88e5;
-            --primary-dark:#1565c0;
-            --primary-light:#bbdefb;
-            --background:#f5f7fa;
-            --surface:#fff;
-            --text-primary:#212121;
-            --text-secondary:#757575;
-            --divider:#e0e0e0;
-            --received-msg:#fff;
-            --sent-msg:#dcf8c6;
-            --status-read:#4fc3f7;
-            --status-delivered:#bdbdbd;
-            --status-sent:#bdbdbd
+        :root {
+            --primary: #1e88e5;
+            --primary-dark: #1565c0;
+            --background: #f5f7fa;
+            --surface: #fff;
+            --text-primary: #212121;
+            --text-secondary: #757575;
+            --divider: #e0e0e0;
+            --received-msg: #fff;
+            --sent-msg: #dcf8c6;
         }
-        body{
-            background-color:var(--background);
-            color:var(--text-primary);
-            height:100vh;
-            overflow:hidden;
-            touch-action:manipulation
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
         }
-        #app{
-            width:100%;
-            height:100%;
-            max-width:450px;
-            margin:0 auto;
-            background-color:var(--surface);
-            position:relative;
-            overflow:hidden;
-            box-shadow:0 0 10px rgba(0,0,0,0.1);
-            display:flex;
-            flex-direction:column
+        
+        body {
+            background-color: var(--background);
+            height: 100vh;
+            overflow: hidden;
         }
-        .app-bar{
-            height:56px;
-            background-color:var(--primary);
-            color:#fff;
-            display:flex;
-            align-items:center;
-            padding:0 16px;
-            box-shadow:0 2px 4px rgba(0,0,0,0.1);
-            position:relative;
-            z-index:10
+        
+        #app {
+            max-width: 450px;
+            height: 100%;
+            margin: 0 auto;
+            background-color: var(--surface);
+            display: flex;
+            flex-direction: column;
         }
-        .app-title{
-            font-size:20px;
-            font-weight:500;
-            flex-grow:1
+        
+        /* Estructura de pantallas */
+        .screen {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
         }
-        .icon-button{
-            width:40px;
-            height:40px;
-            border:none;
-            background:none;
-            color:#fff;
-            border-radius:50%;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            cursor:pointer
+        
+        .screen.active {
+            display: flex;
         }
-        .screen{
-            display:none;
-            flex-direction:column;
-            height:100%;
-            width:100%
+        
+        /* Barra de aplicación */
+        .app-bar {
+            height: 56px;
+            background-color: var(--primary);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            position: relative;
+            z-index: 10;
         }
-        .screen.active{
-            display:flex
+        
+        .app-title {
+            font-size: 18px;
+            font-weight: 500;
+            flex-grow: 1;
+            text-align: center;
         }
-        .chat-list{
-            flex:1;
-            overflow-y:auto;
-            -webkit-overflow-scrolling:touch
+        
+        .icon-button {
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: none;
+            color: #fff;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
         }
-        .chat-item{
-            display:flex;
-            padding:12px 16px;
-            border-bottom:1px solid var(--divider);
-            cursor:pointer;
-            transition:background-color .2s
+        
+        /* Lista de chats */
+        .chat-list {
+            flex: 1;
+            overflow-y: auto;
         }
-        .chat-item:active{
-            background-color:rgba(0,0,0,0.05)
+        
+        .chat-item {
+            display: flex;
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--divider);
+            cursor: pointer;
         }
-        .chat-avatar{
-            width:48px;
-            height:48px;
-            border-radius:50%;
-            background-color:var(--primary);
-            color:#fff;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            font-weight:500;
-            margin-right:16px;
-            flex-shrink:0
+        
+        .chat-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: var(--primary);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            flex-shrink: 0;
+            font-weight: 500;
         }
-        .chat-info{
-            flex:1;
-            min-width:0;
-            display:flex;
-            flex-direction:column;
-            justify-content:center
+        
+        .chat-info {
+            flex: 1;
+            min-width: 0;
         }
-        .chat-name{
-            font-weight:500;
-            margin-bottom:4px;
-            white-space:nowrap;
-            overflow:hidden;
-            text-overflow:ellipsis
+        
+        .chat-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .chat-preview{
-            font-size:14px;
-            color:var(--text-secondary);
-            white-space:nowrap;
-            overflow:hidden;
-            text-overflow:ellipsis
+        
+        .chat-preview {
+            font-size: 14px;
+            color: var(--text-secondary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .message-area{
-            flex:1;
-            display:flex;
-            flex-direction:column;
-            overflow:hidden
+        
+        /* Área de mensajes */
+        .message-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
-        .message-container{
-            flex:1;
-            overflow-y:auto;
-            -webkit-overflow-scrolling:touch;
-            padding:16px;
-            background-color:#e5ddd5;
-            background-image:url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%239C92AC' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E")
+        
+        .message-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            background-color: #e5ddd5;
+            background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%239C92AC' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
         }
-        .message{
-            max-width:80%;
-            margin-bottom:16px;
-            display:flex;
-            flex-direction:column;
-            animation:fadeIn .2s ease-out
+        
+        .message {
+            max-width: 80%;
+            margin-bottom: 16px;
+            display: flex;
+            flex-direction: column;
         }
-        .message.received{
-            align-items:flex-start
+        
+        .message.received {
+            align-items: flex-start;
         }
-        .message.sent{
-            align-items:flex-end
+        
+        .message.sent {
+            align-items: flex-end;
         }
-        .message-bubble{
-            padding:8px 12px;
-            border-radius:8px;
-            position:relative;
-            word-wrap:break-word;
-            font-size:15px;
-            line-height:1.4;
-            max-width:100%
+        
+        .message-bubble {
+            padding: 8px 12px;
+            border-radius: 8px;
+            word-wrap: break-word;
+            font-size: 15px;
+            line-height: 1.4;
         }
-        .message.received .message-bubble{
-            background-color:var(--received-msg);
-            border-top-left-radius:2px;
-            box-shadow:0 1px 1px rgba(0,0,0,0.1)
+        
+        .message.received .message-bubble {
+            background-color: var(--received-msg);
+            border-top-left-radius: 2px;
         }
-        .message.sent .message-bubble{
-            background-color:var(--sent-msg);
-            border-top-right-radius:2px;
-            box-shadow:0 1px 1px rgba(0,0,0,0.1)
+        
+        .message.sent .message-bubble {
+            background-color: var(--sent-msg);
+            border-top-right-radius: 2px;
         }
-        .message-status{
-            display:flex;
-            align-items:center;
-            margin-top:4px
+        
+        .message-time {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
         }
-        .message-time{
-            font-size:11px;
-            color:var(--text-secondary);
-            margin-right:4px
+        
+        /* Entrada de mensajes */
+        .message-input-area {
+            padding: 8px;
+            background-color: var(--surface);
+            border-top: 1px solid var(--divider);
+            display: flex;
+            align-items: center;
         }
-        .status-icon{
-            width:16px;
-            height:16px;
-            display:flex;
-            align-items:center;
-            justify-content:center
+        
+        .message-input {
+            flex: 1;
+            border: none;
+            border-radius: 20px;
+            background-color: var(--background);
+            padding: 12px 16px;
+            margin: 0 8px;
+            outline: none;
+            font-size: 15px;
         }
-        .status-icon svg{
-            width:12px;
-            height:12px
+        
+        .send-button {
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 50%;
+            background-color: var(--primary);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
         }
-        .status-sent svg{
-            fill:var(--status-sent)
-        }
-        .status-delivered svg{
-            fill:var(--status-delivered)
-        }
-        .status-read svg{
-            fill:var(--status-read)
-        }
-        .message-input-area{
-            padding:8px;
-            background-color:var(--surface);
-            border-top:1px solid var(--divider);
-            display:flex;
-            align-items:center
-        }
-        .message-input{
-            flex:1;
-            border:none;
-            border-radius:20px;
-            background-color:var(--background);
-            padding:12px 16px;
-            margin:0 8px;
-            outline:none;
-            font-size:15px;
-            min-height:40px;
-            max-height:100px
-        }
-        .send-button{
-            width:40px;
-            height:40px;
-            min-width:40px;
-            border:none;
-            border-radius:50%;
-            background-color:var(--primary);
-            color:#fff;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            cursor:pointer
-        }
-        .send-button:active{
-            background-color:var(--primary-dark)
-        }
-        .profile-container{
-            flex:1;
-            overflow-y:auto;
-            -webkit-overflow-scrolling:touch;
-            padding:16px;
-            background-color:var(--background)
-        }
-        .profile-header{
-            display:flex;
-            flex-direction:column;
-            align-items:center;
-            margin-bottom:24px
-        }
-        .profile-avatar{
-            width:100px;
-            height:100px;
-            border-radius:50%;
-            background-color:var(--primary);
-            color:#fff;
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            font-size:36px;
-            font-weight:500;
-            margin-bottom:16px
-        }
-        .profile-name{
-            font-size:20px;
-            font-weight:500;
-            margin-bottom:4px
-        }
-        .profile-username{
-            font-size:16px;
-            color:var(--text-secondary);
-            margin-bottom:16px
-        }
-        .profile-section{
-            background-color:var(--surface);
-            border-radius:8px;
-            padding:16px;
-            margin-bottom:16px;
-            box-shadow:0 1px 2px rgba(0,0,0,0.1)
-        }
-        .profile-section-title{
-            font-size:16px;
-            font-weight:500;
-            color:var(--primary);
-            margin-bottom:12px
-        }
-        .profile-info-item{
-            display:flex;
-            margin-bottom:12px;
-            align-items:center
-        }
-        .profile-info-label{
-            width:100px;
-            color:var(--text-secondary);
-            font-size:14px
-        }
-        .profile-info-value{
-            flex:1;
-            font-size:14px;
-            padding:8px;
-            border:none;
-            background:transparent;
-            border-bottom:1px solid transparent;
-            transition:border-color .2s
-        }
-        .profile-info-value:focus{
-            outline:none;
-            border-bottom:1px solid var(--primary)
-        }
-        .save-button{
-            background-color:var(--primary);
-            color:#fff;
-            border:none;
-            border-radius:20px;
-            padding:12px 24px;
-            font-size:16px;
-            font-weight:500;
-            margin-top:16px;
-            cursor:pointer;
-            display:block;
-            width:100%
-        }
-        .save-button:active{
-            background-color:var(--primary-dark)
-        }
-        .floating-btn{
-            position:fixed;
-            bottom:80px;
-            right:20px;
-            width:56px;
-            height:56px;
-            border-radius:50%;
-            background:var(--primary);
-            color:white;
-            border:none;
-            box-shadow:0 2px 5px rgba(0,0,0,0.2);
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            cursor:pointer;
-            z-index:1000
-        }
-        @keyframes fadeIn{
-            from{opacity:0;transform:translateY(10px)}
-            to{opacity:1;transform:translateY(0)}
-        }
-        @media (max-width:400px){
-            .message{max-width:90%}
-            .message-input{font-size:14px;padding:10px 14px}
+        
+        /* Botón flotante */
+        .floating-btn {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: var(--primary);
+            color: white;
+            border: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 1000;
         }
     </style>
 </head>
 <body>
     <div id="app">
+        <!-- Pantalla de chats recientes -->
         <div class="screen active" id="chats-screen">
             <div class="app-bar">
                 <div class="app-title">Seend</div>
@@ -364,10 +252,10 @@
                     </svg>
                 </button>
             </div>
-            <div class="chat-list" id="recent-chats-list">
-                </div>
+            <div class="chat-list" id="recent-chats-list"></div>
         </div>
 
+        <!-- Pantalla de chat -->
         <div class="screen" id="chat-screen">
             <div class="app-bar">
                 <button class="icon-button" id="back-button">
@@ -379,8 +267,7 @@
                 <div style="width:40px"></div>
             </div>
             <div class="message-area">
-                <div class="message-container" id="message-container">
-                    </div>
+                <div class="message-container" id="message-container"></div>
                 <div class="message-input-area">
                     <input type="text" class="message-input" id="message-input" placeholder="Escribe un mensaje...">
                     <button class="send-button" id="send-button">
@@ -392,66 +279,7 @@
             </div>
         </div>
 
-        <div class="screen" id="profile-screen">
-            <div class="app-bar">
-                <button class="icon-button" id="back-profile-button">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
-                        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-                    </svg>
-                </button>
-                <div class="app-title">Mi perfil</div>
-                <div style="width:40px"></div>
-            </div>
-            <div class="profile-container">
-                <div class="profile-header">
-                    <div class="profile-avatar" id="profile-avatar">TU</div>
-                    <input type="text" class="profile-name" id="profile-name" value="Tu Nombre">
-                    <input type="text" class="profile-username" id="profile-username" value="@usuario">
-                </div>
-                <div class="profile-section">
-                    <div class="profile-section-title">Información</div>
-                    <div class="profile-info-item">
-                        <div class="profile-info-label">Nombre</div>
-                        <input type="text" class="profile-info-value" id="profile-fullname" value="Tu Nombre Completo">
-                    </div>
-                    <div class="profile-info-item">
-                        <div class="profile-info-label">Usuario</div>
-                        <input type="text" class="profile-info-value" id="profile-user" value="@usuario">
-                    </div>
-                    <div class="profile-info-item">
-                        <div class="profile-info-label">Teléfono</div>
-                        <input type="text" class="profile-info-value" id="profile-phone" value="+1 234 567 890">
-                    </div>
-                </div>
-                <div class="profile-section">
-                    <div class="profile-section-title">Configuración</div>
-                    <div class="profile-info-item">
-                        <div class="profile-info-label">Notificaciones</div>
-                        <input type="text" class="profile-info-value" id="profile-notifications" value="Activadas">
-                    </div>
-                    <div class="profile-info-item">
-                        <div class="profile-info-label">Privacidad</div>
-                        <input type="text" class="profile-info-value" id="profile-privacy" value="Público">
-                    </div>
-                </div>
-                <button class="save-button" id="save-button">Guardar cambios</button>
-            </div>
-        </div>
-
-        <div class="screen" id="users-screen">
-            <div class="app-bar">
-                <button class="icon-button" id="back-users-button">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
-                        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-                    </svg>
-                </button>
-                <div class="app-title">Usuarios</div>
-                <div style="width:40px"></div>
-            </div>
-            <div class="chat-list" id="users-list">
-                </div>
-        </div>
-
+        <!-- Botón flotante para nuevos chats -->
         <button id="add-contact-btn" class="floating-btn">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
                 <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
@@ -470,23 +298,14 @@
         const elements = {
             chatsScreen: document.getElementById('chats-screen'),
             chatScreen: document.getElementById('chat-screen'),
-            profileScreen: document.getElementById('profile-screen'),
-            usersScreen: document.getElementById('users-screen'),
             backButton: document.getElementById('back-button'),
-            backProfileButton: document.getElementById('back-profile-button'),
-            backUsersButton: document.getElementById('back-users-button'),
             profileButton: document.getElementById('profile-button'),
             addContactBtn: document.getElementById('add-contact-btn'),
             recentChatsList: document.getElementById('recent-chats-list'),
-            usersList: document.getElementById('users-list'),
             messageContainer: document.getElementById('message-container'),
             messageInput: document.getElementById('message-input'),
             sendButton: document.getElementById('send-button'),
-            saveButton: document.getElementById('save-button'),
-            chatTitle: document.getElementById('chat-title'),
-            profileAvatar: document.getElementById('profile-avatar'),
-            profileName: document.getElementById('profile-name'),
-            profileUsername: document.getElementById('profile-username')
+            chatTitle: document.getElementById('chat-title')
         };
 
         // Inicialización
@@ -504,21 +323,13 @@
 
                 if (response.ok && data.username) {
                     currentUser = data.username;
-                    updateProfileData(data);
                     connectToChat();
                 } else {
-                    console.error('Session invalid.');
-                    // Instead of redirecting, you might want to:
-                    // 1. Display an error message to the user.
-                    // 2. Redirect to a dedicated login page if your application has one.
-                    // 3. Show a login form within the app.
-                    // For this example, we will just log an error.
-                    // window.location.href = '/';
+                    window.location.href = '/';
                 }
             } catch (error) {
                 console.error('Error checking session:', error);
-                // Same as above, handle the error appropriately instead of redirecting.
-                // window.location.href = '/';
+                window.location.href = '/';
             }
         }
 
@@ -527,18 +338,19 @@
             socket.on('connect', () => {
                 socket.emit('login_socket', { username: currentUser });
             });
+
             socket.on('new_message', (message) => {
                 if (!currentChatUser || message.sender === currentChatUser) {
-                    addMessageToChat(message, false);
+                    addMessageToChat(message, message.sender === currentUser);
                 }
                 loadRecentChats();
             });
-            socket.on('user_connected', (data) => {
-                console.log('User connected:', data.username);
+
+            socket.on('user_connected', () => {
                 loadRecentChats();
             });
-            socket.on('user_disconnected', (data) => {
-                console.log('User disconnected:', data.username);
+
+            socket.on('user_disconnected', () => {
                 loadRecentChats();
             });
         }
@@ -555,16 +367,19 @@
                     const chatItem = document.createElement('div');
                     chatItem.className = 'chat-item';
                     chatItem.innerHTML = `
-                        <div class="chat-avatar">${getInitials(chat.contact_username)}</div>
+                        <div class="chat-avatar" style="background-image: url('${chat.avatar}')">
+                            ${getInitials(chat.contact_name || chat.contact_username)}
+                        </div>
                         <div class="chat-info">
-                            <div class="chat-name">${chat.contact_username}</div>
+                            <div class="chat-name">${chat.contact_name || chat.contact_username}</div>
                             <div class="chat-preview">${chat.last_message || 'Nuevo chat'}</div>
                         </div>
                     `;
                     chatItem.addEventListener('click', () => {
                         openChatScreen({
                             username: chat.contact_username,
-                            name: chat.contact_username
+                            name: chat.contact_name || chat.contact_username,
+                            avatar: chat.avatar
                         });
                     });
                     elements.recentChatsList.appendChild(chatItem);
@@ -572,46 +387,6 @@
             } catch (error) {
                 console.error('Error loading recent chats:', error);
             }
-        }
-
-        // Cargar usuarios públicos
-        async function loadPublicUsers() {
-            try {
-                const response = await fetch('/public-users');
-                const users = await response.json();
-
-                elements.usersList.innerHTML = '';
-
-                users
-                    .filter(user => user.username !== currentUser)
-                    .forEach(user => {
-                        const userElement = document.createElement('div');
-                        userElement.className = 'chat-item';
-                        userElement.innerHTML = `
-                            <div class="chat-avatar">${getInitials(user.name)}</div>
-                            <div class="chat-info">
-                                <div class="chat-name">${user.name}</div>
-                                <div class="chat-preview">@${user.username}</div>
-                            </div>
-                        `;
-                        userElement.addEventListener('click', () => {
-                            startNewChat(user);
-                        });
-                        elements.usersList.appendChild(userElement);
-                    });
-            } catch (error) {
-                console.error('Error loading public users:', error);
-            }
-        }
-
-        // Iniciar nuevo chat
-        function startNewChat(user) {
-            currentChatUser = user.username;
-            elements.chatTitle.textContent = user.name;
-            elements.messageContainer.innerHTML = '';
-
-            elements.usersScreen.classList.remove('active');
-            elements.chatScreen.classList.add('active');
         }
 
         // Abrir pantalla de chat
@@ -633,13 +408,6 @@
                     message: messageText
                 };
                 socket.emit('send_message', message);
-                addMessageToChat({
-                    sender: currentUser,
-                    message: messageText,
-                    timestamp: new Date().toISOString(),
-                    avatar: `https://ui-avatars.com/api/?name=${currentUser}&background=random`
-                }, true);
-
                 elements.messageInput.value = '';
             }
         }
@@ -655,40 +423,15 @@
             messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
             messageDiv.innerHTML = `
                 <div class="message-bubble">${message.message}</div>
-                <div class="message-status">
-                    <div class="message-time">${messageTime}</div>
-                    ${isSent ? `
-                    <div class="status-icon status-sent">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
-                        </svg>
-                    </div>` : ''}
-                </div>
+                <div class="message-time">${messageTime}</div>
             `;
             elements.messageContainer.appendChild(messageDiv);
             elements.messageContainer.scrollTop = elements.messageContainer.scrollHeight;
-
-            if (isSent) {
-                setTimeout(() => {
-                    const icon = messageDiv.querySelector('.status-icon');
-                    if (icon) {
-                        icon.classList.remove('status-sent');
-                        icon.classList.add('status-delivered');
-                    }
-                }, 1000);
-            }
-        }
-
-        // Actualizar datos del perfil
-        function updateProfileData(userData) {
-            elements.profileName.value = userData.name || 'Usuario';
-            elements.profileUsername.value = userData.username || '@usuario';
-            elements.profileAvatar.textContent = getInitials(userData.name || 'Usuario');
         }
 
         // Obtener iniciales
         function getInitials(name) {
-            if (!name) return 'US';
+            if (!name) return '';
             return name.split(' ')
                       .map(part => part[0].toUpperCase())
                       .join('')
@@ -698,61 +441,19 @@
         // Configurar event listeners
         function setupEventListeners() {
             // Navegación
-            elements.profileButton.addEventListener('click', () => {
-                elements.chatsScreen.classList.remove('active');
-                elements.profileScreen.classList.add('active');
-            });
             elements.backButton.addEventListener('click', () => {
                 elements.chatScreen.classList.remove('active');
                 elements.chatsScreen.classList.add('active');
             });
-            elements.backProfileButton.addEventListener('click', () => {
-                elements.profileScreen.classList.remove('active');
-                elements.chatsScreen.classList.add('active');
-            });
+
             elements.addContactBtn.addEventListener('click', () => {
-                loadPublicUsers();
-                elements.chatsScreen.classList.remove('active');
-                elements.usersScreen.classList.add('active');
-            });
-            elements.backUsersButton.addEventListener('click', () => {
-                elements.usersScreen.classList.remove('active');
-                elements.chatsScreen.classList.add('active');
+                alert('Funcionalidad de agregar contactos en desarrollo');
             });
 
             // Mensajes
             elements.sendButton.addEventListener('click', sendMessage);
             elements.messageInput.addEventListener('keypress', (e) => {
                 if (e.key === "Enter") sendMessage();
-            });
-
-            // Perfil
-            elements.saveButton.addEventListener('click', async () => {
-                const profileData = {
-                    name: elements.profileName.value,
-                    username: elements.profileUsername.value
-                };
-
-                try {
-                    const response = await fetch('/update-profile', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(profileData)
-                    });
-
-                    if (response.ok) {
-                        alert('Perfil actualizado correctamente');
-                        updateProfileData(profileData);
-                    } else {
-                        const error = await response.json();
-                        alert(error.detail || 'Error al actualizar el perfil');
-                    }
-                } catch (error) {
-                    console.error('Error updating profile:', error);
-                    alert('Error de conexión con el servidor');
-                }
             });
         }
     </script>
