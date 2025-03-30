@@ -14,6 +14,7 @@ from socketio import AsyncServer, ASGIApp
 import aiofiles
 from PIL import Image
 import io
+import uvicorn  # Importar uvicorn
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -363,5 +364,4 @@ app.mount("/", ASGIApp(sio))
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    import socketio
-    socketio.run(app, debug=True, host='0.0.0.0', port=port)
+    uvicorn.run(app, debug=True, host='0.0.0.0', port=port)  # Usar uvicorn para ejecutar la aplicación
