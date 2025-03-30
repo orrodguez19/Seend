@@ -3,105 +3,99 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seend - Inicio de Sesión</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/styles.css">
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <title>Seend - En Mantenimiento</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #1a237e, #283593);
+            color: white;
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 600px;
+            padding: 2rem;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        h1 {
+            font-weight: 700;
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+            color: #ffffff;
+        }
+        
+        p {
+            font-size: 1.1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .logo {
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            color: #4fc3f7;
+        }
+        
+        .telegram-btn {
+            display: inline-block;
+            background-color: #0088cc;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            margin-top: 1rem;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .telegram-btn:hover {
+            background-color: #006699;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .maintenance-icon {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+            color: #4fc3f7;
+        }
+        
+        @media (max-width: 600px) {
+            .container {
+                width: 90%;
+                padding: 1.5rem;
+            }
+            
+            h1 {
+                font-size: 2rem;
+            }
+        }
+    </style>
 </head>
-<body class="auth-body">
-    <div class="auth-container">
-        <h1 class="auth-title">Seend</h1>
-        <form id="authForm" class="auth-form">
-            <input type="text" id="username" placeholder="Usuario (@username)" required>
-            <input type="password" id="password" placeholder="Contraseña" required>
-            <input type="text" id="name" placeholder="Nombre" class="hidden">
-            <div class="auth-buttons">
-                <button type="button" id="loginBtn" class="btn-primary">Iniciar Sesión</button>
-                <button type="button" id="registerBtn" class="btn-secondary">Registrarse</button>
-            </div>
-        </form>
-        <p id="errorMsg" class="error-message hidden"></p>
+<body>
+    <div class="container">
+        <div class="logo">Seend</div>
+        <div class="maintenance-icon">🔧</div>
+        <h1>Plataforma en Mantenimiento</h1>
+        <p>Lamentamos las molestias ocasionadas. Estamos trabajando para mejorar tu experiencia de usuario.</p>
+        <p>Mantente informado a través de nuestro canal oficial:</p>
+        <a href="https://t.me/seendapp" class="telegram-btn">Únete a nuestro Telegram</a>
     </div>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const socket = io(`wss://${window.location.host}`, { transports: ['websocket'] });
-            const nameField = document.getElementById('name');
-            const loginBtn = document.getElementById('loginBtn');
-            const registerBtn = document.getElementById('registerBtn');
-            const errorMsg = document.getElementById('errorMsg');
-            let isRegisterMode = false;
-
-            registerBtn.addEventListener('click', (e) => {
-                if (!isRegisterMode) {
-                    e.preventDefault();
-                    nameField.classList.remove('hidden');
-                    loginBtn.classList.add('hidden');
-                    registerBtn.textContent = 'Crear Cuenta';
-                    registerBtn.classList.replace('btn-secondary', 'btn-primary');
-                    isRegisterMode = true;
-                }
-            });
-
-            const showError = (message) => {
-                errorMsg.textContent = message;
-                errorMsg.classList.remove('hidden');
-                setTimeout(() => errorMsg.classList.add('hidden'), 5000);
-            };
-
-            socket.on('connect', () => console.log('Socket connected'));
-            socket.on('username_status', (data) => {
-                if (!data.available && isRegisterMode) showError(data.message);
-            });
-            socket.on('registered', (data) => {
-                localStorage.setItem('token', data.session_id);
-                localStorage.setItem('user_id', data.user_id);
-                localStorage.setItem('user_data', JSON.stringify(data));
-                window.location.href = '/chat';
-            });
-            socket.on('logged_in', (data) => {
-                localStorage.setItem('token', data.session_id);
-                localStorage.setItem('user_id', data.user_id);
-                localStorage.setItem('user_data', JSON.stringify(data));
-                window.location.href = '/chat';
-            });
-            socket.on('register_error', (data) => showError(data.message));
-            socket.on('login_error', (data) => showError(data.message));
-
-            document.getElementById('username').addEventListener('input', () => {
-                if (isRegisterMode) {
-                    const username = document.getElementById('username').value.trim();
-                    if (username) socket.emit('check_username', { username });
-                }
-            });
-
-            const handleAuth = () => {
-                const username = document.getElementById('username').value.trim();
-                const password = document.getElementById('password').value.trim();
-                const name = isRegisterMode ? document.getElementById('name').value.trim() : '';
-
-                if (!username || !password || (isRegisterMode && !name)) {
-                    showError('Todos los campos son requeridos');
-                    return;
-                }
-                if (!username.startsWith('@')) {
-                    showError('El usuario debe comenzar con @');
-                    return;
-                }
-
-                const authData = { username, password };
-                if (isRegisterMode) {
-                    authData.name = name;
-                    socket.emit('register', authData);
-                } else {
-                    socket.emit('login', authData);
-                }
-            };
-
-            loginBtn.addEventListener('click', handleAuth);
-            registerBtn.addEventListener('click', (e) => {
-                if (isRegisterMode) handleAuth();
-            });
-        });
-    </script>
 </body>
 </html>
