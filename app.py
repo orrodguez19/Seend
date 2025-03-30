@@ -1,11 +1,11 @@
 import os
-from fastapi import FastAPI, Request, HTTPException, Depends
+from fastapi import FastAPI, Request, HTTPException, Depends, Response, Cookie
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 import socketio
 from typing import Dict, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 import uuid
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -14,6 +14,7 @@ from sqlalchemy.ext.declarative import declarative_base
 import asyncpg
 from passlib.context import CryptContext
 from pydantic import BaseModel
+import secrets
 
 # Configuración de seguridad
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -96,6 +97,13 @@ async def update_recent_chat(session, user_username: str, contact_username: str,
     )
     session.add(new_chat)
 
+async def get_current_user(session_token: Optional[str] = Cookie(None)) -> Optional[User]:
+    if not session_token:
+        return None
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User).where(User.sid == session_token))
+        return result.scalar_one_or_none()
+
 # Eventos de inicio
 @app.on_event("startup")
 async def startup():
@@ -108,7 +116,9 @@ async def read_root(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 @app.get("/chat", response_class=HTMLResponse)
-async def chat(request: Request):
+async def chat(request: Request, session_token: Optional[str] = Cookie(None)):
+    if not session_token:
+        return RedirectResponse("/")
     return templates.TemplateResponse("chat.html", {"request": request})
 
 @app.post("/register")
@@ -129,11 +139,41 @@ async def register(user_data: UserCreate):
         return {"message": "User registered successfully"}
 
 @app.post("/login")
-async def login(user_data: UserLogin):
+async def login(user_data: UserLogin, response: Response):
     user = await get_user(user_data.username)
     if not user or not pwd_context.verify(user_data.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    # Genera un token de sesión único y lo guarda en el usuario
+    session_token = secrets.token_urlsafe(32)
+    async with AsyncSessionLocal() as session:
+        user.sid = session_token
+        await session.commit()
+    
+    # Establece la cookie de sesión (válida por 1 día)
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        max_age=86400,
+        secure=False,  # Cambia a True en producción con HTTPS
+        samesite="lax"
+    )
     return {"message": "Login successful", "username": user.username}
+
+@app.post("/logout")
+async def logout(response: Response, session_token: Optional[str] = Cookie(None)):
+    if session_token:
+        async with AsyncSessionLocal() as session:
+            user = await session.execute(select(User).where(User.sid == session_token))
+            user = user.scalar_one_or_none()
+            if user:
+                user.sid = None
+                await session.commit()
+    
+    # Elimina la cookie
+    response.delete_cookie("session_token")
+    return {"message": "Logged out successfully"}
 
 @app.get("/public-users")
 async def get_public_users():
