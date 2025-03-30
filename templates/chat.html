@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Seend Chat</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
             --primary: #1e88e5;
@@ -16,180 +15,146 @@
             --divider: #e0e0e0;
             --received-msg: #fff;
             --sent-msg: #dcf8c6;
+            --online: #4CAF50;
+            --offline: #9E9E9E;
+            --typing: #FFC107;
         }
         
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         
         body {
             background-color: var(--background);
             height: 100vh;
-            overflow: hidden;
+            display: flex;
+            justify-content: center;
         }
         
         #app {
-            max-width: 450px;
-            height: 100%;
-            margin: 0 auto;
+            width: 100%;
+            max-width: 500px;
+            height: 100vh;
             background-color: var(--surface);
             display: flex;
             flex-direction: column;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
         }
         
-        /* Estructura de pantallas */
-        .screen {
-            display: none;
-            flex-direction: column;
-            height: 100%;
-            width: 100%;
-        }
-        
-        .screen.active {
-            display: flex;
-        }
-        
-        /* Barra de aplicación */
         .app-bar {
-            height: 56px;
+            height: 60px;
             background-color: var(--primary);
-            color: #fff;
+            color: white;
             display: flex;
             align-items: center;
-            padding: 0 16px;
+            padding: 0 15px;
             position: relative;
             z-index: 10;
         }
         
         .app-title {
-            font-size: 18px;
-            font-weight: 500;
-            flex-grow: 1;
+            flex: 1;
             text-align: center;
-        }
-        
-        .icon-button {
-            width: 40px;
-            height: 40px;
-            border: none;
-            background: none;
-            color: #fff;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
-        
-        /* Lista de chats */
-        .chat-list {
-            flex: 1;
-            overflow-y: auto;
-        }
-        
-        .chat-item {
-            display: flex;
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--divider);
-            cursor: pointer;
-        }
-        
-        .chat-avatar {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background-color: var(--primary);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 16px;
-            flex-shrink: 0;
             font-weight: 500;
-        }
-        
-        .chat-info {
-            flex: 1;
-            min-width: 0;
-        }
-        
-        .chat-name {
-            font-weight: 500;
-            margin-bottom: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .chat-preview {
-            font-size: 14px;
-            color: var(--text-secondary);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        /* Área de mensajes */
-        .message-area {
-            flex: 1;
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            align-items: center;
+        }
+        
+        .user-status {
+            font-size: 12px;
+            font-weight: normal;
+            display: flex;
+            align-items: center;
+            margin-top: 2px;
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+        
+        .status-online { background-color: var(--online); }
+        .status-offline { background-color: var(--offline); }
+        .status-typing { background-color: var(--typing); }
+        
+        .typing-text {
+            font-style: italic;
+            color: #e0e0e0;
         }
         
         .message-container {
             flex: 1;
+            padding: 15px;
             overflow-y: auto;
-            padding: 16px;
             background-color: #e5ddd5;
             background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M11 18c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm48 25c3.866 0 7-3.134 7-7s-3.134-7-7-7-7 3.134-7 7 3.134 7 7 7zm-43-7c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm63 31c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM34 90c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm56-76c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zM12 86c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm28-65c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm23-11c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-6 60c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm29 22c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zM32 63c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm57-13c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm-9-21c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM60 91c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM35 41c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2zM12 60c1.105 0 2-.895 2-2s-.895-2-2-2-2 .895-2 2 .895 2 2 2z' fill='%239C92AC' fill-opacity='0.1' fill-rule='evenodd'/%3E%3C/svg%3E");
         }
         
         .message {
             max-width: 80%;
-            margin-bottom: 16px;
+            margin-bottom: 15px;
             display: flex;
             flex-direction: column;
         }
         
-        .message.received {
-            align-items: flex-start;
-        }
-        
         .message.sent {
             align-items: flex-end;
+            margin-left: auto;
+        }
+        
+        .message.received {
+            align-items: flex-start;
+            margin-right: auto;
         }
         
         .message-bubble {
-            padding: 8px 12px;
-            border-radius: 8px;
+            padding: 10px 15px;
+            border-radius: 18px;
             word-wrap: break-word;
             font-size: 15px;
             line-height: 1.4;
-        }
-        
-        .message.received .message-bubble {
-            background-color: var(--received-msg);
-            border-top-left-radius: 2px;
+            box-shadow: 0 1px 1px rgba(0,0,0,0.1);
         }
         
         .message.sent .message-bubble {
             background-color: var(--sent-msg);
-            border-top-right-radius: 2px;
+            border-top-right-radius: 4px;
+        }
+        
+        .message.received .message-bubble {
+            background-color: var(--received-msg);
+            border-top-left-radius: 4px;
+        }
+        
+        .message-meta {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-top: 4px;
         }
         
         .message-time {
             font-size: 11px;
             color: var(--text-secondary);
-            margin-top: 4px;
+            margin-right: 5px;
         }
         
-        /* Entrada de mensajes */
+        .message-status {
+            font-size: 12px;
+        }
+        
+        .status-sent { color: #9E9E9E; }
+        .status-delivered { color: #4FC3F7; }
+        .status-read { color: #4CAF50; }
+        
         .message-input-area {
-            padding: 8px;
+            padding: 10px;
             background-color: var(--surface);
             border-top: 1px solid var(--divider);
             display: flex;
@@ -213,248 +178,233 @@
             border: none;
             border-radius: 50%;
             background-color: var(--primary);
-            color: #fff;
+            color: white;
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
         }
         
-        /* Botón flotante */
-        .floating-btn {
-            position: fixed;
-            bottom: 80px;
-            right: 20px;
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            background: var(--primary);
-            color: white;
-            border: none;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            z-index: 1000;
+        .send-button:active {
+            background-color: var(--primary-dark);
         }
     </style>
 </head>
 <body>
     <div id="app">
-        <!-- Pantalla de chats recientes -->
-        <div class="screen active" id="chats-screen">
-            <div class="app-bar">
-                <div class="app-title">Seend</div>
-                <button class="icon-button" id="profile-button">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="chat-list" id="recent-chats-list"></div>
-        </div>
-
-        <!-- Pantalla de chat -->
-        <div class="screen" id="chat-screen">
-            <div class="app-bar">
-                <button class="icon-button" id="back-button">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
-                        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-                    </svg>
-                </button>
-                <div class="app-title" id="chat-title">Chat</div>
-                <div style="width:40px"></div>
-            </div>
-            <div class="message-area">
-                <div class="message-container" id="message-container"></div>
-                <div class="message-input-area">
-                    <input type="text" class="message-input" id="message-input" placeholder="Escribe un mensaje...">
-                    <button class="send-button" id="send-button">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
-                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                        </svg>
-                    </button>
+        <div class="app-bar">
+            <button class="icon-button" id="back-button">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+                </svg>
+            </button>
+            <div class="app-title">
+                <div id="chat-title">Seend Chat</div>
+                <div class="user-status" id="user-status">
+                    <span class="status-indicator status-offline"></span>
+                    <span class="status-text">desconectado</span>
                 </div>
             </div>
         </div>
-
-        <!-- Botón flotante para nuevos chats -->
-        <button id="add-contact-btn" class="floating-btn">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
-                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-            </svg>
-        </button>
+        
+        <div class="message-container" id="message-container">
+            <!-- Mensajes aparecerán aquí -->
+        </div>
+        
+        <div class="message-input-area">
+            <input type="text" class="message-input" id="message-input" placeholder="Escribe un mensaje...">
+            <button class="send-button" id="send-button">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+            </button>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     <script>
-        // Variables globales
         const socket = io();
         let currentUser = null;
         let currentChatUser = null;
-
-        // Elementos UI
-        const elements = {
-            chatsScreen: document.getElementById('chats-screen'),
-            chatScreen: document.getElementById('chat-screen'),
-            backButton: document.getElementById('back-button'),
-            profileButton: document.getElementById('profile-button'),
-            addContactBtn: document.getElementById('add-contact-btn'),
-            recentChatsList: document.getElementById('recent-chats-list'),
-            messageContainer: document.getElementById('message-container'),
-            messageInput: document.getElementById('message-input'),
-            sendButton: document.getElementById('send-button'),
-            chatTitle: document.getElementById('chat-title')
-        };
-
-        // Inicialización
+        let typingTimer;
+        const TYPING_TIMEOUT = 2000; // 2 segundos sin escribir
+        
         document.addEventListener('DOMContentLoaded', async () => {
             await checkSession();
             setupEventListeners();
-            loadRecentChats();
         });
-
-        // Verificar sesión
+        
         async function checkSession() {
             try {
-                const response = await fetch('/check-session');
+                const response = await fetch('/api/check_session', {
+                    credentials: 'include'
+                });
                 const data = await response.json();
-
-                if (response.ok && data.username) {
-                    currentUser = data.username;
+                
+                if (data.status === 'valid') {
+                    currentUser = data.user.username;
                     connectToChat();
                 } else {
-                    window.location.href = '/';
+                    showLoginMessage();
                 }
             } catch (error) {
                 console.error('Error checking session:', error);
-                window.location.href = '/';
+                showLoginMessage();
             }
         }
-
-        // Conectar al chat
+        
+        function showLoginMessage() {
+            const container = document.getElementById('message-container');
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px 20px;">
+                    <h3 style="margin-bottom: 20px;">Por favor inicia sesión</h3>
+                    <button onclick="window.location.href='/'" 
+                            style="padding: 10px 20px; background-color: #1e88e5; color: white; 
+                                   border: none; border-radius: 20px; font-size: 16px;">
+                        Ir a la página de inicio
+                    </button>
+                </div>
+            `;
+            document.querySelector('.message-input-area').style.display = 'none';
+        }
+        
         function connectToChat() {
             socket.on('connect', () => {
-                socket.emit('login_socket', { username: currentUser });
+                console.log('Connected to WebSocket server');
             });
-
+            
             socket.on('new_message', (message) => {
-                if (!currentChatUser || message.sender === currentChatUser) {
-                    addMessageToChat(message, message.sender === currentUser);
+                addMessageToChat(message, message.is_own);
+            });
+            
+            socket.on('user_status', (data) => {
+                if (data.username === currentChatUser) {
+                    updateUserStatus(data.status);
                 }
-                loadRecentChats();
             });
-
-            socket.on('user_connected', () => {
-                loadRecentChats();
-            });
-
-            socket.on('user_disconnected', () => {
-                loadRecentChats();
+            
+            socket.on('message_status', (data) => {
+                updateMessageStatus(data.message_id, data.status);
             });
         }
-
-        // Cargar chats recientes
-        async function loadRecentChats() {
-            try {
-                const response = await fetch(`/recent-chats/${currentUser}`);
-                const chats = await response.json();
-
-                elements.recentChatsList.innerHTML = '';
-
-                chats.forEach(chat => {
-                    const chatItem = document.createElement('div');
-                    chatItem.className = 'chat-item';
-                    chatItem.innerHTML = `
-                        <div class="chat-avatar" style="background-image: url('${chat.avatar}')">
-                            ${getInitials(chat.contact_name || chat.contact_username)}
-                        </div>
-                        <div class="chat-info">
-                            <div class="chat-name">${chat.contact_name || chat.contact_username}</div>
-                            <div class="chat-preview">${chat.last_message || 'Nuevo chat'}</div>
-                        </div>
-                    `;
-                    chatItem.addEventListener('click', () => {
-                        openChatScreen({
-                            username: chat.contact_username,
-                            name: chat.contact_name || chat.contact_username,
-                            avatar: chat.avatar
-                        });
-                    });
-                    elements.recentChatsList.appendChild(chatItem);
-                });
-            } catch (error) {
-                console.error('Error loading recent chats:', error);
-            }
+        
+        function setupEventListeners() {
+            document.getElementById('send-button').addEventListener('click', sendMessage);
+            
+            const messageInput = document.getElementById('message-input');
+            messageInput.addEventListener('keypress', (e) => {
+                if (e.key === "Enter") sendMessage();
+            });
+            
+            // Detección de "escribiendo..."
+            messageInput.addEventListener('input', () => {
+                if (!typingTimer) {
+                    socket.emit('typing_start');
+                }
+                
+                clearTimeout(typingTimer);
+                typingTimer = setTimeout(() => {
+                    socket.emit('typing_stop');
+                    typingTimer = null;
+                }, TYPING_TIMEOUT);
+            });
         }
-
-        // Abrir pantalla de chat
-        function openChatScreen(user) {
-            currentChatUser = user.username;
-            elements.chatTitle.textContent = user.name;
-            elements.messageContainer.innerHTML = '';
-
-            elements.chatsScreen.classList.remove('active');
-            elements.chatScreen.classList.add('active');
-        }
-
-        // Enviar mensaje
+        
         function sendMessage() {
-            const messageText = elements.messageInput.value.trim();
+            const messageText = document.getElementById('message-input').value.trim();
             if (messageText && currentUser && currentChatUser) {
                 const message = {
                     recipient: currentChatUser,
                     message: messageText
                 };
                 socket.emit('send_message', message);
-                elements.messageInput.value = '';
+                document.getElementById('message-input').value = '';
+                
+                // Cancelar estado "escribiendo"
+                if (typingTimer) {
+                    clearTimeout(typingTimer);
+                    socket.emit('typing_stop');
+                    typingTimer = null;
+                }
             }
         }
-
-        // Añadir mensaje al chat
-        function addMessageToChat(message, isSent) {
-            const messageTime = new Date(message.timestamp).toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit"
-            });
-
+        
+        function addMessageToChat(message, isOwn) {
             const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+            messageDiv.className = `message ${isOwn ? 'sent' : 'received'}`;
+            messageDiv.dataset.messageId = message.id;
+            
+            const time = new Date(message.timestamp).toLocaleTimeString([], {
+                hour: '2-digit', 
+                minute: '2-digit'
+            });
+            
             messageDiv.innerHTML = `
                 <div class="message-bubble">${message.message}</div>
-                <div class="message-time">${messageTime}</div>
+                <div class="message-meta">
+                    <span class="message-time">${time}</span>
+                    ${isOwn ? `<span class="message-status status-${message.status}">
+                        ${getStatusSymbol(message.status)}
+                    </span>` : ''}
+                </div>
             `;
-            elements.messageContainer.appendChild(messageDiv);
-            elements.messageContainer.scrollTop = elements.messageContainer.scrollHeight;
+            
+            const container = document.getElementById('message-container');
+            container.appendChild(messageDiv);
+            container.scrollTop = container.scrollHeight;
+            
+            // Marcar como leído si es un mensaje recibido
+            if (!isOwn && message.id) {
+                socket.emit('mark_as_read', {
+                    message_id: message.id,
+                    sender_sid: socket.id
+                });
+            }
         }
-
-        // Obtener iniciales
-        function getInitials(name) {
-            if (!name) return '';
-            return name.split(' ')
-                      .map(part => part[0].toUpperCase())
-                      .join('')
-                      .substring(0, 2);
+        
+        function updateMessageStatus(messageId, newStatus) {
+            const messageElements = document.querySelectorAll(`[data-message-id="${messageId}"]`);
+            messageElements.forEach(element => {
+                const statusElement = element.querySelector('.message-status');
+                if (statusElement) {
+                    statusElement.className = `message-status status-${newStatus}`;
+                    statusElement.textContent = getStatusSymbol(newStatus);
+                }
+            });
         }
-
-        // Configurar event listeners
-        function setupEventListeners() {
-            // Navegación
-            elements.backButton.addEventListener('click', () => {
-                elements.chatScreen.classList.remove('active');
-                elements.chatsScreen.classList.add('active');
-            });
-
-            elements.addContactBtn.addEventListener('click', () => {
-                alert('Funcionalidad de agregar contactos en desarrollo');
-            });
-
-            // Mensajes
-            elements.sendButton.addEventListener('click', sendMessage);
-            elements.messageInput.addEventListener('keypress', (e) => {
-                if (e.key === "Enter") sendMessage();
-            });
+        
+        function updateUserStatus(status) {
+            const statusElement = document.getElementById('user-status');
+            const indicator = statusElement.querySelector('.status-indicator');
+            const text = statusElement.querySelector('.status-text');
+            
+            // Reset classes
+            indicator.className = 'status-indicator';
+            text.className = 'status-text';
+            
+            switch(status) {
+                case 'online':
+                    indicator.classList.add('status-online');
+                    text.textContent = 'en línea';
+                    break;
+                case 'offline':
+                    indicator.classList.add('status-offline');
+                    text.textContent = 'desconectado';
+                    break;
+                case 'typing':
+                    indicator.classList.add('status-typing');
+                    text.textContent = 'escribiendo...';
+                    text.classList.add('typing-text');
+                    break;
+            }
+        }
+        
+        function getStatusSymbol(status) {
+            switch(status) {
+                case 'read': return '✓✓';
+                case 'delivered': return '✓';
+                default: return '◯';
+            }
         }
     </script>
 </body>
