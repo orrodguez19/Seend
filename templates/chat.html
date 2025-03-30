@@ -6,6 +6,7 @@
     <title>Seend - Mensajería</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -23,13 +24,11 @@
                 </div>
             </header>
             
-            <!-- Pestañas -->
             <div class="tabs">
                 <button class="tab-btn active" onclick="switchTab('chats')">Chats</button>
                 <button class="tab-btn" onclick="switchTab('publicaciones')">Publicaciones</button>
             </div>
             
-            <!-- Contenido de Chats -->
             <div id="chats-content" class="tab-content active">
                 <div id="chatList" class="list-container">
                     <p class="empty-message">Inicie nueva conversación</p>
@@ -37,7 +36,6 @@
                 <button class="fab" id="openNewChat" aria-label="Nuevo chat">+</button>
             </div>
             
-            <!-- Contenido de Publicaciones -->
             <div id="publicaciones-content" class="tab-content">
                 <div id="postsList" class="list-container">
                     <p class="empty-message">No hay publicaciones</p>
@@ -68,16 +66,25 @@
                 
                 <div class="profile-details">
                     <div class="profile-field">
+                        <label>Nombre</label>
+                        <div class="field-value" id="profileName"></div>
+                        <button class="edit-btn" data-field="name" aria-label="Editar nombre">
+                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
+                    </div>
+                    <div class="profile-field">
                         <label>Usuario</label>
                         <div class="field-value" id="profileUsername"></div>
+                        <button class="edit-btn" data-field="username" aria-label="Editar usuario">
+                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
                     </div>
                     <div class="profile-field">
                         <label>Bio</label>
                         <div class="field-value" id="profileBio">Sin biografía</div>
-                    </div>
-                    <div class="profile-field">
-                        <label>Email</label>
-                        <div class="field-value" id="profileEmail"></div>
+                        <button class="edit-btn" data-field="bio" aria-label="Editar bio">
+                            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+                        </button>
                     </div>
                 </div>
                 
@@ -91,8 +98,11 @@
                 <button class="icon-btn" onclick="showScreen('screen-main')" aria-label="Volver">
                     <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
                 </button>
-                <h2>Usuarios</h2>
+                <h2>Usuarios <span id="userCount">0</span></h2>
             </header>
+            <div class="search-container">
+                <input type="text" id="userSearch" placeholder="Buscar por @usuario">
+            </div>
             <div class="list" id="usersList"></div>
         </div>
 
@@ -139,51 +149,316 @@
                 </div>
             </div>
         </div>
-
-        <!-- Pantalla de Publicación -->
-        <div id="screen-post" class="screen">
-            <header class="app-header">
-                <button class="icon-btn" onclick="showScreen('screen-main')" aria-label="Volver">
-                    <svg viewBox="0 0 24 24"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
-                </button>
-                <h2>Publicación</h2>
-            </header>
-            <div class="post-container">
-                <div class="post-header">
-                    <img id="postAuthorImage" class="post-author-img" alt="Autor">
-                    <div>
-                        <h3 id="postAuthorName"></h3>
-                        <p id="postTime" class="post-time"></p>
-                    </div>
-                </div>
-                <div id="postContent" class="post-content"></div>
-                <div class="post-stats">
-                    <span id="postLikes">0</span>
-                    <span id="postDislikes">0</span>
-                    <span id="postComments">0 comentarios</span>
-                </div>
-                <div class="post-actions">
-                    <button onclick="reactToPost('like')" aria-label="Me gusta">
-                        <svg viewBox="0 0 24 24"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-1.91l-.01-.01L23 10z"/></svg>
-                    </button>
-                    <button onclick="reactToPost('dislike')" aria-label="No me gusta">
-                        <svg viewBox="0 0 24 24"><path d="M17 3H7c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v1.91l.01.01L1 14c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.58-6.59c.37-.36.59-.86.59-1.41V5c0-1.1-.9-2-2-2zm0 12-4.34 4.34L12 14H3v-1.91L5.46 5H17v10z"/></svg>
-                    </button>
-                    <button onclick="focusComment()" aria-label="Comentar">
-                        <svg viewBox="0 0 24 24"><path d="M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
-                    </button>
-                </div>
-                <div class="comments-section">
-                    <div class="comment-input">
-                        <input type="text" id="commentInput" placeholder="Añade un comentario...">
-                        <button onclick="addComment()">Enviar</button>
-                    </div>
-                    <div id="commentsList"></div>
-                </div>
-            </div>
-        </div>
     </div>
 
-    <script src="/static/js/scripts.js"></script>
+    <script>
+        const token = localStorage.getItem('token');
+        const userId = localStorage.getItem('user_id');
+        let socket = null;
+        let currentChat = null;
+        let allUsers = [];
+
+        function connectSocketIO() {
+            socket = io(`wss://${window.location.host}`, { transports: ['websocket'] });
+            
+            socket.on('connect', () => console.log('Connected to Socket.IO'));
+            socket.on('disconnect', () => setTimeout(connectSocketIO, 5000));
+            
+            socket.on('presence_update', (data) => updateUserStatus(data.user_id, data.online));
+            socket.on('new_post', (data) => addPost(data));
+            socket.on('new_message', (data) => displayMessage(data));
+            socket.on('avatar_updated', (data) => {
+                if (data.user_id === userId) document.getElementById('profileImage').src = data.profile_image;
+            });
+            socket.on('profile_updated', (data) => {
+                if (data.user_id === userId) {
+                    const field = data.field.charAt(0).toUpperCase() + data.field.slice(1);
+                    document.getElementById(`profile${field}`).textContent = data[data.field];
+                    const user = JSON.parse(localStorage.getItem('user_data'));
+                    user[data.field] = data[data.field];
+                    localStorage.setItem('user_data', JSON.stringify(user));
+                }
+            });
+            socket.on('account_deleted', () => {
+                localStorage.clear();
+                socket.disconnect();
+                window.location.href = '/login';
+            });
+            socket.on('delete_error', (data) => showError(data.message));
+            socket.on('user_count_update', (data) => {
+                document.getElementById('userCount').textContent = data.total_users;
+            });
+            socket.on('users_list', (data) => {
+                allUsers = data.users;
+                loadUsers('');
+            });
+        }
+
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(s => {
+                s.classList.remove('active');
+                s.style.transform = 'translateX(100%)';
+            });
+            const target = document.getElementById(screenId);
+            target.classList.add('active');
+            target.style.transform = 'translateX(0)';
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector(`.tab-btn[onclick="switchTab('${tab}')"]`).classList.add('active');
+            document.getElementById(`${tab}-content`).classList.add('active');
+            document.getElementById('main-title').textContent = tab === 'chats' ? 'Chats' : 'Publicaciones';
+        }
+
+        function showError(message) {
+            const errorElement = document.createElement('div');
+            errorElement.className = 'error-message';
+            errorElement.textContent = message;
+            document.body.appendChild(errorElement);
+            setTimeout(() => errorElement.remove(), 5000);
+        }
+
+        // Perfil
+        async function loadProfile() {
+            try {
+                const user = JSON.parse(localStorage.getItem('user_data'));
+                if (user) {
+                    document.getElementById('profileName').textContent = user.name;
+                    document.getElementById('profileUsername').textContent = user.username;
+                    document.getElementById('profileBio').textContent = user.bio || "Sin biografía";
+                    document.getElementById('profileImage').src = user.profile_image;
+                }
+            } catch (e) {
+                showError('Error al cargar el perfil');
+            }
+        }
+
+        async function updateProfile(field, value) {
+            try {
+                socket.emit('update_profile', { field, value });
+                return true;
+            } catch (e) {
+                showError('Error al actualizar');
+                return false;
+            }
+        }
+
+        async function updateProfileImage(file) {
+            try {
+                const reader = new FileReader();
+                reader.onload = () => {
+                    socket.emit('update_avatar', { file: { type: file.type, data: reader.result } });
+                };
+                reader.readAsDataURL(file);
+                return true;
+            } catch (e) {
+                showError('Error al cambiar la imagen');
+                return false;
+            }
+        }
+
+        async function deleteAccount() {
+            if (!confirm('¿Estás seguro de eliminar tu cuenta? Esta acción no se puede deshacer y eliminará todos tus datos del servidor.')) return;
+            socket.emit('delete_account');
+        }
+
+        function setupProfileEditButtons() {
+            document.querySelectorAll('.edit-btn[data-field]').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const field = btn.getAttribute('data-field');
+                    const currentValue = document.getElementById(`profile${field.charAt(0).toUpperCase() + field.slice(1)}`).textContent;
+                    const newValue = prompt(`Nuevo ${field}:`, currentValue);
+                    if (newValue && newValue !== currentValue) {
+                        const success = await updateProfile(field, newValue);
+                        if (success) {
+                            document.getElementById(`profile${field.charAt(0).toUpperCase() + field.slice(1)}`).textContent = newValue;
+                        }
+                    }
+                });
+            });
+
+            document.getElementById('profileImageInput').addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    updateProfileImage(e.target.files[0]);
+                }
+            });
+        }
+
+        // Chats
+        function loadUsers(searchTerm) {
+            const usersList = document.getElementById('usersList');
+            usersList.innerHTML = '';
+            const filteredUsers = allUsers.filter(user => 
+                user.username.toLowerCase().includes(searchTerm.toLowerCase())
+            );
+            filteredUsers.forEach(user => {
+                const userElement = document.createElement('div');
+                userElement.className = 'user-item';
+                userElement.innerHTML = `
+                    <img src="${user.profile_image}" class="user-avatar" alt="Avatar">
+                    <div>
+                        <strong>${user.name}</strong> @${user.username}
+                        <span class="status ${user.online ? 'online' : 'offline'}"></span>
+                    </div>
+                `;
+                userElement.onclick = () => startChat(user.id, user.name, user.profile_image);
+                usersList.appendChild(userElement);
+            });
+        }
+
+        function startChat(userId, name, avatar) {
+            currentChat = userId;
+            document.getElementById('chatTitle').textContent = name;
+            document.getElementById('chatUserImage').src = avatar;
+            document.getElementById('conversationArea').innerHTML = '';
+            showScreen('screen-conversation');
+        }
+
+        function displayMessage(message) {
+            if ((message.sender_id === currentChat && message.receiver_id === userId) || 
+                (message.sender_id === userId && message.receiver_id === currentChat)) {
+                const conversation = document.getElementById('conversationArea');
+                const msgElement = document.createElement('div');
+                msgElement.className = `message ${message.sender_id === userId ? 'sent' : 'received'}`;
+                msgElement.innerHTML = `
+                    <p>${message.text}</p>
+                    <small>${new Date(message.created_at).toLocaleTimeString()}</small>
+                `;
+                conversation.appendChild(msgElement);
+                conversation.scrollTop = conversation.scrollHeight;
+            }
+            updateChatList(message);
+        }
+
+        function updateChatList(message) {
+            const chatList = document.getElementById('chatList');
+            const existingChat = document.querySelector(`.chat-item[data-user-id="${message.sender_id}"]`);
+            if (!existingChat && message.sender_id !== userId) {
+                const chatItem = document.createElement('div');
+                chatItem.className = 'chat-item';
+                chatItem.dataset.userId = message.sender_id;
+                chatItem.innerHTML = `
+                    <img src="${manager.user_info[message.sender_id]?.avatar || '/static/default-avatar.png'}" class="chat-avatar" alt="Avatar">
+                    <div>
+                        <strong>${manager.user_info[message.sender_id]?.name || 'Usuario'}</strong>
+                        <p>${message.text.slice(0, 20)}...</p>
+                    </div>
+                `;
+                chatItem.onclick = () => startChat(message.sender_id, manager.user_info[message.sender_id]?.name, manager.user_info[message.sender_id]?.avatar);
+                chatList.appendChild(chatItem);
+            }
+        }
+
+        function sendMessage() {
+            const text = document.getElementById('messageInput').value.trim();
+            if (text && currentChat) {
+                socket.emit('send_message', { receiver_id: currentChat, text });
+                document.getElementById('messageInput').value = '';
+            }
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') sendMessage();
+        }
+
+        function updateUserStatus(user_id, online) {
+            const status = document.querySelector(`#chatStatus`);
+            if (currentChat === user_id && status) {
+                status.textContent = online ? 'En línea' : 'Desconectado';
+                status.className = `chat-header-status ${online ? 'online' : 'offline'}`;
+            }
+        }
+
+        // Publicaciones
+        function addPost(post) {
+            const postsList = document.getElementById('postsList');
+            postsList.innerHTML = '';
+            const postElement = document.createElement('div');
+            postElement.className = 'post-item';
+            postElement.innerHTML = `
+                <img src="${post.profile_image}" class="post-avatar" alt="Avatar">
+                <div>
+                    <strong>${post.name}</strong> @${post.username}
+                    <p>${post.text || ''}</p>
+                    ${post.image_path ? `<img src="${post.image_path}" class="post-image">` : ''}
+                    <small>${new Date(post.created_at).toLocaleString()}</small>
+                </div>
+            `;
+            postsList.appendChild(postElement);
+        }
+
+        async function createPost() {
+            const text = document.getElementById('postText').value.trim();
+            const file = document.getElementById('postImage').files[0];
+            if (!text && !file) {
+                showError('Debes incluir texto o una imagen');
+                return;
+            }
+
+            try {
+                if (file) {
+                    const reader = new FileReader();
+                reader.onload = () => {
+                        socket.emit('create_post', {
+                            text,
+                            file: { type: file.type, data: reader.result }
+                        });
+                    };
+                    reader.readAsDataURL(file);
+                } else {
+                    socket.emit('create_post', { text });
+                }
+                document.getElementById('postText').value = '';
+                document.getElementById('postImage').value = '';
+                document.getElementById('imagePreview').innerHTML = '';
+                showScreen('screen-main');
+            } catch (e) {
+                showError('Error al crear la publicación');
+            }
+        }
+
+        function logout() {
+            localStorage.clear();
+            socket.disconnect();
+            window.location.href = '/login';
+        }
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', () => {
+            if (!token || !userId) {
+                window.location.href = '/login';
+                return;
+            }
+
+            connectSocketIO();
+            loadProfile();
+            setupProfileEditButtons();
+
+            document.getElementById('openNewChat').addEventListener('click', () => {
+                showScreen('screen-new-chat');
+                socket.emit('get_users');
+            });
+
+            document.getElementById('openNewPost').addEventListener('click', () => {
+                showScreen('screen-new-post');
+            });
+
+            document.getElementById('postImage').addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    document.getElementById('imagePreview').innerHTML = `<img src="${e.target.result}">`;
+                };
+                reader.readAsDataURL(file);
+            });
+
+            document.getElementById('userSearch').addEventListener('input', (e) => {
+                loadUsers(e.target.value.trim());
+            });
+        });
+    </script>
 </body>
-    </html>
+</html>
