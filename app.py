@@ -351,7 +351,10 @@ async def get_users(sid):
 
 @app.get("/")
 async def root():
-    return RedirectResponse(url="/chat")
+    try:
+        return FileResponse("templates/login.html")
+    except:
+        return HTMLResponse("<html><body><h1>Error</h1><p>No se encontró la página de inicio de sesión</p></body></html>")
 
 @app.get("/chat")
 async def chat_page():
@@ -364,4 +367,4 @@ app.mount("/", ASGIApp(sio))
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    uvicorn.run("app:app", reload=True, host='0.0.0.0', port=port)  # Usar uvicorn para ejecutar la aplicación
+    uvicorn.run("app:app", host='0.0.0.0', port=port, reload=True)  # Usar uvicorn para ejecutar la aplicación
