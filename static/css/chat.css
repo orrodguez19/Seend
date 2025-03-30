@@ -1,0 +1,344 @@
+/* Estilos específicos para el chat */
+.app-bar {
+    height: 56px;
+    background-color: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    position: relative;
+    z-index: 10;
+}
+
+.app-title {
+    font-size: 20px;
+    font-weight: 500;
+    flex-grow: 1;
+}
+
+.icon-button {
+    width: 40px;
+    height: 40px;
+    border: none;
+    background: none;
+    color: #fff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+/* Estilos para la lista de chats */
+.chat-list {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.chat-item {
+    display: flex;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--divider);
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.chat-item:active {
+    background-color: rgba(0,0,0,0.05);
+}
+
+.chat-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background-color: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+    margin-right: 16px;
+    flex-shrink: 0;
+    background-size: cover;
+    background-position: center;
+}
+
+.chat-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.chat-name {
+    font-weight: 500;
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.chat-preview {
+    font-size: 14px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Estilos para el área de mensajes */
+.message-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.message-container {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px;
+    background-color: #e5f1fb;
+    display: flex;
+    flex-direction: column;
+}
+
+.message {
+    max-width: 80%;
+    margin-bottom: 16px;
+    display: flex;
+    flex-direction: column;
+}
+
+.message.received {
+    align-items: flex-start;
+}
+
+.message.sent {
+    align-items: flex-end;
+}
+
+.message-bubble {
+    padding: 8px 12px;
+    border-radius: 8px;
+    position: relative;
+    word-wrap: break-word;
+    font-size: 15px;
+    line-height: 1.4;
+    max-width: 100%;
+}
+
+.message.received .message-bubble {
+    background-color: #e3f2fd;
+    border-top-left-radius: 2px;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+}
+
+.message.sent .message-bubble {
+    background-color: #bbdefb;
+    border-top-right-radius: 2px;
+    box-shadow: 0 1px 1px rgba(0,0,0,0.1);
+}
+
+.message-status {
+    display: flex;
+    align-items: center;
+    margin-top: 4px;
+}
+
+.message-time {
+    font-size: 11px;
+    color: var(--text-secondary);
+    margin-right: 4px;
+}
+
+/* Estilos para el input de mensajes */
+.message-input-area {
+    padding: 8px;
+    background-color: var(--surface);
+    border-top: 1px solid var(--divider);
+    display: flex;
+    align-items: center;
+}
+
+.message-input {
+    flex: 1;
+    border: none;
+    border-radius: 20px;
+    background-color: var(--background);
+    padding: 12px 16px;
+    margin: 0 8px;
+    outline: none;
+    font-size: 15px;
+    min-height: 40px;
+    max-height: 100px;
+}
+
+.send-button {
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    border: none;
+    border-radius: 50%;
+    background-color: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.send-button:active {
+    background-color: var(--primary-dark);
+}
+
+/* Estilos para el perfil */
+.profile-container {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 16px;
+    background-color: var(--background);
+}
+
+.profile-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 24px;
+}
+
+.profile-avatar {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background-color: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    font-weight: 500;
+    margin-bottom: 16px;
+    background-size: cover;
+    background-position: center;
+}
+
+.profile-name {
+    font-size: 20px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    text-align: center;
+    border: none;
+    background: transparent;
+    color: var(--text-primary);
+}
+
+.profile-username {
+    font-size: 16px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    text-align: center;
+    border: none;
+    background: transparent;
+}
+
+.profile-section {
+    background-color: var(--surface);
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.profile-section-title {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--primary);
+    margin-bottom: 12px;
+}
+
+.profile-info-item {
+    display: flex;
+    margin-bottom: 12px;
+    align-items: center;
+}
+
+.profile-info-label {
+    width: 100px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.profile-info-value {
+    flex: 1;
+    font-size: 14px;
+    padding: 8px;
+    border: none;
+    background: transparent;
+    border-bottom: 1px solid transparent;
+    transition: border-color 0.2s;
+    color: var(--text-primary);
+}
+
+.profile-info-value:focus {
+    outline: none;
+    border-bottom: 1px solid var(--primary);
+}
+
+.edit-button {
+    width: 24px;
+    height: 24px;
+    margin-left: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.save-button {
+    background-color: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 20px;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 500;
+    margin-top: 16px;
+    cursor: pointer;
+    display: block;
+    width: 100%;
+}
+
+.save-button:active {
+    background-color: var(--primary-dark);
+}
+
+/* Animaciones */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.message {
+    animation: fadeIn 0.2s ease-out;
+}
+
+/* Responsive */
+@media (max-width: 400px) {
+    .message {
+        max-width: 90%;
+    }
+    
+    .message-input {
+        font-size: 14px;
+        padding: 10px 14px;
+    }
+}
