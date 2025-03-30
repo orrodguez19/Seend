@@ -365,8 +365,7 @@
                 </button>
             </div>
             <div class="chat-list" id="recent-chats-list">
-                <!-- Chats recientes se cargarán aquí -->
-            </div>
+                </div>
         </div>
 
         <div class="screen" id="chat-screen">
@@ -381,8 +380,7 @@
             </div>
             <div class="message-area">
                 <div class="message-container" id="message-container">
-                    <!-- Mensajes se cargarán aquí -->
-                </div>
+                    </div>
                 <div class="message-input-area">
                     <input type="text" class="message-input" id="message-input" placeholder="Escribe un mensaje...">
                     <button class="send-button" id="send-button">
@@ -451,8 +449,7 @@
                 <div style="width:40px"></div>
             </div>
             <div class="chat-list" id="users-list">
-                <!-- Usuarios se cargarán aquí -->
-            </div>
+                </div>
         </div>
 
         <button id="add-contact-btn" class="floating-btn">
@@ -504,17 +501,24 @@
             try {
                 const response = await fetch('/check-session');
                 const data = await response.json();
-                
+
                 if (response.ok && data.username) {
                     currentUser = data.username;
                     updateProfileData(data);
                     connectToChat();
                 } else {
-                    window.location.href = '/';
+                    console.error('Session invalid.');
+                    // Instead of redirecting, you might want to:
+                    // 1. Display an error message to the user.
+                    // 2. Redirect to a dedicated login page if your application has one.
+                    // 3. Show a login form within the app.
+                    // For this example, we will just log an error.
+                    // window.location.href = '/';
                 }
             } catch (error) {
                 console.error('Error checking session:', error);
-                window.location.href = '/';
+                // Same as above, handle the error appropriately instead of redirecting.
+                // window.location.href = '/';
             }
         }
 
@@ -523,19 +527,16 @@
             socket.on('connect', () => {
                 socket.emit('login_socket', { username: currentUser });
             });
-
             socket.on('new_message', (message) => {
                 if (!currentChatUser || message.sender === currentChatUser) {
                     addMessageToChat(message, false);
                 }
                 loadRecentChats();
             });
-
             socket.on('user_connected', (data) => {
                 console.log('User connected:', data.username);
                 loadRecentChats();
             });
-
             socket.on('user_disconnected', (data) => {
                 console.log('User disconnected:', data.username);
                 loadRecentChats();
@@ -547,9 +548,9 @@
             try {
                 const response = await fetch(`/recent-chats/${currentUser}`);
                 const chats = await response.json();
-                
+
                 elements.recentChatsList.innerHTML = '';
-                
+
                 chats.forEach(chat => {
                     const chatItem = document.createElement('div');
                     chatItem.className = 'chat-item';
@@ -578,9 +579,9 @@
             try {
                 const response = await fetch('/public-users');
                 const users = await response.json();
-                
+
                 elements.usersList.innerHTML = '';
-                
+
                 users
                     .filter(user => user.username !== currentUser)
                     .forEach(user => {
@@ -608,7 +609,7 @@
             currentChatUser = user.username;
             elements.chatTitle.textContent = user.name;
             elements.messageContainer.innerHTML = '';
-            
+
             elements.usersScreen.classList.remove('active');
             elements.chatScreen.classList.add('active');
         }
@@ -618,7 +619,7 @@
             currentChatUser = user.username;
             elements.chatTitle.textContent = user.name;
             elements.messageContainer.innerHTML = '';
-            
+
             elements.chatsScreen.classList.remove('active');
             elements.chatScreen.classList.add('active');
         }
@@ -631,7 +632,6 @@
                     recipient: currentChatUser,
                     message: messageText
                 };
-                
                 socket.emit('send_message', message);
                 addMessageToChat({
                     sender: currentUser,
@@ -639,7 +639,7 @@
                     timestamp: new Date().toISOString(),
                     avatar: `https://ui-avatars.com/api/?name=${currentUser}&background=random`
                 }, true);
-                
+
                 elements.messageInput.value = '';
             }
         }
@@ -647,10 +647,10 @@
         // Añadir mensaje al chat
         function addMessageToChat(message, isSent) {
             const messageTime = new Date(message.timestamp).toLocaleTimeString([], {
-                hour: "2-digit", 
+                hour: "2-digit",
                 minute: "2-digit"
             });
-            
+
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
             messageDiv.innerHTML = `
@@ -665,10 +665,9 @@
                     </div>` : ''}
                 </div>
             `;
-            
             elements.messageContainer.appendChild(messageDiv);
             elements.messageContainer.scrollTop = elements.messageContainer.scrollHeight;
-            
+
             if (isSent) {
                 setTimeout(() => {
                     const icon = messageDiv.querySelector('.status-icon');
@@ -703,23 +702,19 @@
                 elements.chatsScreen.classList.remove('active');
                 elements.profileScreen.classList.add('active');
             });
-
             elements.backButton.addEventListener('click', () => {
                 elements.chatScreen.classList.remove('active');
                 elements.chatsScreen.classList.add('active');
             });
-
             elements.backProfileButton.addEventListener('click', () => {
                 elements.profileScreen.classList.remove('active');
                 elements.chatsScreen.classList.add('active');
             });
-
             elements.addContactBtn.addEventListener('click', () => {
                 loadPublicUsers();
                 elements.chatsScreen.classList.remove('active');
                 elements.usersScreen.classList.add('active');
             });
-
             elements.backUsersButton.addEventListener('click', () => {
                 elements.usersScreen.classList.remove('active');
                 elements.chatsScreen.classList.add('active');
@@ -737,7 +732,7 @@
                     name: elements.profileName.value,
                     username: elements.profileUsername.value
                 };
-                
+
                 try {
                     const response = await fetch('/update-profile', {
                         method: 'POST',
@@ -746,7 +741,7 @@
                         },
                         body: JSON.stringify(profileData)
                     });
-                    
+
                     if (response.ok) {
                         alert('Perfil actualizado correctamente');
                         updateProfileData(profileData);
@@ -763,4 +758,3 @@
     </script>
 </body>
 </html>
-       
