@@ -10,7 +10,7 @@ import logging
 import secrets
 from datetime import datetime
 from typing import Optional, Dict
-from socketio import AsyncServer
+from socketio import AsyncServer, ASGIApp
 import aiofiles
 from PIL import Image
 import io
@@ -359,8 +359,9 @@ async def chat_page():
     except:
         return HTMLResponse("<html><body><h1>Error</h1><p>No se encontró la página de chat</p></body></html>")
 
-app.mount("/", socketio.ASGIApp(sio))
+app.mount("/", ASGIApp(sio))
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+    import socketio
     socketio.run(app, debug=True, host='0.0.0.0', port=port)
