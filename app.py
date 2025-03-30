@@ -334,20 +334,20 @@ async def delete_account(sid):
         await sio.emit('account_deleted', {'message': 'Cuenta eliminada exitosamente'}, to=sid)
     except Exception as e:
         logger.error(f"Error eliminando cuenta: {str(e)}")
-        await sio.emit('delete_error', {'message': 'Error al eliminar la cuenta'}, to:sid)
+        await sio.emit('delete_error', {'message': 'Error al eliminar la cuenta'}, to=sid)
 
 @sio.event
 async def get_users(sid):
     user_id = manager.active_connections.get(sid)
     if not user_id:
-        await sio.emit('auth_error', {'message': 'No autenticado'}, to:sid)
+        await sio.emit('auth_error', {'message': 'No autenticado'}, to=sid)
         return
     with get_db_connection() as conn:
         users = conn.execute("SELECT id, name, username, profile_image FROM users").fetchall()
     users_list = [dict(user) for user in users if user['id'] != user_id]
     for user in users_list:
         user['online'] = user['id'] in manager.user_info
-    await sio.emit('users_list', {'users': users_list}, to:sid)
+    await sio.emit('users_list', {'users': users_list}, to=sid)
 
 @app.get("/")
 async def root():
