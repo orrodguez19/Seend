@@ -1,111 +1,309 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat - Seend</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
-    <link href="/static/css/styles.css" rel="stylesheet">
-    <link href="/static/css/chat.css" rel="stylesheet">
+    <!-- [Mantener todo el head y styles originales] -->
+    <!-- ... -->
 </head>
 <body>
     <div id="app">
-        <div class="screen active" id="chats-screen">
-            <div class="app-bar">
-                <div class="app-title">Seend</div>
-                <button class="icon-button" id="profile-button">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-                    </svg>
-                </button>
-            </div>
-            <div class="chat-list" id="user-list">
-                <!-- Los usuarios se cargarán aquí dinámicamente -->
-            </div>
-        </div>
+        <!-- [Mantener toda la estructura HTML original] -->
+        <!-- ... -->
+        
+        <!-- Botón flotante para nuevos chats -->
+        <button id="add-contact-btn" class="floating-btn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
+                <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+            </svg>
+        </button>
 
-        <div class="screen" id="chat-screen">
+        <!-- Pantalla de usuarios -->
+        <div class="screen" id="users-screen">
             <div class="app-bar">
-                <button class="icon-button" id="back-button">
+                <button class="icon-button" id="back-users-button">
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
                         <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
                     </svg>
                 </button>
-                <div class="app-title" id="chat-title">Chat</div>
+                <div class="app-title">Todos los usuarios</div>
                 <div style="width:40px"></div>
             </div>
-            <div class="message-area">
-                <div class="message-container" id="message-container">
-                    <!-- Los mensajes se cargarán aquí dinámicamente -->
-                </div>
-                <div class="message-input-area">
-                    <input type="text" class="message-input" id="message-input" placeholder="Escribe un mensaje...">
-                    <button class="send-button" id="send-button">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
-                            <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <div class="screen" id="profile-screen">
-            <div class="app-bar">
-                <button class="icon-button" id="back-profile-button">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="#fff">
-                        <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
-                    </svg>
-                </button>
-                <div class="app-title">Mi perfil</div>
-                <div style="width:40px"></div>
-            </div>
-            <div class="profile-container">
-                <div class="profile-header">
-                    <div class="profile-avatar" id="profile-avatar" style="background-image: url('https://ui-avatars.com/api/?name=Usuario&background=random')"></div>
-                    <div style="display: flex; align-items: center;">
-                        <input type="text" class="profile-name" id="profile-name" value="Usuario" readonly>
-                        <button class="edit-button" data-target="profile-name">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                            </svg>
-                        </button>
-                    </div>
-                    <div style="display: flex; align-items: center;">
-                        <input type="text" class="profile-username" id="profile-username" value="@usuario" readonly>
-                        <button class="edit-button" data-target="profile-username">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                <div class="profile-section">
-                    <div class="profile-section-title">Información</div>
-                    <div class="profile-info-item">
-                        <div class="profile-info-label">Nombre</div>
-                        <input type="text" class="profile-info-value" id="profile-fullname" value="Usuario" readonly>
-                        <button class="edit-button" data-target="profile-fullname">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                            </svg>
-                        </button>
-                    </div>
-                    <div class="profile-info-item">
-                        <div class="profile-info-label">Teléfono</div>
-                        <input type="text" class="profile-info-value" id="profile-phone" value="+1 234 567 890" readonly>
-                        <button class="edit-button" data-target="profile-phone">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                <button class="save-button" id="save-button">Guardar cambios</button>
+            <div class="chat-list" id="users-list">
+                <!-- Usuarios se cargarán aquí -->
             </div>
         </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
-    <script src="/static/js/chat.js"></script>
+    <script>
+        // Variables globales
+        const socket = io();
+        let currentUser = null;
+        let currentChatUser = null;
+
+        // Elementos UI
+        const chatScreen = document.getElementById('chat-screen');
+        const chatsScreen = document.getElementById('chats-screen');
+        const profileScreen = document.getElementById('profile-screen');
+        const usersScreen = document.getElementById('users-screen');
+        const backButton = document.getElementById('back-button');
+        const backProfileButton = document.getElementById('back-profile-button');
+        const backUsersButton = document.getElementById('back-users-button');
+        const profileButton = document.getElementById('profile-button');
+        const addContactBtn = document.getElementById('add-contact-btn');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+        const saveButton = document.getElementById('save-button');
+        const usersList = document.getElementById('users-list');
+
+        // Inicialización
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkSession();
+            setupEventListeners();
+            loadRecentChats();
+        });
+
+        async function checkSession() {
+            try {
+                const response = await fetch('/check-session');
+                const data = await response.json();
+                if (response.ok && data.username) {
+                    currentUser = data.username;
+                    updateProfileData(data);
+                    connectToChat();
+                } else {
+                    window.location.href = '/';
+                }
+            } catch (error) {
+                console.error('Session error:', error);
+                window.location.href = '/';
+            }
+        }
+
+        function connectToChat() {
+            socket.on('connect', () => {
+                socket.emit('login_socket', { username: currentUser });
+            });
+
+            socket.on('new_message', (msg) => {
+                if (msg.sender === currentChatUser) {
+                    addMessageToChat(msg, false);
+                }
+                // Actualizar lista de chats
+                loadRecentChats();
+            });
+        }
+
+        async function loadRecentChats() {
+            try {
+                const response = await fetch(`/recent-chats/${currentUser}`);
+                const chats = await response.json();
+                
+                const chatList = document.querySelector('#chats-screen .chat-list');
+                chatList.innerHTML = '';
+                
+                chats.forEach(chat => {
+                    const chatItem = document.createElement('div');
+                    chatItem.className = 'chat-item';
+                    chatItem.innerHTML = `
+                        <div class="chat-avatar">${getInitials(chat.contact_username)}</div>
+                        <div class="chat-info">
+                            <div class="chat-name">${chat.contact_username}</div>
+                            <div class="chat-preview">${chat.last_message || 'Nuevo chat'}</div>
+                        </div>
+                    `;
+                    chatItem.addEventListener('click', () => {
+                        openChatScreen({
+                            username: chat.contact_username,
+                            name: chat.contact_username
+                        });
+                    });
+                    chatList.appendChild(chatItem);
+                });
+            } catch (error) {
+                console.error('Error loading chats:', error);
+            }
+        }
+
+        async function loadPublicUsers() {
+            try {
+                const response = await fetch('/public-users');
+                const users = await response.json();
+                
+                usersList.innerHTML = '';
+                users.filter(u => u.username !== currentUser).forEach(user => {
+                    const userElement = document.createElement('div');
+                    userElement.className = 'chat-item';
+                    userElement.innerHTML = `
+                        <div class="chat-avatar">${getInitials(user.name)}</div>
+                        <div class="chat-info">
+                            <div class="chat-name">${user.name}</div>
+                            <div class="chat-preview">@${user.username}</div>
+                        </div>
+                    `;
+                    userElement.addEventListener('click', () => {
+                        startNewChat(user);
+                    });
+                    usersList.appendChild(userElement);
+                });
+            } catch (error) {
+                console.error('Error loading users:', error);
+            }
+        }
+
+        function startNewChat(user) {
+            currentChatUser = user.username;
+            document.querySelector('#chat-screen .app-title').textContent = user.name;
+            chatScreen.classList.remove('active');
+            usersScreen.classList.remove('active');
+            chatScreen.classList.add('active');
+            
+            // Limpiar mensajes anteriores
+            document.getElementById('message-container').innerHTML = '';
+        }
+
+        function openChatScreen(user) {
+            currentChatUser = user.username;
+            document.querySelector('#chat-screen .app-title').textContent = user.name;
+            chatsScreen.classList.remove('active');
+            chatScreen.classList.add('active');
+            
+            // Aquí podrías cargar el historial de mensajes si lo guardas
+            document.getElementById('message-container').innerHTML = '';
+        }
+
+        function sendMessage() {
+            const messageText = messageInput.value.trim();
+            if (messageText && currentUser && currentChatUser) {
+                const message = {
+                    recipient: currentChatUser,
+                    message: messageText
+                };
+                
+                socket.emit('send_message', message);
+                addMessageToChat({
+                    sender: currentUser,
+                    message: messageText,
+                    timestamp: new Date().toISOString(),
+                    avatar: `https://ui-avatars.com/api/?name=${currentUser}&background=random`
+                }, true);
+                
+                messageInput.value = '';
+            }
+        }
+
+        function addMessageToChat(message, isSent) {
+            const messageContainer = document.getElementById('message-container');
+            const messageTime = new Date(message.timestamp).toLocaleTimeString([], {
+                hour: "2-digit", 
+                minute: "2-digit"
+            });
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+            messageDiv.innerHTML = `
+                <div class="message-bubble">${message.message}</div>
+                <div class="message-status">
+                    <div class="message-time">${messageTime}</div>
+                    ${isSent ? `
+                    <div class="status-icon status-sent">
+                        <svg viewBox="0 0 24 24">
+                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                        </svg>
+                    </div>` : ''}
+                </div>
+            `;
+            
+            messageContainer.appendChild(messageDiv);
+            messageContainer.scrollTop = messageContainer.scrollHeight;
+        }
+
+        function updateProfileData(userData) {
+            document.getElementById('profile-name').value = userData.name || 'Usuario';
+            document.getElementById('profile-username').value = userData.username || '@usuario';
+            
+            const names = (userData.name || 'Usuario').split(' ');
+            let initials = '';
+            if (names.length > 0) initials += names[0].charAt(0).toUpperCase();
+            if (names.length > 1) initials += names[1].charAt(0).toUpperCase();
+            document.getElementById('profile-avatar').textContent = initials || 'US';
+        }
+
+        function getInitials(name) {
+            return name ? name.split(' ').map(p => p[0].toUpperCase()).join('').substring(0, 2) : 'US';
+        }
+
+        function setupEventListeners() {
+            // Navegación
+            document.querySelectorAll('.chat-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    openChatScreen({
+                        username: item.querySelector('.chat-name').textContent,
+                        name: item.querySelector('.chat-name').textContent
+                    });
+                });
+            });
+
+            profileButton.addEventListener('click', () => {
+                chatsScreen.classList.remove('active');
+                profileScreen.classList.add('active');
+            });
+
+            backButton.addEventListener('click', () => {
+                chatScreen.classList.remove('active');
+                chatsScreen.classList.add('active');
+            });
+
+            backProfileButton.addEventListener('click', () => {
+                profileScreen.classList.remove('active');
+                chatsScreen.classList.add('active');
+            });
+
+            addContactBtn.addEventListener('click', () => {
+                loadPublicUsers();
+                chatsScreen.classList.remove('active');
+                usersScreen.classList.add('active');
+            });
+
+            backUsersButton.addEventListener('click', () => {
+                usersScreen.classList.remove('active');
+                chatsScreen.classList.add('active');
+            });
+
+            // Mensajes
+            sendButton.addEventListener('click', sendMessage);
+            messageInput.addEventListener('keypress', e => {
+                if (e.key === "Enter") sendMessage();
+            });
+
+            // Perfil
+            saveButton.addEventListener('click', async () => {
+                const profileData = {
+                    name: document.getElementById('profile-name').value,
+                    username: document.getElementById('profile-username').value
+                };
+                
+                try {
+                    const response = await fetch('/update-profile', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(profileData)
+                    });
+                    
+                    if (response.ok) {
+                        alert('Perfil actualizado');
+                        updateProfileData(profileData);
+                    } else {
+                        const error = await response.json();
+                        alert(error.detail || 'Error al actualizar');
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    alert('Error de conexión');
+                }
+            });
+        }
+    </script>
 </body>
 </html>
