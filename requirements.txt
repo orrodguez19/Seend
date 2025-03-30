@@ -6,3 +6,4 @@ asyncpg==0.29.0
 sqlalchemy[asyncio]==2.0.25
 passlib[bcrypt]==1.7.4
 aiofiles==23.2.1
+python-multipart==0.0.6
