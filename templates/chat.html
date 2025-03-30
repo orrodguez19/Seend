@@ -10,7 +10,6 @@
 </head>
 <body>
     <div class="app-container">
-        <!-- Pantalla Principal -->
         <div id="screen-main" class="screen active">
             <header class="app-header">
                 <h2 id="main-title">Chats</h2>
@@ -23,19 +22,16 @@
                     </button>
                 </div>
             </header>
-            
             <div class="tabs">
                 <button class="tab-btn active" onclick="switchTab('chats')">Chats</button>
                 <button class="tab-btn" onclick="switchTab('publicaciones')">Publicaciones</button>
             </div>
-            
             <div id="chats-content" class="tab-content active">
                 <div id="chatList" class="list-container">
                     <p class="empty-message">Inicie nueva conversación</p>
                 </div>
                 <button class="fab" id="openNewChat" aria-label="Nuevo chat">+</button>
             </div>
-            
             <div id="publicaciones-content" class="tab-content">
                 <div id="postsList" class="list-container">
                     <p class="empty-message">No hay publicaciones</p>
@@ -45,8 +41,6 @@
                 </button>
             </div>
         </div>
-
-        <!-- Pantalla de Perfil -->
         <div id="screen-profile" class="screen">
             <header class="app-header">
                 <button class="icon-btn" onclick="showScreen('screen-main')" aria-label="Volver">
@@ -54,7 +48,6 @@
                 </button>
                 <h2>Mi Perfil</h2>
             </header>
-            
             <div class="profile-container">
                 <div class="profile-header">
                     <img id="profileImage" src="/static/default-avatar.png" alt="Foto de perfil">
@@ -63,7 +56,6 @@
                         <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
                     </button>
                 </div>
-                
                 <div class="profile-details">
                     <div class="profile-field">
                         <label>Nombre</label>
@@ -87,12 +79,9 @@
                         </button>
                     </div>
                 </div>
-                
                 <button class="danger-btn" onclick="deleteAccount()">Eliminar Cuenta</button>
             </div>
         </div>
-
-        <!-- Pantalla Nuevo Chat -->
         <div id="screen-new-chat" class="screen">
             <header class="app-header">
                 <button class="icon-btn" onclick="showScreen('screen-main')" aria-label="Volver">
@@ -105,8 +94,6 @@
             </div>
             <div class="list" id="usersList"></div>
         </div>
-
-        <!-- Pantalla Conversación -->
         <div id="screen-conversation" class="screen">
             <header class="app-header">
                 <button class="icon-btn" onclick="showScreen('screen-main')" aria-label="Volver">
@@ -128,8 +115,6 @@
                 </button>
             </div>
         </div>
-
-        <!-- Pantalla Nueva Publicación -->
         <div id="screen-new-post" class="screen">
             <header class="app-header">
                 <button class="icon-btn" onclick="showScreen('screen-main')" aria-label="Volver">
@@ -150,20 +135,16 @@
             </div>
         </div>
     </div>
-
     <script>
         const token = localStorage.getItem('token');
         const userId = localStorage.getItem('user_id');
         let socket = null;
         let currentChat = null;
         let allUsers = [];
-
         function connectSocketIO() {
             socket = io(`wss://${window.location.host}`, { transports: ['websocket'] });
-            
             socket.on('connect', () => console.log('Connected to Socket.IO'));
             socket.on('disconnect', () => setTimeout(connectSocketIO, 5000));
-            
             socket.on('presence_update', (data) => updateUserStatus(data.user_id, data.online));
             socket.on('new_post', (data) => addPost(data));
             socket.on('new_message', (data) => displayMessage(data));
@@ -193,7 +174,6 @@
                 loadUsers('');
             });
         }
-
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(s => {
                 s.classList.remove('active');
@@ -203,7 +183,6 @@
             target.classList.add('active');
             target.style.transform = 'translateX(0)';
         }
-
         function switchTab(tab) {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -211,7 +190,6 @@
             document.getElementById(`${tab}-content`).classList.add('active');
             document.getElementById('main-title').textContent = tab === 'chats' ? 'Chats' : 'Publicaciones';
         }
-
         function showError(message) {
             const errorElement = document.createElement('div');
             errorElement.className = 'error-message';
@@ -219,8 +197,6 @@
             document.body.appendChild(errorElement);
             setTimeout(() => errorElement.remove(), 5000);
         }
-
-        // Perfil
         async function loadProfile() {
             try {
                 const user = JSON.parse(localStorage.getItem('user_data'));
@@ -234,7 +210,6 @@
                 showError('Error al cargar el perfil');
             }
         }
-
         async function updateProfile(field, value) {
             try {
                 socket.emit('update_profile', { field, value });
@@ -244,7 +219,6 @@
                 return false;
             }
         }
-
         async function updateProfileImage(file) {
             try {
                 const reader = new FileReader();
@@ -258,12 +232,10 @@
                 return false;
             }
         }
-
         async function deleteAccount() {
             if (!confirm('¿Estás seguro de eliminar tu cuenta? Esta acción no se puede deshacer y eliminará todos tus datos del servidor.')) return;
             socket.emit('delete_account');
         }
-
         function setupProfileEditButtons() {
             document.querySelectorAll('.edit-btn[data-field]').forEach(btn => {
                 btn.addEventListener('click', async () => {
@@ -278,19 +250,16 @@
                     }
                 });
             });
-
             document.getElementById('profileImageInput').addEventListener('change', (e) => {
                 if (e.target.files && e.target.files[0]) {
                     updateProfileImage(e.target.files[0]);
                 }
             });
         }
-
-        // Chats
         function loadUsers(searchTerm) {
             const usersList = document.getElementById('usersList');
             usersList.innerHTML = '';
-            const filteredUsers = allUsers.filter(user => 
+            const filteredUsers = allUsers.filter(user =>
                 user.username.toLowerCase().includes(searchTerm.toLowerCase())
             );
             filteredUsers.forEach(user => {
@@ -307,7 +276,6 @@
                 usersList.appendChild(userElement);
             });
         }
-
         function startChat(userId, name, avatar) {
             currentChat = userId;
             document.getElementById('chatTitle').textContent = name;
@@ -315,9 +283,8 @@
             document.getElementById('conversationArea').innerHTML = '';
             showScreen('screen-conversation');
         }
-
         function displayMessage(message) {
-            if ((message.sender_id === currentChat && message.receiver_id === userId) || 
+            if ((message.sender_id === currentChat && message.receiver_id === userId) ||
                 (message.sender_id === userId && message.receiver_id === currentChat)) {
                 const conversation = document.getElementById('conversationArea');
                 const msgElement = document.createElement('div');
@@ -331,7 +298,6 @@
             }
             updateChatList(message);
         }
-
         function updateChatList(message) {
             const chatList = document.getElementById('chatList');
             const existingChat = document.querySelector(`.chat-item[data-user-id="${message.sender_id}"]`);
@@ -342,7 +308,8 @@
                 chatItem.innerHTML = `
                     <img src="${manager.user_info[message.sender_id]?.avatar || '/static/default-avatar.png'}" class="chat-avatar" alt="Avatar">
                     <div>
-                        <strong>${manager.user_info[message.sender_id]?.name || 'Usuario'}</strong>
+                        <strong>${manager.user_info[message.sender_id]?.name ||
+                        'Usuario'}</strong>
                         <p>${message.text.slice(0, 20)}...</p>
                     </div>
                 `;
@@ -350,7 +317,6 @@
                 chatList.appendChild(chatItem);
             }
         }
-
         function sendMessage() {
             const text = document.getElementById('messageInput').value.trim();
             if (text && currentChat) {
@@ -358,20 +324,17 @@
                 document.getElementById('messageInput').value = '';
             }
         }
-
         function handleKeyPress(event) {
             if (event.key === 'Enter') sendMessage();
         }
-
         function updateUserStatus(user_id, online) {
             const status = document.querySelector(`#chatStatus`);
             if (currentChat === user_id && status) {
-                status.textContent = online ? 'En línea' : 'Desconectado';
+                status.textContent = online ?
+                'En línea' : 'Desconectado';
                 status.className = `chat-header-status ${online ? 'online' : 'offline'}`;
             }
         }
-
-        // Publicaciones
         function addPost(post) {
             const postsList = document.getElementById('postsList');
             postsList.innerHTML = '';
@@ -381,14 +344,15 @@
                 <img src="${post.profile_image}" class="post-avatar" alt="Avatar">
                 <div>
                     <strong>${post.name}</strong> @${post.username}
-                    <p>${post.text || ''}</p>
-                    ${post.image_path ? `<img src="${post.image_path}" class="post-image">` : ''}
+                    <p>${post.text ||
+                    ''}</p>
+                    ${post.image_path ?
+                    `<img src="${post.image_path}" class="post-image">` : ''}
                     <small>${new Date(post.created_at).toLocaleString()}</small>
                 </div>
             `;
             postsList.appendChild(postElement);
         }
-
         async function createPost() {
             const text = document.getElementById('postText').value.trim();
             const file = document.getElementById('postImage').files[0];
@@ -396,18 +360,17 @@
                 showError('Debes incluir texto o una imagen');
                 return;
             }
-
             try {
                 if (file) {
                     const reader = new FileReader();
-                reader.onload = () => {
+                    reader.onload = () => {
                         socket.emit('create_post', {
                             text,
                             file: { type: file.type, data: reader.result }
                         });
                     };
                     reader.readAsDataURL(file);
-                } else {
+                    } else {
                     socket.emit('create_post', { text });
                 }
                 document.getElementById('postText').value = '';
@@ -418,33 +381,22 @@
                 showError('Error al crear la publicación');
             }
         }
-
         function logout() {
             localStorage.clear();
             socket.disconnect();
             window.location.href = '/login';
         }
-
-        // Inicialización
         document.addEventListener('DOMContentLoaded', () => {
-            if (!token || !userId) {
-                window.location.href = '/login';
-                return;
-            }
-
             connectSocketIO();
             loadProfile();
             setupProfileEditButtons();
-
             document.getElementById('openNewChat').addEventListener('click', () => {
                 showScreen('screen-new-chat');
                 socket.emit('get_users');
             });
-
             document.getElementById('openNewPost').addEventListener('click', () => {
                 showScreen('screen-new-post');
             });
-
             document.getElementById('postImage').addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -454,7 +406,6 @@
                 };
                 reader.readAsDataURL(file);
             });
-
             document.getElementById('userSearch').addEventListener('input', (e) => {
                 loadUsers(e.target.value.trim());
             });
