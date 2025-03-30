@@ -103,4 +103,4 @@ async def custom_404_handler(request: Request, _):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(socket_app, host="0.0.0.0", port=8000)
+    uvicorn.run(socket_app, host="0.0.0.0", port=5000)
