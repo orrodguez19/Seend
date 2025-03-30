@@ -1,18 +1,35 @@
 import os
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect, HTTPException, Depends
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 import socketio
-from typing import Dict
+from typing import Dict, Optional
 from datetime import datetime
 import uuid
 import aiofiles
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import Column, Integer, String, DateTime, Text
+from sqlalchemy import Column, Integer, String, DateTime, Text, select
 from sqlalchemy.ext.declarative import declarative_base
 import asyncpg
+from passlib.context import CryptContext
+from pydantic import BaseModel
+
+# Configuración de seguridad
+security = HTTPBasic()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Modelos Pydantic para validación
+class UserCreate(BaseModel):
+    name: str
+    username: str
+    password: str
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
 
 # Configuración de la base de datos
 DATABASE_URL = "postgresql+asyncpg://seend_user:0pXiVWU99WyqRu39J0HcNESGIp5xTeQM@dpg-cvk4cc8dl3ps73fomqq0-a/seend"
@@ -27,7 +44,9 @@ class User(Base):
     __tablename__ = 'users'
     
     id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100))
     username = Column(String(50), unique=True, nullable=False)
+    password_hash = Column(String(200))
     sid = Column(String(100))
     status = Column(String(20), default='online')
     avatar = Column(String(200))
@@ -52,16 +71,17 @@ socket_app = socketio.ASGIApp(sio, app)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Almacenamiento en memoria para conexiones activas
-active_connections: Dict[str, WebSocket] = {}
-user_rooms = {}
+# Funciones de ayuda
+def verify_password(plain_password: str, hashed_password: str):
+    return pwd_context.verify(plain_password, hashed_password)
 
-# Eventos de inicio/shutdown
-@app.on_event("startup")
-async def startup():
-    async with engine.begin() as conn:
-        # Crear tablas si no existen
-        await conn.run_sync(Base.metadata.create_all)
+def get_password_hash(password: str):
+    return pwd_context.hash(password)
+
+async def get_user(username: str) -> Optional[User]:
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User).where(User.username == username))
+        return result.scalar_one_or_none()
 
 # Rutas HTTP
 @app.get("/", response_class=HTMLResponse, methods=["GET", "HEAD"])
@@ -76,6 +96,35 @@ async def chat(request: Request):
         return HTMLResponse(content="", status_code=200)
     return templates.TemplateResponse("chat.html", {"request": request})
 
+# Endpoints de autenticación
+@app.post("/register")
+async def register(user_data: UserCreate):
+    async with AsyncSessionLocal() as session:
+        # Verificar si el usuario ya existe
+        existing_user = await get_user(user_data.username)
+        if existing_user:
+            raise HTTPException(status_code=400, detail="El nombre de usuario ya está en uso")
+        
+        # Crear nuevo usuario
+        new_user = User(
+            name=user_data.name,
+            username=user_data.username,
+            password_hash=get_password_hash(user_data.password),
+            avatar=f"https://ui-avatars.com/api/?name={user_data.username}&background=random"
+        )
+        session.add(new_user)
+        await session.commit()
+        
+        return {"message": "Usuario registrado exitosamente"}
+
+@app.post("/login")
+async def login(user_data: UserLogin):
+    user = await get_user(user_data.username)
+    if not user or not verify_password(user_data.password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+    
+    return {"message": "Inicio de sesión exitoso", "username": user.username}
+
 # Eventos Socket.IO
 @sio.event
 async def connect(sid, environ):
@@ -84,9 +133,7 @@ async def connect(sid, environ):
 @sio.event
 async def disconnect(sid):
     async with AsyncSessionLocal() as session:
-        user = await session.execute(
-            select(User).where(User.sid == sid)
-        )
+        user = await session.execute(select(User).where(User.sid == sid))
         user = user.scalar_one_or_none()
         
         if user:
@@ -97,32 +144,19 @@ async def disconnect(sid):
     print(f"Cliente desconectado: {sid}")
 
 @sio.event
-async def login(sid, data):
+async def login_socket(sid, data):
     username = data.get('username')
     if not username:
         return {'status': 'error', 'message': 'Username is required'}
     
     async with AsyncSessionLocal() as session:
-        # Verificar si el usuario ya existe
-        existing_user = await session.execute(
-            select(User).where(User.username == username)
-        )
-        existing_user = existing_user.scalar_one_or_none()
+        user = await get_user(username)
+        if not user:
+            return {'status': 'error', 'message': 'Usuario no encontrado'}
         
-        if existing_user:
-            # Actualizar SID y estado
-            existing_user.sid = sid
-            existing_user.status = 'online'
-        else:
-            # Crear nuevo usuario
-            new_user = User(
-                username=username,
-                sid=sid,
-                status='online',
-                avatar=f"https://ui-avatars.com/api/?name={username}&background=random"
-            )
-            session.add(new_user)
-        
+        # Actualizar SID y estado
+        user.sid = sid
+        user.status = 'online'
         await session.commit()
         
         # Obtener lista de usuarios
@@ -130,13 +164,13 @@ async def login(sid, data):
         users = result.scalars().all()
         
         user_data = {
-            'username': username,
-            'status': 'online',
-            'avatar': f"https://ui-avatars.com/api/?name={username}&background=random"
+            'username': user.username,
+            'status': user.status,
+            'avatar': user.avatar
         }
         
         await sio.emit('user_connected', {
-            'username': username,
+            'username': user.username,
             'users': [{
                 'username': u.username,
                 'status': u.status,
@@ -153,9 +187,7 @@ async def send_message(sid, data):
         return
     
     async with AsyncSessionLocal() as session:
-        user = await session.execute(
-            select(User).where(User.sid == sid)
-        )
+        user = await session.execute(select(User).where(User.sid == sid))
         user = user.scalar_one_or_none()
         
         if not user:
@@ -179,6 +211,14 @@ async def send_message(sid, data):
         }
         
         await sio.emit('new_message', message_data)
+
+# Manejo de errores
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
 
 # Manejo de archivos estáticos
 @app.exception_handler(404)
