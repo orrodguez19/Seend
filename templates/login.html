@@ -4,13 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Seend - Iniciar Sesión</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }
         
         body {
@@ -18,85 +17,42 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
+            height: 100vh;
         }
         
-        .container {
-            display: flex;
-            width: 900px;
-            background-color: #fff;
-            border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        
-        .welcome-section {
-            flex: 1;
-            background: linear-gradient(135deg, #1e88e5, #0d47a1);
-            color: #fff;
-            padding: 50px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+        .login-container {
+            width: 100%;
+            max-width: 400px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            padding: 40px;
             text-align: center;
         }
         
-        .welcome-section h1 {
-            font-size: 32px;
-            margin-bottom: 20px;
-            font-weight: 700;
-        }
-        
-        .welcome-section p {
-            font-size: 16px;
-            margin-bottom: 30px;
-            font-weight: 300;
-            line-height: 1.6;
-        }
-        
-        .form-section {
-            flex: 1;
-            padding: 50px;
-        }
-        
-        .form-container {
-            display: flex;
-            flex-direction: column;
-            height: 100%;
-        }
-        
-        .form-header {
-            margin-bottom: 40px;
-            text-align: center;
-        }
-        
-        .form-header h2 {
+        .logo {
             color: #1e88e5;
             font-size: 28px;
             font-weight: 600;
             margin-bottom: 10px;
         }
         
-        .form-header p {
+        .description {
             color: #666;
-            font-size: 14px;
+            margin-bottom: 30px;
         }
         
         .tabs {
             display: flex;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
             border-bottom: 1px solid #eee;
         }
         
         .tab {
             flex: 1;
-            text-align: center;
             padding: 10px;
             cursor: pointer;
             color: #666;
-            font-weight: 500;
-            transition: all .3s ease;
         }
         
         .tab.active {
@@ -106,158 +62,122 @@
         
         .form {
             display: none;
-            flex-direction: column;
-            flex-grow: 1;
         }
         
         .form.active {
-            display: flex;
+            display: block;
         }
         
         .input-group {
             margin-bottom: 20px;
+            text-align: left;
         }
         
-        .input-group label {
+        label {
             display: block;
             margin-bottom: 8px;
             color: #555;
             font-size: 14px;
-            font-weight: 500;
         }
         
-        .input-group input {
+        input {
             width: 100%;
             padding: 12px 15px;
             border: 1px solid #ddd;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border .3s ease;
+            border-radius: 5px;
+            font-size: 15px;
         }
         
-        .input-group input:focus {
-            border-color: #1e88e5;
-            outline: none;
-        }
-        
-        .btn {
-            background-color: #1e88e5;
-            color: #fff;
-            border: none;
+        button {
+            width: 100%;
             padding: 12px;
-            border-radius: 8px;
+            background-color: #1e88e5;
+            color: white;
+            border: none;
+            border-radius: 5px;
             font-size: 16px;
-            font-weight: 500;
             cursor: pointer;
-            transition: background-color .3s ease;
-            margin-bottom: 20px;
+            margin-top: 10px;
         }
         
-        .btn:hover {
-            background-color: #1565c0;
-        }
-        
-        .footer {
-            margin-top: auto;
-            text-align: center;
-            font-size: 13px;
+        .switch-form {
+            margin-top: 20px;
+            font-size: 14px;
             color: #666;
         }
         
-        .footer a {
+        .switch-form a {
             color: #1e88e5;
             text-decoration: none;
         }
         
-        @media (max-width: 768px) {
-            .container {
-                flex-direction: column;
-                width: 90%;
-            }
-            
-            .welcome-section {
-                padding: 30px;
-            }
-            
-            .form-section {
-                padding: 30px;
-            }
+        .error-message {
+            color: #f44336;
+            margin-top: 10px;
+            font-size: 14px;
+            display: none;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="welcome-section">
-            <h1>Bienvenido a Seend</h1>
-            <p>Conéctate con amigos, familiares y colegas en tiempo real con nuestra plataforma de mensajería instantánea segura y fácil de usar.</p>
+    <div class="login-container">
+        <div class="logo">Seend</div>
+        <div class="description">Conéctate con tus amigos</div>
+        
+        <div class="tabs">
+            <div class="tab active" onclick="switchTab('login')">Iniciar Sesión</div>
+            <div class="tab" onclick="switchTab('register')">Registrarse</div>
         </div>
         
-        <div class="form-section">
-            <div class="form-container">
-                <div class="form-header">
-                    <h2>Inicia tu experiencia</h2>
-                    <p>Ingresa tus datos para comenzar a chatear</p>
-                </div>
-                
-                <div class="tabs">
-                    <div class="tab active" onclick="switchTab('login')">Iniciar Sesión</div>
-                    <div class="tab" onclick="switchTab('register')">Registrarse</div>
-                </div>
-                
-                <form class="form active" id="login-form">
-                    <div class="input-group">
-                        <label for="login-username">Nombre de usuario</label>
-                        <input type="text" id="login-username" placeholder="@usuario" required>
-                    </div>
-                    
-                    <div class="input-group">
-                        <label for="login-password">Contraseña</label>
-                        <input type="password" id="login-password" placeholder="••••••••" required>
-                    </div>
-                    
-                    <button type="submit" class="btn">Iniciar Sesión</button>
-                    
-                    <div class="footer">
-                        ¿No tienes una cuenta? <a href="#" onclick="switchTab('register')">Regístrate</a>
-                    </div>
-                </form>
-                
-                <form class="form" id="register-form">
-                    <div class="input-group">
-                        <label for="register-name">Nombre completo</label>
-                        <input type="text" id="register-name" placeholder="Tu nombre" required>
-                    </div>
-                    
-                    <div class="input-group">
-                        <label for="register-username">Nombre de usuario</label>
-                        <input type="text" id="register-username" placeholder="@usuario" required>
-                    </div>
-                    
-                    <div class="input-group">
-                        <label for="register-password">Contraseña</label>
-                        <input type="password" id="register-password" placeholder="••••••••" required>
-                    </div>
-                    
-                    <div class="input-group">
-                        <label for="register-confirm-password">Confirmar contraseña</label>
-                        <input type="password" id="register-confirm-password" placeholder="••••••••" required>
-                    </div>
-                    
-                    <button type="submit" class="btn">Registrarse</button>
-                    
-                    <div class="footer">
-                        ¿Ya tienes una cuenta? <a href="#" onclick="switchTab('login')">Inicia sesión</a>
-                    </div>
-                </form>
+        <form id="login-form" class="form active">
+            <div class="input-group">
+                <label for="login-username">Usuario</label>
+                <input type="text" id="login-username" required>
             </div>
-        </div>
+            
+            <div class="input-group">
+                <label for="login-password">Contraseña</label>
+                <input type="password" id="login-password" required>
+            </div>
+            
+            <div class="error-message" id="login-error"></div>
+            
+            <button type="submit">Iniciar Sesión</button>
+            
+            <div class="switch-form">
+                ¿No tienes cuenta? <a href="#" onclick="switchTab('register')">Regístrate</a>
+            </div>
+        </form>
+        
+        <form id="register-form" class="form">
+            <div class="input-group">
+                <label for="register-username">Usuario</label>
+                <input type="text" id="register-username" required>
+            </div>
+            
+            <div class="input-group">
+                <label for="register-password">Contraseña</label>
+                <input type="password" id="register-password" required>
+            </div>
+            
+            <div class="input-group">
+                <label for="register-confirm">Confirmar Contraseña</label>
+                <input type="password" id="register-confirm" required>
+            </div>
+            
+            <div class="error-message" id="register-error"></div>
+            
+            <button type="submit">Registrarse</button>
+            
+            <div class="switch-form">
+                ¿Ya tienes cuenta? <a href="#" onclick="switchTab('login')">Inicia sesión</a>
+            </div>
+        </form>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     <script>
-        const socket = io();
-        
         function switchTab(tabName) {
+            // Cambiar pestañas
             document.querySelectorAll('.tab').forEach(tab => {
                 tab.classList.remove('active');
             });
@@ -273,6 +193,11 @@
                 document.querySelector('.tab:nth-child(2)').classList.add('active');
                 document.getElementById('register-form').classList.add('active');
             }
+            
+            // Limpiar errores
+            document.querySelectorAll('.error-message').forEach(el => {
+                el.style.display = 'none';
+            });
         }
         
         document.getElementById('login-form').addEventListener('submit', async function(e) {
@@ -280,9 +205,10 @@
             
             const username = document.getElementById('login-username').value;
             const password = document.getElementById('login-password').value;
+            const errorElement = document.getElementById('login-error');
             
             try {
-                const response = await fetch('/login', {
+                const response = await fetch('/api/login', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -290,7 +216,8 @@
                     body: JSON.stringify({
                         username: username,
                         password: password
-                    })
+                    }),
+                    credentials: 'include'
                 });
                 
                 const data = await response.json();
@@ -298,51 +225,55 @@
                 if (response.ok) {
                     window.location.href = '/chat';
                 } else {
-                    alert(data.detail || 'Error al iniciar sesión');
+                    errorElement.textContent = data.detail || 'Error al iniciar sesión';
+                    errorElement.style.display = 'block';
                 }
             } catch (error) {
-                console.error('Login error:', error);
-                alert('Error de conexión con el servidor');
+                console.error('Error:', error);
+                errorElement.textContent = 'Error de conexión con el servidor';
+                errorElement.style.display = 'block';
             }
         });
         
         document.getElementById('register-form').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const name = document.getElementById('register-name').value;
             const username = document.getElementById('register-username').value;
             const password = document.getElementById('register-password').value;
-            const confirmPassword = document.getElementById('register-confirm-password').value;
+            const confirm = document.getElementById('register-confirm').value;
+            const errorElement = document.getElementById('register-error');
             
-            if (password !== confirmPassword) {
-                alert('Las contraseñas no coinciden');
+            if (password !== confirm) {
+                errorElement.textContent = 'Las contraseñas no coinciden';
+                errorElement.style.display = 'block';
                 return;
             }
             
             try {
-                const response = await fetch('/register', {
+                const response = await fetch('/api/register', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        name: name,
                         username: username,
                         password: password
                     })
                 });
                 
-                const data = await response.json();
-                
                 if (response.ok) {
-                    alert('Registro exitoso. Por favor inicia sesión.');
                     switchTab('login');
+                    document.getElementById('login-username').value = username;
+                    document.getElementById('login-password').focus();
                 } else {
-                    alert(data.detail || 'Error al registrar usuario');
+                    const data = await response.json();
+                    errorElement.textContent = data.detail || 'Error al registrar usuario';
+                    errorElement.style.display = 'block';
                 }
             } catch (error) {
-                console.error('Registration error:', error);
-                alert('Error de conexión con el servidor');
+                console.error('Error:', error);
+                errorElement.textContent = 'Error de conexión con el servidor';
+                errorElement.style.display = 'block';
             }
         });
     </script>
