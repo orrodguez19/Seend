@@ -191,7 +191,7 @@ async def register(sid, data):
         return
     with get_db_connection() as conn:
         if conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
-            await sio.emit('register_error', {'message': 'El usuario ya existe'}, to=sid)
+            await sio.emit('register_error', {'message': 'El usuario ya existe'}, to:sid)
             return
         user_id = str(uuid.uuid4())
         session_id = secrets.token_hex(32)
@@ -205,7 +205,7 @@ async def register(sid, data):
             'name': name,
             'username': username,
             'profile_image': '/static/default-avatar.png'
-        }, to=sid)
+        }, to:sid)
 
 @sio.event
 async def login(sid, data):
@@ -214,7 +214,7 @@ async def login(sid, data):
     with get_db_connection() as conn:
         user = conn.execute("SELECT id, name, profile_image FROM users WHERE username = ? AND password = ?", (username, password)).fetchone()
         if not user:
-            await sio.emit('login_error', {'message': 'Usuario o contraseña incorrectos'}, to=sid)
+            await sio.emit('login_error', {'message': 'Usuario o contraseña incorrectos'}, to:sid)
             return
         session_id = secrets.token_hex(32)
         conn.execute("INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))", (session_id, user['id']))
@@ -226,18 +226,18 @@ async def login(sid, data):
             'name': user['name'],
             'username': username,
             'profile_image': user['profile_image']
-        }, to=sid)
+        }, to:sid)
 
 @sio.event
 async def update_avatar(sid, data):
     user_id = manager.active_connections.get(sid)
     if not user_id:
-        await sio.emit('auth_error', {'message': 'No autenticado'}, to=sid)
+        await sio.emit('auth_error', {'message': 'No autenticado'}, to:sid)
         return
     try:
         file_data = data.get('file')
         if not file_data or not file_data.get('type', '').startswith('image/'):
-            await sio.emit('avatar_error', {'message': 'Archivo de imagen inválido'}, to=sid)
+            await sio.emit('avatar_error', {'message': 'Archivo de imagen inválido'}, to:sid)
             return
         filename = f"{user_id}.jpg"
         image_path = await save_image(file_data, AVATARS_DIR, filename, max_size=500)
@@ -247,22 +247,22 @@ async def update_avatar(sid, data):
             manager.user_info[user_id]['avatar'] = image_path
             await sio.emit('avatar_updated', {'user_id': user_id, 'profile_image': image_path})
     except HTTPException as e:
-        await sio.emit('avatar_error', {'message': e.detail}, to=sid)
+        await sio.emit('avatar_error', {'message': e.detail}, to:sid)
 
 @sio.event
 async def update_profile(sid, data):
     user_id = manager.active_connections.get(sid)
     if not user_id:
-        await sio.emit('auth_error', {'message': 'No autenticado'}, to=sid)
+        await sio.emit('auth_error', {'message': 'No autenticado'}, to:sid)
         return
     field = data.get('field')
     value = data.get('value')
     if field not in ['name', 'username', 'bio']:
-        await sio.emit('profile_error', {'message': 'Campo inválido'}, to=sid)
+        await sio.emit('profile_error', {'message': 'Campo inválido'}, to:sid)
         return
     with get_db_connection() as conn:
         if field == 'username' and not re.match(r'^@[a-z0-9_]{3,20}$', value):
-            await sio.emit('profile_error', {'message': 'Usuario inválido'}, to=sid)
+            await sio.emit('profile_error', {'message': 'Usuario inválido'}, to:sid)
             return
         conn.execute(f"UPDATE users SET {field} = ? WHERE id = ?", (value, user_id))
         conn.commit()
@@ -273,12 +273,12 @@ async def update_profile(sid, data):
 async def create_post(sid, data):
     user_id = manager.active_connections.get(sid)
     if not user_id:
-        await sio.emit('auth_error', {'message': 'No autenticado'}, to=sid)
+        await sio.emit('auth_error', {'message': 'No autenticado'}, to:sid)
         return
     text = data.get('text', '').strip()
     file_data = data.get('file')
     if not text and not file_data:
-        await sio.emit('post_error', {'message': 'Debes incluir texto o una imagen'}, to=sid)
+        await sio.emit('post_error', {'message': 'Debes incluir texto o una imagen'}, to:sid)
         return
     try:
         image_path = None
@@ -294,18 +294,18 @@ async def create_post(sid, data):
         post_data['created_at'] = post['created_at']
         await sio.emit('new_post', post_data)
     except HTTPException as e:
-        await sio.emit('post_error', {'message': e.detail}, to=sid)
+        await sio.emit('post_error', {'message': e.detail}, to:sid)
 
 @sio.event
 async def send_message(sid, data):
     user_id = manager.active_connections.get(sid)
     if not user_id:
-        await sio.emit('auth_error', {'message': 'No autenticado'}, to=sid)
+        await sio.emit('auth_error', {'message': 'No autenticado'}, to:sid)
         return
     receiver_id = data.get('receiver_id')
     text = data.get('text', '').strip()
     if not receiver_id or not text:
-        await sio.emit('message_error', {'message': 'Faltan datos'}, to=sid)
+        await sio.emit('message_error', {'message': 'Faltan datos'}, to:sid)
         return
     message_id = str(uuid.uuid4())
     with get_db_connection() as conn:
@@ -315,13 +315,13 @@ async def send_message(sid, data):
     message_data = dict(message)
     message_data['created_at'] = message['created_at']
     await sio.emit('new_message', message_data, room=receiver_id)
-    await sio.emit('new_message', message_data, to=sid)
+    await sio.emit('new_message', message_data, to:sid)
 
 @sio.event
 async def delete_account(sid):
     user_id = manager.active_connections.get(sid)
     if not user_id:
-        await sio.emit('auth_error', {'message': 'No autenticado'}, to=sid)
+        await sio.emit('auth_error', {'message': 'No autenticado'}, to:sid)
         return
     try:
         with get_db_connection() as conn:
@@ -331,23 +331,23 @@ async def delete_account(sid):
             conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
             conn.commit()
         await manager.disconnect(sid)
-        await sio.emit('account_deleted', {'message': 'Cuenta eliminada exitosamente'}, to=sid)
+        await sio.emit('account_deleted', {'message': 'Cuenta eliminada exitosamente'}, to:sid)
     except Exception as e:
         logger.error(f"Error eliminando cuenta: {str(e)}")
-        await sio.emit('delete_error', {'message': 'Error al eliminar la cuenta'}, to=sid)
+        await sio.emit('delete_error', {'message': 'Error al eliminar la cuenta'}, to:sid)
 
 @sio.event
 async def get_users(sid):
     user_id = manager.active_connections.get(sid)
     if not user_id:
-        await sio.emit('auth_error', {'message': 'No autenticado'}, to=sid)
+        await sio.emit('auth_error', {'message': 'No autenticado'}, to:sid)
         return
     with get_db_connection() as conn:
         users = conn.execute("SELECT id, name, username, profile_image FROM users").fetchall()
     users_list = [dict(user) for user in users if user['id'] != user_id]
     for user in users_list:
         user['online'] = user['id'] in manager.user_info
-    await sio.emit('users_list', {'users': users_list}, to=sid)
+    await sio.emit('users_list', {'users': users_list}, to:sid)
 
 @app.get("/")
 async def root():
@@ -364,4 +364,4 @@ app.mount("/", ASGIApp(sio))
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    uvicorn.run(app, reload=True, host='0.0.0.0', port=port)  # Usar uvicorn para ejecutar la aplicación
+    uvicorn.run("app:app", reload=True, host='0.0.0.0', port=port)  # Usar uvicorn para ejecutar la aplicación
