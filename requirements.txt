@@ -4,4 +4,4 @@ pillow==10.3.0
 uvicorn==0.29.0
 aiofiles==23.2.1
 python-multipart==0.0.20
-ninja2==3.1.6
+ninja2<=3.0.0
