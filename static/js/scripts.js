@@ -19,12 +19,27 @@ const DOM = {
     profileTitle: document.getElementById("profileTitle")
 };
 
+// Funciones auxiliares
 function sanitizeInput(input) {
     const div = document.createElement('div');
     div.textContent = input;
     return div.innerHTML;
 }
 
+function formatTime(date) {
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
+}
+
+function getStatusIcon(status) {
+    if (!status || status === 'sent') return '<svg viewBox="0 0 24 24"><path fill="#bbb" d="M18 8l-8 8-4-4-1.5 1.5L10 19l9.5-9.5z"/></svg>';
+    if (status === 'delivered') return '<svg viewBox="0 0 24 24"><path fill="#bbb" d="M18 8l-8 8-4-4-1.5 1.5L10 19l9.5-9.5z"/></svg>';
+    if (status === 'read') return '<svg viewBox="0 0 24 24"><path fill="#4CAF50" d="M18 8l-8 8-4-4-1.5 1.5L10 19l9.5-9.5z"/></svg>';
+    return '';
+}
+
+// Funciones de la interfaz
 function showScreen(screenId) {
     document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
     document.getElementById(screenId).classList.add('active');
@@ -39,7 +54,7 @@ function loadUsers() {
             users = data;
             DOM.usersList.innerHTML = "";
             users.forEach(user => {
-                if (user.id !== currentUserId) {  // Excluir al usuario actual
+                if (user.id !== currentUserId) {
                     const div = document.createElement("div");
                     div.classList.add("list-item");
                     div.innerHTML = `<img src="https://i.pravatar.cc/150?img=${user.id}" alt="${user.name}"><div class="details"><strong>${user.name}</strong><p>${user.lastSeen}</p></div>`;
@@ -136,19 +151,6 @@ function openConversation(chat) {
     showScreen("screen-conversation");
 }
 
-function formatTime(date) {
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-}
-
-function getStatusIcon(status) {
-    if (!status || status === 'sent') return '<svg viewBox="0 0 24 24"><path fill="#bbb" d="M18 8l-8 8-4-4-1.5 1.5L10 19l9.5-9.5z"/></svg>';
-    if (status === 'delivered') return '<svg viewBox="0 0 24 24"><path fill="#bbb" d="M18 8l-8 8-4-4-1.5 1.5L10 19l9.5-9.5z"/></svg>';
-    if (status === 'read') return '<svg viewBox="0 0 24 24"><path fill="#4CAF50" d="M18 8l-8 8-4-4-1.5 1.5L10 19l9.5-9.5z"/></svg>';
-    return '';
-}
-
 function sendMessage() {
     const input = DOM.messageInput;
     const text = sanitizeInput(input.value.trim());
@@ -162,7 +164,7 @@ function sendMessage() {
         timestamp: timestamp
     };
     
-    socket.send(JSON.stringify(message));
+    socket.emit('send_message', message);
     input.value = '';
 }
 
@@ -170,28 +172,31 @@ function handleKeyPress(event) {
     if (event.key === 'Enter') sendMessage();
 }
 
-// Inicialización
-document.addEventListener('DOMContentLoaded', () => {
-    // Obtener el nombre de usuario del meta tag
-    const usernameMeta = document.querySelector('meta[name="username"]');
-    if (!usernameMeta) {
-        console.error('No se encontró el meta tag con el nombre de usuario');
-        return;
-    }
-    const username = usernameMeta.content;
-    
-    // Configurar WebSocket (nativo en lugar de Socket.IO)
-    socket = new WebSocket(`wss://${window.location.host}/ws/${currentUserId}`);
-    
-    socket.onopen = function(e) {
-        console.log("Conexión WebSocket establecida");
-    };
-    
-    socket.onmessage = function(event) {
-        const msg = JSON.parse(event.data);
+// Inicialización Socket.IO
+function initializeSocketIO() {
+    socket = io({
+        transports: ['websocket'],
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionAttempts: Infinity
+    });
+
+    socket.on('connect', () => {
+        console.log('Conectado al servidor Socket.IO');
+        if (currentUserId) {
+            socket.emit('join', { userId: currentUserId });
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Desconectado del servidor Socket.IO');
+    });
+
+    socket.on('new_message', (msg) => {
         if (!currentChat) return;
         const isCurrentChat = (currentChat.isGroup && msg.receiver_id === currentChat.id) || 
                             (!currentChat.isGroup && (msg.sender_id === currentChat.memberId || msg.receiver_id === currentChat.memberId));
+        
         if (isCurrentChat) {
             const messageDiv = document.createElement("div");
             messageDiv.className = `message ${msg.sender_id === currentUserId ? 'sent' : 'received'}`;
@@ -199,20 +204,25 @@ document.addEventListener('DOMContentLoaded', () => {
             DOM.conversationArea.appendChild(messageDiv);
             DOM.conversationArea.scrollTop = DOM.conversationArea.scrollHeight;
         }
-    };
-    
-    socket.onclose = function(event) {
-        if (event.wasClean) {
-            console.log(`Conexión cerrada limpiamente, código=${event.code} motivo=${event.reason}`);
-        } else {
-            console.log('La conexión se cayó');
-        }
-    };
-    
-    socket.onerror = function(error) {
-        console.log(`Error en WebSocket: ${error.message}`);
-    };
+    });
 
+    socket.on('connect_error', (error) => {
+        console.error('Error de conexión Socket.IO:', error);
+    });
+}
+
+// Inicialización de la aplicación
+document.addEventListener('DOMContentLoaded', () => {
+    const usernameMeta = document.querySelector('meta[name="username"]');
+    if (!usernameMeta) {
+        console.error('No se encontró el meta tag con el nombre de usuario');
+        return;
+    }
+    const username = usernameMeta.content;
+    
+    // Inicializar Socket.IO
+    initializeSocketIO();
+    
     // Cargar usuarios y establecer el ID del usuario actual
     fetch('/api/users')
         .then(response => response.json())
@@ -224,9 +234,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateChatList();
                 document.getElementById("openNewChat").addEventListener("click", () => showScreen("screen-new-chat"));
                 
-                // Reconectar WebSocket con el ID correcto
-                if (socket) socket.close();
-                socket = new WebSocket(`wss://${window.location.host}/ws/${currentUserId}`);
+                // Unirse a la sala del usuario
+                socket.emit('join', { userId: currentUserId });
             } else {
                 console.error('Usuario actual no encontrado');
             }
