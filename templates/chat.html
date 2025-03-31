@@ -51,173 +51,153 @@
         input[type="text"], input[type="file"] {
             width: 100%;
             padding: 10px;
-            margin-bottom: 15px;
-            border: 1px solid #ccc;
+            margin: 10px 0;
+            border: 1px solid #ddd;
             border-radius: 5px;
-            font-size: 16px;
         }
-        ul {
-            list-style: none;
-            padding: 0;
-            margin: 0;
+        #userList {
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 20px 0;
         }
-        li {
+        .user {
+            display: flex;
+            align-items: center;
             padding: 10px;
             border-bottom: 1px solid #eee;
             cursor: pointer;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
         }
-        li:last-child {
-            border-bottom: none;
+        .user:hover {
+            background-color: #f0f4f8;
         }
-        li:hover {
-            background-color: #f9f9f9;
-        }
-        .chat-container {
-            border: 1px solid #ccc;
-            border-radius: 5px;
-            padding: 10px;
-            height: 300px;
-            overflow-y: auto;
-            margin-bottom: 10px;
-        }
-        .message {
-            padding: 8px;
-            border-radius: 5px;
-            margin-bottom: 5px;
-            background-color: #e0f7fa;
-        }
-        .message.sent {
-            background-color: #cceeff;
-            text-align: right;
-        }
-        #profilePicPreview {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            object-fit: cover;
-            margin-right: 10px;
-        }
-        .user-info {
-            display: flex;
-            align-items: center;
-        }
-        .online-indicator {
+        .status {
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            background-color: gray;
-            margin-left: 5px;
+            margin-right: 10px;
         }
-        .online-indicator.online {
-            background-color: green;
+        .online { background-color: #00cc00; }
+        .offline { background-color: #ccc; }
+        #chatScreen {
+            width: 500px;
+        }
+        #messages {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .message {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            background-color: #e9ecef;
+        }
+        .message.sent {
+            background-color: #1e90ff;
+            color: white;
+            text-align: right;
+        }
+        .profile-pic {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            margin-right: 10px;
         }
     </style>
 </head>
 <body>
-    <div class="screen active" id="usernameScreen">
-        <h1>Bienvenido al Chat</h1>
-        <input type="text" id="usernameInput" placeholder="Introduce tu nombre de usuario">
-        <button onclick="setUsername()">Entrar al Chat</button>
+    <div id="welcomeScreen" class="screen active">
+        <h1>¡Bienvenido al Chat!</h1>
+        <button onclick="showScreen('profileScreen')">Iniciar</button>
     </div>
 
-    <div class="screen" id="chatScreen">
-        <h2>Chat en Tiempo Real</h2>
-        <div id="userProfile">
-            <input type="file" id="profilePicInput" accept="image/*" onchange="previewProfilePic(event)">
-            <img id="profilePicPreview" src="#" alt="Vista previa del perfil" style="display: none;">
-            <button onclick="uploadProfilePic()">Subir Foto de Perfil</button>
-        </div>
-        <h3>Usuarios Conectados</h3>
-        <ul id="users">
-            </ul>
-        <h3 id="selectedUser">Selecciona un usuario para chatear</h3>
-        <div class="chat-container" id="messages">
-            </div>
-        <input type="text" id="messageInput" placeholder="Escribe tu mensaje...">
+    <div id="profileScreen" class="screen">
+        <h2>Configura tu Perfil</h2>
+        <input type="text" id="username" placeholder="Ingresa tu nombre">
+        <input type="file" id="profilePic" accept="image/*">
+        <button onclick="saveProfile()">Continuar</button>
+    </div>
+
+    <div id="usersScreen" class="screen">
+        <h2>Usuarios Registrados</h2>
+        <div id="userList"></div>
+    </div>
+
+    <div id="chatScreen" class="screen">
+        <h2>Chat con <span id="chatWith"></span></h2>
+        <div id="messages"></div>
+        <input type="text" id="messageInput" placeholder="Escribe un mensaje...">
         <button onclick="sendMessage()">Enviar</button>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.js"></script>
     <script>
-        const socket = io();
-        let myId = null;
-        let selectedSocketId = null;
-        const usernameScreen = document.getElementById('usernameScreen');
-        const chatScreen = document.getElementById('chatScreen');
+        const socket = io('http://localhost:5000');
+        let myId, selectedUserId, selectedSocketId, users = {};
 
-        function setUsername() {
-            const usernameInput = document.getElementById('usernameInput');
-            const username = usernameInput.value.trim();
+        // Mostrar pantallas
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            if (screenId === 'usersScreen') {
+                socket.emit('requestUserList');
+            }
+        }
+
+        // Guardar perfil y pasar a pantalla de usuarios
+        function saveProfile() {
+            const username = document.getElementById('username').value;
+            const profilePicInput = document.getElementById('profilePic');
             if (username) {
-                socket.emit('setUsername', username);
-                usernameScreen.classList.remove('active');
-                chatScreen.classList.add('active');
-            } else {
-                alert('Por favor, introduce un nombre de usuario.');
-            }
-        }
-
-        function previewProfilePic(event) {
-            const reader = new FileReader();
-            reader.onload = function(){
-                const output = document.getElementById('profilePicPreview');
-                output.src = reader.result;
-                output.style.display = 'block';
-            };
-            reader.readAsDataURL(event.target.files[0]);
-        }
-
-        function uploadProfilePic() {
-            const profilePicInput = document.getElementById('profilePicInput');
-            if (profilePicInput.files && profilePicInput.files[0]) {
-                const reader = new FileReader();
-                reader.onloadend = function() {
-                    const base64Image = reader.result.split(',')[1];
-                    socket.emit('setProfilePic', { profilePic: base64Image });
+                const data = { username: username };
+                if (profilePicInput.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        data.profilePic = e.target.result;
+                        socket.emit('registerProfile', data);
+                        showScreen('usersScreen');
+                    };
+                    reader.readAsDataURL(profilePicInput.files[0]);
+                } else {
+                    socket.emit('registerProfile', data);
+                    showScreen('usersScreen');
                 }
-                reader.readAsDataURL(profilePicInput.files[0]);
             } else {
-                alert('Por favor, selecciona una imagen de perfil.');
+                alert('Por favor, ingresa un nombre.');
             }
         }
 
-        // Recibir la lista de usuarios
-        socket.on('userList', (users) => {
-            const userListElem = document.getElementById('users');
-            userListElem.innerHTML = ''; // Limpiar la lista anterior
-            users.forEach(user => {
-                const listItem = document.createElement('li');
-                listItem.classList.add('user-item');
-                listItem.innerHTML = `
-                    <div class="user-info">
-                        ${user.profile_pic ? `<img id="profilePicPreview" src="data:image/png;base64, ${user.profile_pic}" alt="Foto de perfil">` : ''}
-                        ${user.username}
-                        <span class="online-indicator ${user.online ? 'online' : ''}"></span>
-                    </div>
-                `;
-                listItem.addEventListener('click', () => {
-                    selectedSocketId = user.id; // Asumiendo que el backend envía el user_id como 'id'
-                    const selectedUserElement = document.getElementById('selectedUser');
-                    selectedUserElement.textContent = `Chatting with: ${user.username}`;
-                    loadChatHistory(selectedSocketId);
-                });
-                userListElem.appendChild(listItem);
+        // Actualizar lista de usuarios
+        socket.on('userList', (userList) => {
+            const userListDiv = document.getElementById('userList');
+            userListDiv.innerHTML = '';
+            users = {};
+            userList.forEach(user => {
+                users[user.id] = user;
+                const userDiv = document.createElement('div');
+                userDiv.className = 'user';
+                const img = user.profile_pic ? `<img src="data:image/jpeg;base64,${user.profile_pic}" class="profile-pic">` : '';
+                userDiv.innerHTML = `${img}<div class="status ${user.online ? 'online' : 'offline'}"></div>${user.username}`;
+                userDiv.onclick = () => startChat(user.id);
+                userListDiv.appendChild(userDiv);
             });
         });
-
-        // Solicitar historial de chat
-        function loadChatHistory(receiverSocketId) {
-            socket.emit('getHistory', receiverSocketId);
-            const messagesElem = document.getElementById('messages');
-            messagesElem.innerHTML = ''; // Limpiar el historial anterior
+        socket.on('userDisconnected', (userId) => {
+            // Actualizado por userList
+        });
+        // Iniciar chat con un usuario
+        function startChat(userId) {
+            selectedUserId = userId;
+            selectedSocketId = userId; // Usar user_id en lugar de sid
+            document.getElementById('chatWith').textContent = users[userId].username;
+            document.getElementById('messages').innerHTML = '';
+            showScreen('chatScreen');
+            socket.emit('getChatHistory', { otherUserId: userId });
         }
 
-        // Recibir historial de chat
-        socket.on('loadHistory', history => {
-            const messagesElem = document.getElementById('messages');
+        // Mostrar historial de chat
+        socket.on('chatHistory', (history) => {
             history.forEach(msg => {
                 const isSent = msg.sender_id === myId;
                 addMessage(`${msg.sender_username}: ${msg.message}`, isSent);
@@ -238,7 +218,6 @@
         socket.on('receiveMessage', (data) => {
             addMessage(`${data.senderUsername}: ${data.message}`, data.senderId === myId);
         });
-
         // Agregar mensaje al chat
         function addMessage(text, isSent) {
             const messages = document.getElementById('messages');
@@ -253,7 +232,6 @@
         socket.on('connect', () => {
             console.log('Conectado con socket ID:', socket.id);
         });
-
         socket.on('setUserId', (data) => {
             myId = data.userId;
             console.log('Mi user_id asignado:', myId);
