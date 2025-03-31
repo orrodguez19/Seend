@@ -1,7 +1,5 @@
 fastapi==0.109.0
 uvicorn==0.27.0
-python-socketio==5.11.1
-python-engineio==4.7.0
 passlib==1.7.4
 asyncpg==0.29.0
 sqlalchemy==2.0.25
@@ -9,3 +7,5 @@ aiohttp==3.9.3
 aiofiles==23.2.1
 python-multipart==0.0.6
 ninja2<=3.0.0
+python-engineio>=4.0.0
+python-socketio>=5.0.0
