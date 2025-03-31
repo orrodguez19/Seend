@@ -27,7 +27,7 @@ app.add_middleware(
 )
 
 # Configuración de la base de datos ASÍNCRONA
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:password@localhost/seend")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://seend_user:0pXiVWU99WyqRu39J0HcNESGIp5xTeQM@dpg-cvk4cc8dl3ps73fomqq0-a/seend")
 engine = create_async_engine(DATABASE_URL)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -76,7 +76,7 @@ async def register(request: Request):
         result = await db.execute(select(User).where(User.username == data['username']))
         if result.scalar():
             raise HTTPException(status_code=400, detail="Username already exists")
-        
+
         user = User(
             username=data['username'],
             password_hash=pwd_context.hash(data['password']),
@@ -92,16 +92,16 @@ async def login(request: Request, response: Response):
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(User).where(User.username == data['username']))
         user = result.scalar()
-        
+
         if not user or not pwd_context.verify(data['password'], user.password_hash):
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        
+
         session_token = secrets.token_urlsafe(32)
         user.sid = session_token
         user.status = 'online'
         user.last_seen = datetime.utcnow()
         await db.commit()
-        
+
         response.set_cookie("session_token", session_token, httponly=True)
         return {
             "user": {
@@ -114,13 +114,13 @@ async def login(request: Request, response: Response):
 async def check_session(session_token: str = Cookie(None)):
     if not session_token:
         return {"status": "invalid"}
-    
+
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(User).where(User.sid == session_token))
         user = result.scalar()
         if not user:
             return {"status": "invalid"}
-        
+
         return {
             "status": "valid",
             "user": {
@@ -181,7 +181,7 @@ async def send_message(sid, data):
         sender = result.scalar()
         if not sender:
             return
-        
+
         message = Message(
             sender=sender.username,
             recipient=data['recipient'],
@@ -190,7 +190,7 @@ async def send_message(sid, data):
         )
         db.add(message)
         await db.commit()
-        
+
         # Enviar al remitente
         await sio.emit('new_message', {
             'id': message.id,
@@ -200,7 +200,7 @@ async def send_message(sid, data):
             'status': 'sent',
             'is_own': True
         }, room=sid)
-        
+
         # Enviar al destinatario si está conectado
         result = await db.execute(select(User).where(User.username == data['recipient']))
         recipient = result.scalar()
