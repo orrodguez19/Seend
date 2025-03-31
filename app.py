@@ -32,18 +32,92 @@ def get_db():
 init_db()
 
 @socketio.on('connect')
-def connect():
-    print(f'Cliente conectado: {request.sid}')
+def handle_connect():
+    user_id = str(uuid.uuid4())[:8]
     conn = get_db()
     c = conn.cursor()
-    c.execute("UPDATE users SET online = 1 WHERE sid = ?", (request.sid,))
+    c.execute("INSERT OR IGNORE INTO users (sid, user_id, username, online) VALUES (?, ?, ?, ?)",
+              (request.sid, user_id, f"User_{user_id}", 1))
     conn.commit()
     conn.close()
+
+    # Enviar el user_id al cliente conectado
+    emit('setUserId', {'userId': user_id}, room=request.sid)
     emit_user_list()
 
+@socketio.on('registerProfile')
+def handle_register_profile(data):
+    username = data.get('username', f"User_{get_user_id(request.sid)}")
+    profile_pic = data.get('profilePic')
+    conn = get_db()
+    c = conn.cursor()
+    if profile_pic:
+        profile_pic_binary = base64.b64decode(profile_pic.split(',')[1]) if ',' in profile_pic else base64.b64decode(profile_pic)
+        c.execute("UPDATE users SET username = ?, sid = ?, profile_pic = ? WHERE sid = ?",
+                  (username, request.sid, profile_pic_binary, request.sid))
+    else:
+        c.execute("UPDATE users SET username = ?, sid = ? WHERE sid = ?",
+                  (username, request.sid, request.sid))
+    conn.commit()
+    conn.close()
+
+    emit_user_list()
+
+@socketio.on('requestUserList')
+def handle_request_user_list():
+    emit_user_list()
+
+@socketio.on('sendMessage')
+def handle_send_message(data):
+    receiver_user_id = data['receiverSocketId']
+    message = data['message']
+    sender_sid = request.sid
+
+    conn = get_db()
+    c = conn.cursor()
+
+    sender_id = get_user_id(sender_sid)
+    c.execute("SELECT sid FROM users WHERE user_id = ?", (receiver_user_id,))
+    result = c.fetchone()
+    receiver_sid = result['sid'] if result else None
+
+    if sender_id and receiver_user_id and receiver_sid:
+        timestamp = datetime.now().isoformat()
+        c.execute("INSERT INTO messages (sender_id, receiver_id, message, timestamp) VALUES (?, ?, ?, ?)",
+                  (sender_id, receiver_user_id, message, timestamp))
+        conn.commit()
+
+        c.execute("SELECT username FROM users WHERE user_id = ?", (sender_id,))
+        sender_username = c.fetchone()['username']
+
+        msg_data = {'senderId': sender_id, 'senderUsername': sender_username,
+                    'message': message}
+        emit('receiveMessage', msg_data, room=receiver_sid)
+        emit('receiveMessage', msg_data, room=sender_sid)
+
+    conn.close()
+
+@socketio.on('getChatHistory')
+def handle_get_chat_history(data):
+    other_user_id = data['otherUserId']
+    my_id = get_user_id(request.sid)
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("""
+        SELECT sender_id, receiver_id, message, timestamp, u.username AS sender_username
+        FROM messages m
+        JOIN users u ON m.sender_id = u.user_id
+        WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
+        ORDER BY timestamp ASC
+    """, (my_id, other_user_id, other_user_id, my_id))
+    history = [dict(row) for row in c.fetchall()]
+    conn.close()
+
+    emit('chatHistory', history)
+
 @socketio.on('disconnect')
-def disconnect():
-    print(f'Cliente desconectado: {request.sid}')
+def handle_disconnect():
     conn = get_db()
     c = conn.cursor()
     c.execute("UPDATE users SET online = 0 WHERE sid = ?", (request.sid,))
@@ -55,80 +129,7 @@ def disconnect():
         emit('userDisconnected', user_id, broadcast=True)
         emit_user_list()
 
-@socketio.on('setUsername')
-def set_username(username):
-    conn = get_db()
-    c = conn.cursor()
-    user_id = str(uuid.uuid4())
-    c.execute("INSERT OR REPLACE INTO users (sid, user_id, username, online) VALUES (?, ?, ?, 1)", (request.sid, user_id, username))
-    conn.commit()
-    conn.close()
-    emit('setUserId', {'userId': user_id}, session=True)
-    emit_user_list()
-
-@socketio.on('setProfilePic')
-def set_profile_pic(data):
-    conn = get_db()
-    c = conn.cursor()
-    user_id = get_user_id(request.sid)
-    if user_id:
-        profile_pic_data = base64.b64decode(data['profilePic'])
-        c.execute("UPDATE users SET profile_pic = ? WHERE user_id = ?", (profile_pic_data, user_id))
-        conn.commit()
-        conn.close()
-        emit_user_list()
-
-@socketio.on('sendMessage')
-def handle_message(data):
-    sender_id = get_user_id(request.sid)
-    receiver_socket_id = data['receiverSocketId']
-    message = data['message']
-    timestamp = datetime.now().isoformat()
-
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("INSERT INTO messages (sender_id, receiver_id, message, timestamp) VALUES (?, ?, ?, ?)",
-              (sender_id, receiver_socket_id, message, timestamp))
-    conn.commit()
-    conn.close()
-
-    # Encontrar el username del remitente
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT username FROM users WHERE user_id = ?", (sender_id,))
-    sender_data = c.fetchone()
-    conn.close()
-    sender_username = sender_data['username'] if sender_data else "Unknown"
-
-    emit('receiveMessage', {'senderId': sender_id, 'senderUsername': sender_username, 'message': message}, room=receiver_socket_id)
-    emit('receiveMessage', {'senderId': sender_id, 'senderUsername': sender_username, 'message': message}, room=request.sid) # Enviar al remitente también
-
-@socketio.on('getHistory')
-def get_history(receiverSocketId):
-    sender_id = get_user_id(request.sid)
-    receiver_id = get_user_id_by_sid(receiverSocketId) # Necesitamos el user_id del receptor
-
-    if sender_id and receiver_id:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute("""SELECT m.message, m.sender_id, u.username
-                       FROM messages m
-                       JOIN users u ON m.sender_id = u.user_id
-                       WHERE (m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?)
-                       ORDER BY m.timestamp""", (sender_id, receiver_id, receiver_id, sender_id))
-        history = [dict(row) for row in c.fetchall()]
-        conn.close()
-        emit('loadHistory', history, room=request.sid)
-
 def get_user_id(sid):
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT user_id FROM users WHERE sid = ?", (sid,))
-    result = c.fetchone()
-    conn.close()
-    return result['user_id'] if result else None
-
-def get_user_id_by_sid(sid):
     conn = get_db()
     c = conn.cursor()
     c.execute("SELECT user_id FROM users WHERE sid = ?", (sid,))
