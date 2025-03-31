@@ -56,7 +56,7 @@ class Message(Base):
 sio = socketio.AsyncServer(cors_allowed_origins="*", async_mode='asgi')
 socket_app = socketio.ASGIApp(sio, app)
 
-templates = Jinja2Templates(directory="static")
+templates = Jinja2Templates(directory="templates")
 
 # Rutas API
 @app.get("/")
