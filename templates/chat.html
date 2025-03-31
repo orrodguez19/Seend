@@ -144,6 +144,9 @@
         function showScreen(screenId) {
             document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
             document.getElementById(screenId).classList.add('active');
+            if (screenId === 'usersScreen') {
+                socket.emit('requestUserList');
+            }
         }
 
         // Guardar perfil y pasar a pantalla de usuarios
@@ -185,10 +188,6 @@
             });
         });
 
-        socket.on('userConnected', (userId) => {
-            // Actualizado por userList
-        });
-
         socket.on('userDisconnected', (userId) => {
             // Actualizado por userList
         });
@@ -196,7 +195,7 @@
         // Iniciar chat con un usuario
         function startChat(userId) {
             selectedUserId = userId;
-            selectedSocketId = Object.keys(socket.io.engine.clients).find(sid => users[userId].sid === sid) || userId;
+            selectedSocketId = userId; // Usar user_id en lugar de sid
             document.getElementById('chatWith').textContent = users[userId].username;
             document.getElementById('messages').innerHTML = '';
             showScreen('chatScreen');
@@ -236,14 +235,15 @@
             messages.scrollTop = messages.scrollHeight;
         }
 
-        // Guardar mi ID cuando me conecto
+        // Establecer mi ID al conectar
         socket.on('connect', () => {
-            myId = get_user_id(socket.id);
+            console.log('Conectado con socket ID:', socket.id);
         });
 
-        function get_user_id(sid) {
-            return Object.values(users).find(user => user.sid === sid)?.id || sid;
-        }
+        socket.on('setUserId', (data) => {
+            myId = data.userId;
+            console.log('Mi user_id asignado:', myId);
+        });
     </script>
 </body>
 </html>
