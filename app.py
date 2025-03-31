@@ -48,29 +48,30 @@ class Message(Base):
     id = Column(Integer, primary_key=True)
     sender = Column(String(50))
     recipient = Column(String(50))
-    content = Column(Text)
-    status = Column(String(20), default='sent')  # sent, delivered, read
+    message = Column(Text)
     timestamp = Column(DateTime, default=datetime.utcnow)
+    status = Column(String(20), default='pending')
 
-# Socket.IO
-sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins=[])
+# Configuración de SocketIO
+sio = socketio.AsyncServer(cors_allowed_origins="*", async_mode='asgi')
 socket_app = socketio.ASGIApp(sio, app)
 
-@app.on_event("startup")
-async def startup():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+templates = Jinja2Templates(directory="static")
 
-templates = Jinja2Templates(directory="templates")
-
-# Rutas HTTP
+# Rutas API
 @app.get("/")
-async def root(request: Request):
+async def read_root(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 @app.get("/chat")
-async def chat_page(request: Request):
-    return templates.TemplateResponse("chat.html", {"request": request})
+async def read_chat(request: Request, session_token: str = Cookie(None)):
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).where(User.sid == session_token))
+        user = result.scalar()
+        if user:
+            return templates.TemplateResponse("chat.html", {"request": request, "username": user.username})
+        else:
+            return templates.TemplateResponse("login.html", {"request": request, "error": "Sesión inválida"})
 
 @app.post("/api/register")
 async def register(request: Request):
@@ -94,48 +95,43 @@ async def login(request: Request, response: Response):
     data = await request.json()
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(User).where(User.username == data['username']))
-        user = result.scalar()
-
-        if not user or not pwd_context.verify(data['password'], user.password_hash):
+        user = result.scalar_one_or_none()
+        if user and pwd_context.verify(data['password'], user.password_hash):
+            session_token = secrets.token_urlsafe(32)
+            user.sid = session_token
+            await db.commit()
+            response.set_cookie(key="session_token", value=session_token, httponly=True)
+            return {"status": "success"}
+        else:
             raise HTTPException(status_code=401, detail="Invalid credentials")
-
-        session_token = secrets.token_urlsafe(32)
-        user.sid = session_token
-        user.status = 'online'
-        user.last_seen = datetime.utcnow()
-        await db.commit()
-
-        response.set_cookie("session_token", session_token, httponly=True)
-        return {
-            "user": {
-                "username": user.username,
-                "avatar": user.avatar
-            }
-        }
 
 @app.get("/api/check_session")
 async def check_session(session_token: str = Cookie(None)):
     if not session_token:
-        return {"status": "invalid"}
-
+        return {"logged_in": False}
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(User).where(User.sid == session_token))
         user = result.scalar()
-        if not user:
-            return {"status": "invalid"}
+        if user:
+            return {"logged_in": True, "username": user.username}
+        else:
+            return {"logged_in": False}
 
-        return {
-            "status": "valid",
-            "user": {
-                "username": user.username,
-                "avatar": user.avatar
-            }
-        }
-
-# Eventos Socket.IO
 @sio.event
 async def connect(sid, environ):
-    print(f"Client connected: {sid}")
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(User).where(User.sid == environ.get('HTTP_COOKIE').split('session_token=')[1]))
+        user = result.scalar()
+        if user:
+            user.status = 'online'
+            user.sid = sid
+            user.last_seen = datetime.utcnow()
+            await db.commit()
+            await sio.emit('user_connected', {'username': user.username}, broadcast=True, skip_sid=sid)
+            await sio.emit('user_status', {'username': user.username, 'status': 'online'}, broadcast=True, skip_sid=sid)
+            print(f"User {user.username} connected with session ID: {sid}")
+        else:
+            print(f"Anonymous user connected with session ID: {sid}")
 
 @sio.event
 async def disconnect(sid):
@@ -144,84 +140,57 @@ async def disconnect(sid):
         user = result.scalar()
         if user:
             user.status = 'offline'
+            user.last_seen = datetime.utcnow()
             user.sid = None
             await db.commit()
-            await sio.emit('user_status', {
-                'username': user.username,
-                'status': 'offline'
-            })
+            await sio.emit('user_disconnected', {'username': user.username}, broadcast=True)
+            await sio.emit('user_status', {'username': user.username, 'status': 'offline'}, broadcast=True)
+            print(f"User {user.username} disconnected from session ID: {sid}")
 
-@sio.event
-async def typing_start(sid):
+@sio.on('get_online_users')
+async def get_online_users(sid):
+    online_users = []
     async with AsyncSessionLocal() as db:
-        result = await db.execute(select(User).where(User.sid == sid))
-        user = result.scalar()
-        if user:
-            user.status = 'typing'
-            await db.commit()
-            await sio.emit('user_status', {
-                'username': user.username,
-                'status': 'typing'
-            })
+        result = await db.execute(select(User).where(User.status == 'online'))
+        users = result.scalars().all()
+        for user in users:
+            online_users.append(user.username)
+    await sio.emit('online_users', online_users, room=sid)
 
-@sio.event
-async def typing_stop(sid):
-    async with AsyncSessionLocal() as db:
-        result = await db.execute(select(User).where(User.sid == sid))
-        user = result.scalar()
-        if user:
-            user.status = 'online'
-            await db.commit()
-            await sio.emit('user_status', {
-                'username': user.username,
-                'status': 'online'
-            })
-
-@sio.event
+@sio.on('send_message')
 async def send_message(sid, data):
     async with AsyncSessionLocal() as db:
         result = await db.execute(select(User).where(User.sid == sid))
         sender = result.scalar()
-        if not sender:
-            return
-
-        message = Message(
-            sender=sender.username,
-            recipient=data['recipient'],
-            content=data['message'],
-            status='sent'
-        )
-        db.add(message)
-        await db.commit()
-
-        # Enviar al remitente
-        await sio.emit('new_message', {
-            'id': message.id,
-            'sender': sender.username,
-            'message': data['message'],
-            'timestamp': message.timestamp.isoformat(),
-            'status': 'sent',
-            'is_own': True
-        }, room=sid)
-
-        # Enviar al destinatario si está conectado
-        result = await db.execute(select(User).where(User.username == data['recipient']))
-        recipient = result.scalar()
-        if recipient and recipient.sid:
-            message.status = 'delivered'
+        if sender:
+            message = Message(sender=sender.username, recipient=data['recipient'], message=data['message'])
+            db.add(message)
             await db.commit()
             await sio.emit('new_message', {
                 'id': message.id,
                 'sender': sender.username,
                 'message': data['message'],
                 'timestamp': message.timestamp.isoformat(),
-                'status': 'delivered',
-                'is_own': False
-            }, room=recipient.sid)
-            await sio.emit('message_status', {
-                'message_id': message.id,
-                'status': 'delivered'
+                'status': message.status,
+                'is_own': True
             }, room=sid)
+            result = await db.execute(select(User).where(User.username == data['recipient']))
+            recipient = result.scalar()
+            if recipient and recipient.sid:
+                message.status = 'delivered'
+                await db.commit()
+                await sio.emit('new_message', {
+                    'id': message.id,
+                    'sender': sender.username,
+                    'message': data['message'],
+                    'timestamp': message.timestamp.isoformat(),
+                    'status': 'delivered',
+                    'is_own': False
+                }, room=recipient.sid)
+                await sio.emit('message_status', {
+                    'message_id': message.id,
+                    'status': 'delivered'
+                }, room=sid)
 
 @sio.event
 async def mark_as_read(sid, data):
@@ -240,6 +209,11 @@ async def mark_as_read(sid, data):
                 }, room=sender.sid)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.on_event("startup")
+async def startup():
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
 if __name__ == "__main__":
     import uvicorn
