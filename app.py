@@ -1,22 +1,33 @@
-from fastapi import FastAPI, Request, Depends, HTTPException, status
+from fastapi import FastAPI, Request, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
-from fastapi.websockets import WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Dict
+from socketio import AsyncServer
 import os
 import asyncpg
-from datetime import datetime
-import uuid
+import uvicorn
 from contextlib import asynccontextmanager
 
-# Configuración de la aplicación
-app = FastAPI()
-templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# Configuración Socket.IO
+sio = AsyncServer(async_mode='asgi', cors_allowed_origins=[])
 
-# Configuración CORS
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Iniciar Socket.IO
+    await sio.emit('server_start', {'message': 'Server started'})
+    yield
+    # Limpieza al apagar
+    await sio.disconnect()
+
+app = FastAPI(lifespan=lifespan)
+socketio_app = socketio.ASGIApp(sio, app)
+
+# Configuración
+PORT = int(os.environ.get("PORT", 5000))
+DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://seend_user:0pXiVWU99WyqRu39J0HcNESGIp5xTeQM@dpg-cvk4cc8dl3ps73fomqq0-a/seend")
+
+# Middlewares
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -25,72 +36,55 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configuración de PostgreSQL
-DATABASE_URL = "postgresql://seend_user:0pXiVWU99WyqRu39J0HcNESGIp5xTeQM@dpg-cvk4cc8dl3ps73fomqq0-a/seend"
+# Templates y archivos estáticos
+templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Conexión a la base de datos
-async def get_db_connection():
+# Eventos Socket.IO
+@sio.event
+async def connect(sid, environ):
+    print(f"Cliente conectado: {sid}")
+
+@sio.event
+async def disconnect(sid):
+    print(f"Cliente desconectado: {sid}")
+
+@sio.event
+async def join(sid, data):
+    user_id = data.get('userId')
+    if user_id:
+        sio.enter_room(sid, str(user_id))
+        print(f"Usuario {user_id} unido a la sala")
+
+@sio.event
+async def send_message(sid, data):
+    required_fields = ['sender_id', 'receiver_id', 'text', 'timestamp']
+    if not all(field in data for field in required_fields):
+        return
+
     conn = await asyncpg.connect(DATABASE_URL)
-    return conn
-
-# Inicialización de la base de datos
-async def init_db():
-    conn = await get_db_connection()
     try:
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                id SERIAL PRIMARY KEY,
-                username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                email TEXT,
-                bio TEXT DEFAULT 'Usuario nuevo'
-            )
-        ''')
-        await conn.execute('''
-            CREATE TABLE IF NOT EXISTS messages (
-                id SERIAL PRIMARY KEY,
-                sender_id INTEGER NOT NULL,
-                receiver_id INTEGER NOT NULL,
-                text TEXT NOT NULL,
-                timestamp TIMESTAMP DEFAULT NOW(),
-                status TEXT DEFAULT 'sent',
-                FOREIGN KEY (sender_id) REFERENCES users (id),
-                FOREIGN KEY (receiver_id) REFERENCES users (id)
-            )
-        ''')
+        await conn.execute(
+            "INSERT INTO messages (sender_id, receiver_id, text, timestamp) VALUES ($1, $2, $3, $4)",
+            data['sender_id'], data['receiver_id'], data['text'], data['timestamp']
+        )
+        
+        message = {
+            'sender_id': data['sender_id'],
+            'receiver_id': data['receiver_id'],
+            'text': data['text'],
+            'timestamp': data['timestamp'],
+            'status': 'sent'
+        }
+        
+        await sio.emit('new_message', message, room=str(data['receiver_id']))
+        await sio.emit('new_message', message, room=str(data['sender_id']))
+    except Exception as e:
+        print(f"Error al guardar mensaje: {e}")
     finally:
         await conn.close()
 
-# Manejo de conexiones WebSocket
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[int, List[WebSocket]] = {}
-
-    async def connect(self, user_id: int, websocket: WebSocket):
-        await websocket.accept()
-        if user_id not in self.active_connections:
-            self.active_connections[user_id] = []
-        self.active_connections[user_id].append(websocket)
-
-    def disconnect(self, user_id: int, websocket: WebSocket):
-        if user_id in self.active_connections:
-            self.active_connections[user_id].remove(websocket)
-            if not self.active_connections[user_id]:
-                del self.active_connections[user_id]
-
-    async def send_personal_message(self, message: dict, user_id: int):
-        if user_id in self.active_connections:
-            for connection in self.active_connections[user_id]:
-                await connection.send_json(message)
-
-manager = ConnectionManager()
-
-# Evento de inicio
-@app.on_event("startup")
-async def startup_event():
-    await init_db()
-
-# Rutas principales
+# Rutas HTTP
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     if "user_id" not in request.session:
@@ -108,17 +102,17 @@ async def login_post(request: Request):
     username = form_data.get("username")
     password = form_data.get("password")
     
-    conn = await get_db_connection()
+    conn = await asyncpg.connect(DATABASE_URL)
     try:
         if action == "login":
             user = await conn.fetchrow(
-                "SELECT id, username FROM users WHERE username = $1 AND password = $2",
+                "SELECT id, username FROM users WHERE username=$1 AND password=$2",
                 username, password
             )
             if user:
                 request.session["user_id"] = user["id"]
                 request.session["username"] = user["username"]
-                return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+                return RedirectResponse(url="/", status_code=303)
             else:
                 return templates.TemplateResponse(
                     "login.html", 
@@ -134,7 +128,7 @@ async def login_post(request: Request):
                 )
                 request.session["user_id"] = user["id"]
                 request.session["username"] = user["username"]
-                return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+                return RedirectResponse(url="/", status_code=303)
             except asyncpg.UniqueViolationError:
                 return templates.TemplateResponse(
                     "login.html", 
@@ -143,13 +137,12 @@ async def login_post(request: Request):
     finally:
         await conn.close()
 
-# API para obtener usuarios
 @app.get("/api/users")
 async def get_users(request: Request):
     if "user_id" not in request.session:
         raise HTTPException(status_code=401, detail="No autenticado")
     
-    conn = await get_db_connection()
+    conn = await asyncpg.connect(DATABASE_URL)
     try:
         users = await conn.fetch("SELECT id, username, email, bio FROM users")
         return [
@@ -166,21 +159,17 @@ async def get_users(request: Request):
     finally:
         await conn.close()
 
-# API para obtener mensajes
 @app.get("/api/messages/{receiver_id}")
 async def get_messages(receiver_id: int, request: Request):
     if "user_id" not in request.session:
         raise HTTPException(status_code=401, detail="No autenticado")
     
-    conn = await get_db_connection()
+    conn = await asyncpg.connect(DATABASE_URL)
     try:
         messages = await conn.fetch(
-            """
-            SELECT sender_id, receiver_id, text, timestamp, status 
-            FROM messages 
-            WHERE (sender_id = $1 AND receiver_id = $2) OR (sender_id = $2 AND receiver_id = $1) 
-            ORDER BY timestamp
-            """,
+            "SELECT sender_id, receiver_id, text, timestamp, status FROM messages "
+            "WHERE (sender_id=$1 AND receiver_id=$2) OR (sender_id=$2 AND receiver_id=$1) "
+            "ORDER BY timestamp",
             request.session["user_id"], receiver_id
         )
         return [
@@ -196,43 +185,15 @@ async def get_messages(receiver_id: int, request: Request):
     finally:
         await conn.close()
 
-# Ruta para cerrar sesión
 @app.get("/logout")
 async def logout(request: Request):
     request.session.clear()
     return RedirectResponse(url="/login")
 
-# WebSocket para mensajes en tiempo real
-@app.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: int):
-    await manager.connect(user_id, websocket)
-    try:
-        while True:
-            data = await websocket.receive_json()
-            sender_id = data.get("sender_id")
-            receiver_id = data.get("receiver_id")
-            text = data.get("text")
-            timestamp = data.get("timestamp")
-            
-            # Guardar mensaje en la base de datos
-            conn = await get_db_connection()
-            try:
-                await conn.execute(
-                    "INSERT INTO messages (sender_id, receiver_id, text, timestamp) VALUES ($1, $2, $3, $4)",
-                    sender_id, receiver_id, text, timestamp
-                )
-                
-                # Enviar mensaje al receptor y al remitente
-                message = {
-                    "sender_id": sender_id,
-                    "receiver_id": receiver_id,
-                    "text": text,
-                    "timestamp": timestamp,
-                    "status": "sent"
-                }
-                await manager.send_personal_message(message, receiver_id)
-                await manager.send_personal_message(message, sender_id)
-            finally:
-                await conn.close()
-    except WebSocketDisconnect:
-        manager.disconnect(user_id, websocket)
+if __name__ == "__main__":
+    uvicorn.run(
+        "main:socketio_app",
+        host="0.0.0.0",
+        port=PORT,
+        reload=False,
+        workers=int(os.environ.get("WEB_CONCURRENCY", 1))
