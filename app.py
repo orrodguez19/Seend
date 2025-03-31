@@ -11,6 +11,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from passlib.context import CryptContext
 import secrets
+from fastapi.templating import Jinja2Templates
 
 # Configuración inicial
 app = FastAPI()
@@ -60,14 +61,16 @@ async def startup():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
+templates = Jinja2Templates(directory="templates")
+
 # Rutas HTTP
 @app.get("/")
-async def root():
-    return FileResponse("static/login.html")
+async def root(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
 
 @app.get("/chat")
-async def chat_page():
-    return FileResponse("static/chat.html")
+async def chat_page(request: Request):
+    return templates.TemplateResponse("chat.html", {"request": request})
 
 @app.post("/api/register")
 async def register(request: Request):
