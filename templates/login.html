@@ -3,279 +3,150 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seend - Iniciar Sesión</title>
+    <title>Login</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Poppins', sans-serif;
         }
-        
+
         body {
-            background-color: #f5f7fa;
+            height: 100vh;
+            background: linear-gradient(45deg, #1e3c72, #2a5298);
+            animation: gradientBG 15s ease infinite;
+            background-size: 400% 400%;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-        }
-        
-        .login-container {
-            width: 100%;
-            max-width: 400px;
-            background-color: white;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            padding: 40px;
-            text-align: center;
-        }
-        
-        .logo {
-            color: #1e88e5;
-            font-size: 28px;
-            font-weight: 600;
-            margin-bottom: 10px;
-        }
-        
-        .description {
-            color: #666;
-            margin-bottom: 30px;
-        }
-        
-        .tabs {
-            display: flex;
-            margin-bottom: 20px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .tab {
-            flex: 1;
             padding: 10px;
-            cursor: pointer;
-            color: #666;
         }
-        
-        .tab.active {
-            color: #1e88e5;
-            border-bottom: 2px solid #1e88e5;
+
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
-        
-        .form {
-            display: none;
+
+        .container {
+            width: 100%;
+            max-width: 360px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+            padding: 20px;
+            color: white;
         }
-        
-        .form.active {
-            display: block;
-        }
-        
-        .input-group {
+
+        h2 {
+            text-align: center;
             margin-bottom: 20px;
-            text-align: left;
         }
-        
-        label {
-            display: block;
-            margin-bottom: 8px;
-            color: #555;
-            font-size: 14px;
+
+        .input-group {
+            margin-bottom: 15px;
         }
-        
+
         input {
             width: 100%;
-            padding: 12px 15px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            font-size: 15px;
-        }
-        
-        button {
-            width: 100%;
-            padding: 12px;
-            background-color: #1e88e5;
-            color: white;
+            padding: 10px;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
             font-size: 16px;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.3);
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+        }
+
+        .login-btn {
+            width: 100%;
+            background: linear-gradient(45deg, #2a5298, #1e3c72);
+            border: none;
+            border-radius: 8px;
+            padding: 10px;
             cursor: pointer;
-            margin-top: 10px;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-        
-        .switch-form {
-            margin-top: 20px;
-            font-size: 14px;
-            color: #666;
+
+        .login-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(31, 38, 135, 0.4);
         }
-        
-        .switch-form a {
-            color: #1e88e5;
+
+        .login-btn svg {
+            width: 24px;
+            height: 24px;
+            fill: white;
+        }
+
+        .link {
+            text-align: center;
+            margin-top: 15px;
+        }
+
+        a {
+            color: #a1c4fd;
             text-decoration: none;
+            transition: all 0.3s ease;
         }
-        
-        .error-message {
-            color: #f44336;
-            margin-top: 10px;
-            font-size: 14px;
-            display: none;
+
+        a:hover {
+            color: white;
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="logo">Seend</div>
-        <div class="description">Conéctate con tus amigos</div>
-        
-        <div class="tabs">
-            <div class="tab active" onclick="switchTab('login')">Iniciar Sesión</div>
-            <div class="tab" onclick="switchTab('register')">Registrarse</div>
+    <div class="container">
+        <h2>Iniciar Sesión</h2>
+        <div class="input-group">
+            <input id="username" type="text" placeholder="Usuario">
         </div>
-        
-        <form id="login-form" class="form active">
-            <div class="input-group">
-                <label for="login-username">Usuario</label>
-                <input type="text" id="login-username" required>
-            </div>
-            
-            <div class="input-group">
-                <label for="login-password">Contraseña</label>
-                <input type="password" id="login-password" required>
-            </div>
-            
-            <div class="error-message" id="login-error"></div>
-            
-            <button type="submit">Iniciar Sesión</button>
-            
-            <div class="switch-form">
-                ¿No tienes cuenta? <a href="#" onclick="switchTab('register')">Regístrate</a>
-            </div>
-        </form>
-        
-        <form id="register-form" class="form">
-            <div class="input-group">
-                <label for="register-username">Usuario</label>
-                <input type="text" id="register-username" required>
-            </div>
-            
-            <div class="input-group">
-                <label for="register-password">Contraseña</label>
-                <input type="password" id="register-password" required>
-            </div>
-            
-            <div class="input-group">
-                <label for="register-confirm">Confirmar Contraseña</label>
-                <input type="password" id="register-confirm" required>
-            </div>
-            
-            <div class="error-message" id="register-error"></div>
-            
-            <button type="submit">Registrarse</button>
-            
-            <div class="switch-form">
-                ¿Ya tienes cuenta? <a href="#" onclick="switchTab('login')">Inicia sesión</a>
-            </div>
-        </form>
+        <div class="input-group">
+            <input id="password" type="password" placeholder="Contraseña">
+        </div>
+        <button class="login-btn" onclick="login()">
+            <svg viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+            </svg>
+        </button>
+        <div class="link">
+            <a href="register.html">¿No tienes cuenta? Regístrate</a>
+        </div>
     </div>
 
     <script>
-        function switchTab(tabName) {
-            // Cambiar pestañas
-            document.querySelectorAll('.tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-            
-            document.querySelectorAll('.form').forEach(form => {
-                form.classList.remove('active');
-            });
-            
-            if (tabName === 'login') {
-                document.querySelector('.tab:nth-child(1)').classList.add('active');
-                document.getElementById('login-form').classList.add('active');
-            } else {
-                document.querySelector('.tab:nth-child(2)').classList.add('active');
-                document.getElementById('register-form').classList.add('active');
-            }
-            
-            // Limpiar errores
-            document.querySelectorAll('.error-message').forEach(el => {
-                el.style.display = 'none';
-            });
-        }
-        
-        document.getElementById('login-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const username = document.getElementById('login-username').value;
-            const password = document.getElementById('login-password').value;
-            const errorElement = document.getElementById('login-error');
+        async function login() {
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
             
             try {
-                const response = await fetch('/api/login', {
+                const response = await fetch('http://localhost:8000/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        username: username,
-                        password: password
-                    }),
-                    credentials: 'include'
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    window.location.href = '/chat';
-                } else {
-                    errorElement.textContent = data.detail || 'Error al iniciar sesión';
-                    errorElement.style.display = 'block';
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                errorElement.textContent = 'Error de conexión con el servidor';
-                errorElement.style.display = 'block';
-            }
-        });
-        
-        document.getElementById('register-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const username = document.getElementById('register-username').value;
-            const password = document.getElementById('register-password').value;
-            const confirm = document.getElementById('register-confirm').value;
-            const errorElement = document.getElementById('register-error');
-            
-            if (password !== confirm) {
-                errorElement.textContent = 'Las contraseñas no coinciden';
-                errorElement.style.display = 'block';
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/register', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        username: username,
-                        password: password
-                    })
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password})
                 });
                 
                 if (response.ok) {
-                    switchTab('login');
-                    document.getElementById('login-username').value = username;
-                    document.getElementById('login-password').focus();
+                    localStorage.setItem('username', username);
+                    window.location.href = 'chat.html';
                 } else {
                     const data = await response.json();
-                    errorElement.textContent = data.detail || 'Error al registrar usuario';
-                    errorElement.style.display = 'block';
+                    alert(data.detail);
                 }
             } catch (error) {
-                console.error('Error:', error);
-                errorElement.textContent = 'Error de conexión con el servidor';
-                errorElement.style.display = 'block';
+                alert('Error de conexión');
             }
-        });
+        }
     </script>
 </body>
 </html>
