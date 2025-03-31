@@ -27,8 +27,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Configuración de la base de datos ASÍNCRONA
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql+asyncpg://seend_user:0pXiVWU99WyqRu39J0HcNESGIp5xTeQM@dpg-cvk4cc8dl3ps73fomqq0-a/seend")
+# Configuración de la base de datos ASÍNCRONA para SQLite
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./seend.db")
 engine = create_async_engine(DATABASE_URL)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
@@ -120,18 +120,22 @@ async def check_session(session_token: str = Cookie(None)):
 @sio.event
 async def connect(sid, environ):
     async with AsyncSessionLocal() as db:
-        result = await db.execute(select(User).where(User.sid == environ.get('HTTP_COOKIE').split('session_token=')[1]))
-        user = result.scalar()
-        if user:
-            user.status = 'online'
-            user.sid = sid
-            user.last_seen = datetime.utcnow()
-            await db.commit()
-            await sio.emit('user_connected', {'username': user.username}, broadcast=True, skip_sid=sid)
-            await sio.emit('user_status', {'username': user.username, 'status': 'online'}, broadcast=True, skip_sid=sid)
-            print(f"User {user.username} connected with session ID: {sid}")
-        else:
-            print(f"Anonymous user connected with session ID: {sid}")
+        try:
+            session_token = environ.get('HTTP_COOKIE').split('session_token=')[1]
+            result = await db.execute(select(User).where(User.sid == session_token))
+            user = result.scalar()
+            if user:
+                user.status = 'online'
+                user.sid = sid
+                user.last_seen = datetime.utcnow()
+                await db.commit()
+                await sio.emit('user_connected', {'username': user.username}, broadcast=True, skip_sid=sid)
+                await sio.emit('user_status', {'username': user.username, 'status': 'online'}, broadcast=True, skip_sid=sid)
+                print(f"User {user.username} connected with session ID: {sid}")
+            else:
+                print(f"Anonymous user connected with session ID: {sid}")
+        except (KeyError, IndexError):
+            print(f"Anonymous user connected with session ID: {sid} (No session token found)")
 
 @sio.event
 async def disconnect(sid):
