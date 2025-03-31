@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat App</title>
+    <title>SocialChat-Mensajería</title>
     <style>
         * {
             margin: 0;
@@ -209,7 +209,7 @@
             <h2 id="conversation-title"></h2>
             <ul id="messages" class="messages"></ul>
             <div class="input-group">
-                <input id="messageInput" placeholder="Escribe un mensaje...">
+                <input id="messageInput" placeholder="Mensaje de texto">
                 <button class="send-btn" onclick="sendMessage()">
                     <svg viewBox="0 0 24 24">
                         <path d="M2 21L23 12 2 3v7l15 2-15 2v7z"/>
@@ -262,7 +262,7 @@
                 return;
             }
 
-            ws = new WebSocket(`ws://localhost:8000/ws/${username}`);
+            ws = new WebSocket(`ws://localhost:5000/ws/${username}`);
 
             ws.onmessage = function(event) {
                 const data = JSON.parse(event.data);
@@ -331,7 +331,7 @@
         // Actualizar lista de usuarios públicos en tiempo real
         async function updateUsers() {
             try {
-                const response = await fetch('http://localhost:8000/users');
+                const response = await fetch('http://localhost:5000/users');
                 const data = await response.json();
                 const usersList = document.getElementById('users-list');
                 usersList.innerHTML = '';
