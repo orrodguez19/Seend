@@ -37,6 +37,9 @@ async def register(user: User):
         c.execute("INSERT INTO users (username, password) VALUES (?, ?)", 
                  (user.username, user.password))
         conn.commit()
+        # Notificar a todos los clientes sobre el nuevo usuario
+        for client in clients.values():
+            await client.send_text(f'{{"type": "new_user", "username": "{user.username}"}}')
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=400, detail="Usuario ya existe")
     finally:
@@ -72,7 +75,7 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
         while True:
             data = await websocket.receive_text()
             message = eval(data)  # Convertir string a dict
-            if message['to'] in clients:
+            if message['type'] == 'message' and message['to'] in clients:
                 await clients[message['to']].send_text(data)
     except Exception as e:
         print(f"Error: {e}")
@@ -80,4 +83,4 @@ async def websocket_endpoint(websocket: WebSocket, username: str):
         del clients[username]
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=5000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
