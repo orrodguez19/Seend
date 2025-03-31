@@ -8,16 +8,14 @@ import base64
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'una_clave_secreta_muy_larga_y_aleatoria'  # Cambiar en producción
-socketio = SocketIO(app, cors_allowed_origins="http://localhost:5000")  # Restringir en producción
+socketio = SocketIO(app, cors_allowed_origins="*")  # Ajustar en producción
 
 # Configuración de la base de datos SQLite
 def init_db():
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
-    # Tabla de usuarios (agregamos campo para foto de perfil)
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (sid TEXT, user_id TEXT PRIMARY KEY, username TEXT, online INTEGER, profile_pic BLOB)''')
-    # Tabla de mensajes
     c.execute('''CREATE TABLE IF NOT EXISTS messages 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, sender_id TEXT, receiver_id TEXT, 
                   message TEXT, timestamp TEXT)''')
@@ -27,7 +25,7 @@ def init_db():
 # Obtener conexión a la base de datos
 def get_db():
     conn = sqlite3.connect('chat.db')
-    conn.row_factory = sqlite3.Row  # Para devolver filas como diccionarios
+    conn.row_factory = sqlite3.Row
     return conn
 
 # Inicializar la base de datos al arrancar
@@ -43,17 +41,17 @@ def handle_connect():
     conn.commit()
     conn.close()
     
-    # Enviar lista de usuarios a todos
+    # Enviar el user_id al cliente conectado
+    emit('setUserId', {'userId': user_id}, room=request.sid)
     emit_user_list()
 
 @socketio.on('registerProfile')
 def handle_register_profile(data):
     username = data.get('username', f"User_{get_user_id(request.sid)}")
-    profile_pic = data.get('profilePic')  # Base64 de la imagen
+    profile_pic = data.get('profilePic')
     conn = get_db()
     c = conn.cursor()
     if profile_pic:
-        # Decodificar Base64 a binario
         profile_pic_binary = base64.b64decode(profile_pic.split(',')[1]) if ',' in profile_pic else base64.b64decode(profile_pic)
         c.execute("UPDATE users SET username = ?, sid = ?, profile_pic = ? WHERE sid = ?", 
                   (username, request.sid, profile_pic_binary, request.sid))
@@ -63,36 +61,37 @@ def handle_register_profile(data):
     conn.commit()
     conn.close()
     
-    # Actualizar lista de usuarios
+    emit_user_list()
+
+@socketio.on('requestUserList')
+def handle_request_user_list():
     emit_user_list()
 
 @socketio.on('sendMessage')
 def handle_send_message(data):
-    receiver_socket_id = data['receiverSocketId']
+    receiver_user_id = data['receiverSocketId']  # Usamos user_id en lugar de sid
     message = data['message']
     sender_sid = request.sid
     
     conn = get_db()
     c = conn.cursor()
     
-    # Obtener IDs de usuario
     sender_id = get_user_id(sender_sid)
-    receiver_id = get_user_id(receiver_socket_id)
+    c.execute("SELECT sid FROM users WHERE user_id = ?", (receiver_user_id,))
+    result = c.fetchone()
+    receiver_sid = result['sid'] if result else None
     
-    if sender_id and receiver_id:
-        # Guardar mensaje en la base de datos
+    if sender_id and receiver_user_id and receiver_sid:
         timestamp = datetime.now().isoformat()
         c.execute("INSERT INTO messages (sender_id, receiver_id, message, timestamp) VALUES (?, ?, ?, ?)", 
-                  (sender_id, receiver_id, message, timestamp))
+                  (sender_id, receiver_user_id, message, timestamp))
         conn.commit()
         
-        # Obtener nombre del emisor
         c.execute("SELECT username FROM users WHERE user_id = ?", (sender_id,))
         sender_username = c.fetchone()['username']
         
-        # Enviar mensaje al receptor y al emisor
         msg_data = {'senderId': sender_id, 'senderUsername': sender_username, 'message': message}
-        emit('receiveMessage', msg_data, room=receiver_socket_id)
+        emit('receiveMessage', msg_data, room=receiver_sid)
         emit('receiveMessage', msg_data, room=sender_sid)
     
     conn.close()
@@ -124,13 +123,11 @@ def handle_disconnect():
     conn.commit()
     conn.close()
     
-    # Notificar desconexión y actualizar lista
     user_id = get_user_id(request.sid)
     if user_id:
         emit('userDisconnected', user_id, broadcast=True)
         emit_user_list()
 
-# Función auxiliar para obtener user_id desde sid
 def get_user_id(sid):
     conn = get_db()
     c = conn.cursor()
@@ -139,7 +136,6 @@ def get_user_id(sid):
     conn.close()
     return result['user_id'] if result else None
 
-# Función para emitir la lista de usuarios
 def emit_user_list():
     conn = get_db()
     c = conn.cursor()
