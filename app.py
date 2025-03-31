@@ -1,159 +1,163 @@
-from flask import Flask, render_template
-from flask_socketio import SocketIO, emit
-from flask import request
-import uuid
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 import sqlite3
-from datetime import datetime
-import base64
+import hashlib
+import uvicorn
+from typing import List, Dict
+import asyncio
 
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'una_clave_secreta_muy_larga_y_aleatoria'  # Cambiar en producción
-socketio = SocketIO(app, cors_allowed_origins="*")  # Ajustar en producción
+app = FastAPI()
 
-# Configuración de la base de datos SQLite
+# Modelos Pydantic para validación
+class UserRegister(BaseModel):
+    username: str
+    password: str
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+# Configuración de la base de datos
 def init_db():
-    conn = sqlite3.connect('chat.db')
+    conn = sqlite3.connect('users.db')
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users
-                 (sid TEXT, user_id TEXT PRIMARY KEY, username TEXT, online INTEGER, profile_pic BLOB)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS messages
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT, sender_id TEXT, receiver_id TEXT,
-                  message TEXT, timestamp TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS users 
+                 (username TEXT PRIMARY KEY, password TEXT)''')
     conn.commit()
     conn.close()
 
-# Obtener conexión a la base de datos
-def get_db():
-    conn = sqlite3.connect('chat.db')
-    conn.row_factory = sqlite3.Row
-    return conn
-
-# Inicializar la base de datos al arrancar
 init_db()
 
-@socketio.on('connect')
-def handle_connect():
-    user_id = str(uuid.uuid4())[:8]
-    conn = get_db()
+# Gestión de WebSocket
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[str, WebSocket] = {}
+        self.user_status: Dict[str, str] = {}  # Para rastrear estados (online, offline, typing)
+
+    async def connect(self, websocket: WebSocket, username: str):
+        await websocket.accept()
+        self.active_connections[username] = websocket
+        self.user_status[username] = "online"
+        await self.broadcast({"type": "user_joined", "username": username})
+
+    def disconnect(self, username: str):
+        if username in self.active_connections:
+            del self.active_connections[username]
+            self.user_status[username] = "offline"
+            asyncio.create_task(self.broadcast({"type": "user_left", "username": username}))
+
+    async def send_personal_message(self, message: dict, username: str):
+        if username in self.active_connections:
+            await self.active_connections[username].send_json(message)
+
+    async def broadcast(self, message: dict):
+        for connection in self.active_connections.values():
+            await connection.send_json(message)
+
+manager = ConnectionManager()
+
+# Funciones de utilidad
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+# Rutas API
+@app.post("/register")
+async def register(user: UserRegister):
+    conn = sqlite3.connect('users.db')
     c = conn.cursor()
-    c.execute("INSERT OR IGNORE INTO users (sid, user_id, username, online) VALUES (?, ?, ?, ?)",
-              (request.sid, user_id, f"User_{user_id}", 1))
+    
+    c.execute("SELECT username FROM users WHERE username = ?", (user.username,))
+    if c.fetchone():
+        conn.close()
+        raise HTTPException(status_code=400, detail="Username already exists")
+    
+    hashed_password = hash_password(user.password)
+    c.execute("INSERT INTO users (username, password) VALUES (?, ?)", 
+             (user.username, hashed_password))
     conn.commit()
     conn.close()
+    return {"message": "User registered successfully"}
 
-    # Enviar el user_id al cliente conectado
-    emit('setUserId', {'userId': user_id}, room=request.sid)
-    emit_user_list()
-
-@socketio.on('registerProfile')
-def handle_register_profile(data):
-    username = data.get('username', f"User_{get_user_id(request.sid)}")
-    profile_pic = data.get('profilePic')
-    conn = get_db()
+@app.post("/login")
+async def login(user: UserLogin):
+    conn = sqlite3.connect('users.db')
     c = conn.cursor()
-    if profile_pic:
-        profile_pic_binary = base64.b64decode(profile_pic.split(',')[1]) if ',' in profile_pic else base64.b64decode(profile_pic)
-        c.execute("UPDATE users SET username = ?, sid = ?, profile_pic = ? WHERE sid = ?",
-                  (username, request.sid, profile_pic_binary, request.sid))
-    else:
-        c.execute("UPDATE users SET username = ?, sid = ? WHERE sid = ?",
-                  (username, request.sid, request.sid))
-    conn.commit()
-    conn.close()
-
-    emit_user_list()
-
-@socketio.on('requestUserList')
-def handle_request_user_list():
-    emit_user_list()
-
-@socketio.on('sendMessage')
-def handle_send_message(data):
-    receiver_user_id = data['receiverSocketId']
-    message = data['message']
-    sender_sid = request.sid
-
-    conn = get_db()
-    c = conn.cursor()
-
-    sender_id = get_user_id(sender_sid)
-    c.execute("SELECT sid FROM users WHERE user_id = ?", (receiver_user_id,))
-    result = c.fetchone()
-    receiver_sid = result['sid'] if result else None
-
-    if sender_id and receiver_user_id and receiver_sid:
-        timestamp = datetime.now().isoformat()
-        c.execute("INSERT INTO messages (sender_id, receiver_id, message, timestamp) VALUES (?, ?, ?, ?)",
-                  (sender_id, receiver_user_id, message, timestamp))
-        conn.commit()
-
-        c.execute("SELECT username FROM users WHERE user_id = ?", (sender_id,))
-        sender_username = c.fetchone()['username']
-
-        msg_data = {'senderId': sender_id, 'senderUsername': sender_username,
-                    'message': message}
-        emit('receiveMessage', msg_data, room=receiver_sid)
-        emit('receiveMessage', msg_data, room=sender_sid)
-
-    conn.close()
-
-@socketio.on('getChatHistory')
-def handle_get_chat_history(data):
-    other_user_id = data['otherUserId']
-    my_id = get_user_id(request.sid)
-
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("""
-        SELECT sender_id, receiver_id, message, timestamp, u.username AS sender_username
-        FROM messages m
-        JOIN users u ON m.sender_id = u.user_id
-        WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
-        ORDER BY timestamp ASC
-    """, (my_id, other_user_id, other_user_id, my_id))
-    history = [dict(row) for row in c.fetchall()]
-    conn.close()
-
-    emit('chatHistory', history)
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("UPDATE users SET online = 0 WHERE sid = ?", (request.sid,))
-    conn.commit()
-    conn.close()
-
-    user_id = get_user_id(request.sid)
-    if user_id:
-        emit('userDisconnected', user_id, broadcast=True)
-        emit_user_list()
-
-def get_user_id(sid):
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT user_id FROM users WHERE sid = ?", (sid,))
+    
+    hashed_password = hash_password(user.password)
+    c.execute("SELECT username FROM users WHERE username = ? AND password = ?", 
+             (user.username, hashed_password))
+    
     result = c.fetchone()
     conn.close()
-    return result['user_id'] if result else None
+    
+    if result:
+        return {"message": "Login successful", "username": user.username}
+    raise HTTPException(status_code=401, detail="Invalid credentials")
 
-def emit_user_list():
-    conn = get_db()
+@app.get("/users")
+async def get_users():
+    conn = sqlite3.connect('users.db')
     c = conn.cursor()
-    c.execute("SELECT user_id AS id, username, online, profile_pic FROM users")
-    users = c.fetchall()
-    user_list = []
-    for user in users:
-        user_dict = dict(user)
-        if user['profile_pic']:
-            user_dict['profile_pic'] = base64.b64encode(user['profile_pic']).decode('utf-8')
-        user_list.append(user_dict)
+    c.execute("SELECT username FROM users")
+    users = [row[0] for row in c.fetchall()]
     conn.close()
-    emit('userList', user_list, broadcast=True)
+    return {"users": users}
 
-@app.route('/')
-def index():
-    return render_template('chat.html')
+# WebSocket endpoint
+@app.websocket("/ws/{username}")
+async def websocket_endpoint(websocket: WebSocket, username: str):
+    # Verificar si el usuario existe
+    conn = sqlite3.connect('users.db')
+    c = conn.cursor()
+    c.execute("SELECT username FROM users WHERE username = ?", (username,))
+    if not c.fetchone():
+        await websocket.close(code=1008)
+        return
+    conn.close()
 
-if __name__ == '__main__':
-    socketio.run(app, debug=True, port=5000)
+    await manager.connect(websocket, username)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            
+            # Mensaje privado
+            if data.get("type") == "message" and "to" in data:
+                message = {
+                    "type": "message",
+                    "username": username,
+                    "content": data["content"]
+                }
+                await manager.send_personal_message(message, data["to"])
+                if username != data["to"]:  # Enviar al remitente también
+                    await manager.send_personal_message(message, username)
+            
+            # Indicador de escritura
+            elif data.get("type") == "typing" and "to" in data:
+                if data["to"] in manager.active_connections:
+                    await manager.send_personal_message({
+                        "type": "typing",
+                        "username": username
+                    }, data["to"])
+            
+            # Mensaje visto
+            elif data.get("type") == "message_seen" and "to" in data:
+                if data["to"] in manager.active_connections:
+                    await manager.send_personal_message({
+                        "type": "message_seen",
+                        "username": username
+                    }, data["to"])
+            
+            # Mensaje broadcast (no usado en este caso, pero mantenido por compatibilidad)
+            else:
+                await manager.broadcast({
+                    "type": "message",
+                    "username": username,
+                    "content": data.get("content", "")
+                })
+                
+    except WebSocketDisconnect:
+        manager.disconnect(username)
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
