@@ -4,16 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SocialChat - Chat General</title>
-    <!-- Material Design Icons -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        /* Reset básico */
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
             font-family: 'Poppins', sans-serif;
         }
+        
         body {
             background-color: #f8f9fa;
             color: #212529;
@@ -22,115 +22,153 @@
             flex-direction: column;
             height: 100vh;
         }
-        /* Encabezado */
+        
         .header {
             background: linear-gradient(135deg, #007bff, #0056b3);
             color: white;
-            padding: 15px;
+            padding: 15px 20px;
             font-size: 18px;
             font-weight: 600;
-            text-align: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
             display: flex;
             align-items: center;
             justify-content: space-between;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-        .header svg {
+        
+        .header-title {
+            flex: 1;
+            text-align: center;
+        }
+        
+        .header-icon {
+            cursor: pointer;
             width: 24px;
             height: 24px;
-            fill: white;
-            cursor: pointer;
         }
-        /* Contenedor principal */
+        
         .container {
             flex: 1;
             display: flex;
             flex-direction: column;
             overflow: hidden;
+            width: 100%;
         }
-        /* Área de mensajes */
+        
         .messages {
             flex: 1;
             padding: 16px;
             overflow-y: auto;
             background: #f8f9fa;
         }
-        /* Mensajes recibidos */
-        .message.received {
-            max-width: 70%;
+        
+        .message {
             margin-bottom: 16px;
+            max-width: 80%;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .message.received {
             align-self: flex-start;
         }
-        .message.received .username {
-            font-size: 12px;
-            color: #6c757d;
-            margin-bottom: 4px;
-        }
-        .message.received .content {
-            background: #e9ecef;
-            padding: 12px;
-            border-radius: 16px;
-            word-wrap: break-word;
-        }
-        .message.received img {
-            max-width: 100%;
-            border-radius: 8px;
-            margin-top: 8px;
-        }
-        /* Mensajes enviados */
+        
         .message.sent {
-            max-width: 70%;
-            margin-bottom: 16px;
             align-self: flex-end;
-            position: relative;
         }
-        .message.sent .content {
-            background: #007bff;
-            color: white;
-            padding: 12px;
-            border-radius: 16px;
-            word-wrap: break-word;
-        }
-        .message.sent img {
-            max-width: 100%;
-            border-radius: 8px;
-            margin-top: 8px;
-        }
-        /* Estado del mensaje */
-        .message.sent .status {
-            position: absolute;
-            bottom: 4px;
-            right: 4px;
-            font-size: 12px;
-            color: white;
-        }
-        /* Barra de entrada de mensaje */
-        .message-input {
+        
+        .message-header {
             display: flex;
             align-items: center;
-            padding: 10px;
+            margin-bottom: 4px;
+        }
+        
+        .message.received .message-header {
+            justify-content: flex-start;
+        }
+        
+        .message.sent .message-header {
+            justify-content: flex-end;
+        }
+        
+        .username {
+            font-weight: 600;
+            font-size: 14px;
+            margin-right: 8px;
+        }
+        
+        .timestamp {
+            font-size: 12px;
+            color: #6c757d;
+        }
+        
+        .message-content {
+            padding: 12px 16px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            position: relative;
+        }
+        
+        .message.received .message-content {
+            background: #e9ecef;
+            color: #212529;
+            border-top-left-radius: 4px;
+        }
+        
+        .message.sent .message-content {
+            background: #007bff;
+            color: white;
+            border-top-right-radius: 4px;
+        }
+        
+        .message img {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 8px;
+            margin-top: 8px;
+            object-fit: contain;
+        }
+        
+        .message-input-area {
+            display: flex;
+            align-items: center;
+            padding: 8px 10px;
             background: white;
             border-top: 1px solid #dee2e6;
+            flex-wrap: wrap;
         }
-        .message-input input {
+        
+        .message-input {
             flex: 1;
-            padding: 12px;
+            min-width: 50px;
+            padding: 10px 14px;
             border: 1px solid #ced4da;
             border-radius: 24px;
             margin-right: 8px;
+            outline: none;
+            font-size: 14px;
         }
-        .message-input button {
+        
+        .message-input:focus {
+            border-color: #007bff;
+        }
+        
+        .send-button {
             background: #007bff;
             color: white;
             border: none;
-            padding: 10px 16px;
+            padding: 8px 12px;
             border-radius: 24px;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
         }
-        .message-input button:hover {
+        
+        .send-button:hover {
             background: #0056b3;
         }
-        /* Botón de adjuntar archivo */
+        
         .attachment-button {
             background: none;
             border: none;
@@ -138,140 +176,339 @@
             font-size: 24px;
             cursor: pointer;
             margin-right: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
         }
+        
         .attachment-button:hover {
             color: #0056b3;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 400px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .modal-title {
+            font-size: 20px;
+            font-weight: 600;
+        }
+        
+        .close-button {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #6c757d;
+        }
+        
+        .user-list {
+            list-style: none;
+        }
+        
+        .user-item {
+            padding: 8px 0;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            align-items: center;
+        }
+        
+        .user-status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        
+        .user-status.online {
+            background: #28a745;
+        }
+        
+        .user-status.offline {
+            background: #6c757d;
+        }
+        
+        .empty-message {
+            text-align: center;
+            color: #6c757d;
+            padding: 20px;
+        }
+
+        @media (max-width: 480px) {
+            .message-input-area {
+                padding: 6px 8px;
+            }
+            
+            .message-input {
+                padding: 8px 12px;
+                margin-right: 6px;
+            }
+            
+            .send-button {
+                padding: 6px 10px;
+            }
+            
+            .attachment-button {
+                margin-right: 6px;
+                font-size: 20px;
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Encabezado -->
     <div class="header">
-        <svg onclick="logout()" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-        <h3>Chat General</h3>
-        <svg onclick="showOnlineUsers()" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-14h2v5h-2zm0 7h2v5h-2z"/></svg>
+        <svg class="header-icon" onclick="logout()" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M16 17v-3H9v-4h7V7l5 5-5 5M14 2a2 2 0 012 2v2h-2V4H5v16h9v-2h2v2a2 2 0 01-2 2H5a2 2 0 01-2-2V4a2 2 0 012-2h9z"/>
+        </svg>
+        <div class="header-title">Chat General</div>
+        <svg class="header-icon" onclick="showOnlineUsers()" viewBox="0 0 24 24">
+            <path fill="currentColor" d="M12 4a4 4 0 014 4 4 4 0 01-4 4 4 4 0 01-4-4 4 4 0 014-4m0 10c4.42 0 8 1.79 8 4v2H4v-2c0-2.21 3.58-4 8-4z"/>
+        </svg>
     </div>
-    <!-- Contenedor principal -->
+    
     <div class="container">
-        <!-- Área de mensajes -->
-        <div class="messages" id="messages"></div>
-        <!-- Barra de entrada de mensaje -->
-        <div class="message-input">
-            <button class="attachment-button" onclick="attachFile()">
-                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        <div class="messages" id="messages">
+            <div class="empty-message" id="emptyMessage">Cargando mensajes...</div>
+        </div>
+        
+        <div class="message-input-area">
+            <button class="attachment-button" onclick="attachFile()" title="Adjuntar imagen">
+                <svg viewBox="0 0 24 24" width="24" height="24">
+                    <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
             </button>
-            <input type="text" id="messageField" placeholder="Escribe un mensaje...">
-            <button onclick="sendMessage()">
-                <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2 .01 7z"/></svg>
+            <input type="text" class="message-input" id="messageInput" placeholder="Escribe un mensaje..." onkeypress="handleKeyPress(event)">
+            <button class="send-button" onclick="sendMessage()" title="Enviar mensaje">
+                <svg viewBox="0 0 24 24" width="20" height="20">
+                    <path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2 .01 7z"/>
+                </svg>
             </button>
         </div>
     </div>
-    <!-- Modal de Usuarios en Línea -->
-    <div id="onlineUsersModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
-        <div style="background: white; padding: 24px; border-radius: 8px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%;">
-            <h3>Usuarios en Línea</h3>
-            <ul id="onlineUsersList"></ul>
-            <button onclick="closeOnlineUsersModal()">Cerrar</button>
+    
+    <div class="modal" id="onlineUsersModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title">Usuarios en línea</div>
+                <button class="close-button" onclick="closeModal()">&times;</button>
+            </div>
+            <ul class="user-list" id="onlineUsersList"></ul>
         </div>
     </div>
+    
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
-        const socket = io(`ws://${window.location.host}`, { transports: ['websocket'] });
-
-        // Función para cerrar sesión
+        const socket = io({
+            transports: ['websocket'],
+            auth: {
+                token: getCookie('access_token')
+            }
+        });
+        
+        // Obtener cookie
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+        }
+        
+        // Cerrar sesión
         function logout() {
             document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
             window.location.href = '/';
         }
-
-        // Función para mostrar usuarios en línea
+        
+        // Mostrar usuarios en línea
         function showOnlineUsers() {
+            document.getElementById('onlineUsersModal').style.display = 'flex';
             socket.emit('get_users');
         }
-
-        // Función para cerrar el modal de usuarios en línea
-        function closeOnlineUsersModal() {
+        
+        // Cerrar modal
+        function closeModal() {
             document.getElementById('onlineUsersModal').style.display = 'none';
         }
-
-        // Función para adjuntar archivos
+        
+        // Adjuntar archivo
         function attachFile() {
             const fileInput = document.createElement('input');
             fileInput.type = 'file';
             fileInput.accept = 'image/*';
-            fileInput.onchange = async () => {
-                const file = fileInput.files[0];
-                if (file) {
+            fileInput.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (file && file.size < 5 * 1024 * 1024) { // 5MB max
                     const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const base64String = e.target.result.split(',')[1];
-                        socket.emit('send_message', { file: { data: base64String, type: file.type } });
+                    reader.onload = (event) => {
+                        socket.emit('send_message', { 
+                            image: event.target.result 
+                        });
                     };
                     reader.readAsDataURL(file);
+                } else if (file) {
+                    alert('La imagen es demasiado grande (máximo 5MB)');
                 }
             };
             fileInput.click();
         }
-
-        // Función para enviar mensajes
+        
+        // Enviar mensaje
         function sendMessage() {
-            const messageField = document.getElementById('messageField');
-            const text = messageField.value.trim();
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
             if (!text) return;
+            
             socket.emit('send_message', { text });
-            addMessage(true, text); // Añadir mensaje enviado al chat
-            messageField.value = '';
+            input.value = '';
+            input.focus();
         }
-
-        // Función para agregar mensajes al chat
-        function addMessage(isSent, content, isImage = false) {
-            const messagesDiv = document.getElementById('messages');
-            const message = document.createElement('div');
-            message.className = `message ${isSent ? 'sent' : 'received'}`;
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'content';
-            if (isImage) {
-                const img = document.createElement('img');
-                img.src = content;
-                contentDiv.appendChild(img);
-            } else {
-                contentDiv.textContent = content;
+        
+        // Manejar tecla Enter
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
             }
-            message.appendChild(contentDiv);
-            messagesDiv.appendChild(message);
+        }
+        
+        // Añadir mensaje al chat
+        function addMessage(message) {
+            const messagesDiv = document.getElementById('messages');
+            const emptyMessage = document.getElementById('emptyMessage');
+            
+            if (emptyMessage) {
+                messagesDiv.removeChild(emptyMessage);
+            }
+            
+            const isSent = socket.id === message.sid;
+            const messageElement = document.createElement('div');
+            messageElement.className = `message ${isSent ? 'sent' : 'received'}`;
+            
+            const header = document.createElement('div');
+            header.className = 'message-header';
+            
+            if (!isSent) {
+                const username = document.createElement('span');
+                username.className = 'username';
+                username.textContent = message.username;
+                header.appendChild(username);
+            }
+            
+            const timestamp = document.createElement('span');
+            timestamp.className = 'timestamp';
+            timestamp.textContent = formatTimestamp(message.timestamp);
+            header.appendChild(timestamp);
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            
+            if (message.text) {
+                content.textContent = message.text;
+            } else if (message.image_path) {
+                const img = document.createElement('img');
+                img.src = message.image_path;
+                img.alt = 'Imagen enviada';
+                content.appendChild(img);
+            }
+            
+            messageElement.appendChild(header);
+            messageElement.appendChild(content);
+            messagesDiv.appendChild(messageElement);
+            
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
-
-        // Conectar Socket.IO
+        
+        // Formatear timestamp
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return '';
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        // Eventos de Socket.IO
         socket.on('connect', () => {
-            console.log('Conectado a Socket.IO');
+            console.log('Conectado al servidor');
+            socket.emit('get_history');
         });
-
-        socket.on('new_message', (data) => {
-            addMessage(false, data.text || data.image_path, !!data.image_path);
+        
+        socket.on('disconnect', () => {
+            console.log('Desconectado del servidor');
         });
-
+        
+        socket.on('new_message', (message) => {
+            addMessage(message);
+        });
+        
+        socket.on('history', (data) => {
+            const messagesDiv = document.getElementById('messages');
+            const emptyMessage = document.getElementById('emptyMessage');
+            
+            if (emptyMessage && data.messages.length > 0) {
+                messagesDiv.removeChild(emptyMessage);
+            } else if (data.messages.length === 0) {
+                return;
+            }
+            
+            data.messages.forEach(message => {
+                addMessage(message);
+            });
+        });
+        
         socket.on('users_list', (data) => {
-            const onlineUsersList = document.getElementById('onlineUsersList');
-            onlineUsersList.innerHTML = '';
+            const usersList = document.getElementById('onlineUsersList');
+            usersList.innerHTML = '';
+            
+            if (data.users.length === 0) {
+                const li = document.createElement('li');
+                li.className = 'empty-message';
+                li.textContent = 'No hay usuarios en línea';
+                usersList.appendChild(li);
+                return;
+            }
+            
             data.users.forEach(user => {
                 const li = document.createElement('li');
-                li.textContent = `${user.username} (${user.online ? 'En línea' : 'Fuera de línea'})`;
-                onlineUsersList.appendChild(li);
+                li.className = 'user-item';
+                
+                const status = document.createElement('div');
+                status.className = `user-status ${user.online ? 'online' : 'offline'}`;
+                
+                const name = document.createTextNode(`${user.username}`);
+                
+                li.appendChild(status);
+                li.appendChild(name);
+                usersList.appendChild(li);
             });
-            document.getElementById('onlineUsersModal').style.display = 'block';
         });
-
-        socket.on('disconnect', () => {
-            console.log('Desconectado de Socket.IO');
+        
+        socket.on('error', (data) => {
+            alert(data.message);
         });
-
-        window.onload = () => {
-            const token = document.cookie.replace(/(?:(?:^|.*;\s*)access_token\s*=\s*([^;]*).*$)|^.*$/, "$1");
-            if (!token) {
-                window.location.href = '/';
-            }
-            socket.auth = { token };
-        };
     </script>
 </body>
 </html>
