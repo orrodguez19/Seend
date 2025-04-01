@@ -1,6 +1,7 @@
-fastapi<=0.110.0
-uvicorn<=0.33.0
-asyncpg<=0.30.0
-python-socketio<=5.10.0
-Jinja2<=3.1.4
-aiosqlite>=0.19.0
+fastapi<=0.95.2
+uvicorn<=0.22.0
+python-socketio<=5.8.0
+python-engineio<=4.4.0
+aiofiles<=23.2.1
+Pillow<=10.0.0
+python-multipart<>0.0.6
