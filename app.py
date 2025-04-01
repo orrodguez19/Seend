@@ -95,8 +95,12 @@ async def register_user(username: str = Form(...), password: str = Form(...)):
             return JSONResponse(status_code=400, content={"detail": "El nombre de usuario ya existe"})
         cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
         conn.commit()
-        logger.info(f"Usuario registrado: {username}")
-        return {"message": "Usuario registrado exitosamente"}
+        user_id = cursor.lastrowid
+        session_token = secrets.token_hex(32)
+        conn.execute("INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))", (session_token, user_id))
+        conn.commit()
+        logger.info(f"Usuario registrado e inició sesión: {username}")
+        return {"message": "Usuario registrado exitosamente", "session_token": session_token}
 
 @app.post("/api/login")
 async def login_user(username: str = Form(...), password: str = Form(...)):
