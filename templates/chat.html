@@ -338,6 +338,19 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // Verificar autenticación
+            const user_id = localStorage.getItem('user_id');
+            const username = localStorage.getItem('username');
+            
+            if (!user_id || !username) {
+                window.location.href = '/auth';
+                return;
+            }
+            
+            // Configurar UI
+            document.getElementById('currentUser').textContent = username;
+            document.getElementById('chatTitle').textContent = `Chat Público`;
+            
             // Elementos del DOM
             const menuBtn = document.getElementById('menuBtn');
             const closeBtn = document.getElementById('closeBtn');
@@ -347,54 +360,38 @@
             const messageInput = document.getElementById('messageInput');
             const messagesContainer = document.getElementById('messages');
             const usersList = document.getElementById('usersList');
-            const currentUserElement = document.getElementById('currentUser');
-            const chatTitle = document.getElementById('chatTitle');
-
-            // Obtener el token de sesión de la URL o localStorage
-            const urlParams = new URLSearchParams(window.location.search);
-            let sessionToken = urlParams.get('token') || localStorage.getItem('socialchat_token');
-            let currentUser = null;
-
-            if (!sessionToken) {
-                // Redirigir a la página de autenticación si no hay token
-                window.location.href = '/auth';
-                return;
-            }
-
-            // Guardar el token en localStorage
-            localStorage.setItem('socialchat_token', sessionToken);
-
+            
             // Configurar Socket.IO
             const socket = io({
                 auth: {
-                    session_id: sessionToken
+                    user_id: user_id
                 },
                 reconnectionAttempts: 5,
                 reconnectionDelay: 1000
             });
-
+            
             // Manejar menú móvil
             menuBtn.addEventListener('click', () => {
                 usersPanel.classList.add('open');
                 overlay.classList.add('active');
             });
-
+            
             closeBtn.addEventListener('click', () => {
                 usersPanel.classList.remove('open');
                 overlay.classList.remove('active');
             });
-
+            
             overlay.addEventListener('click', () => {
                 usersPanel.classList.remove('open');
                 overlay.classList.remove('active');
             });
-
+            
             // Autoajustar altura del textarea
             messageInput.addEventListener('input', function() {
                 this.style.height = 'auto';
                 this.style.height = (this.scrollHeight) + 'px';
             });
-
+            
             // Enviar mensaje
             messageForm.addEventListener('submit', (e) => {
                 e.preventDefault();
@@ -407,17 +404,14 @@
                     messageInput.focus();
                 }
             });
-
+            
             // Eventos Socket.IO
-
+            
             // Cuando el usuario está listo
             socket.on('user_ready', (data) => {
-                currentUser = data;
-                currentUserElement.textContent = data.username;
-                chatTitle.textContent = `Chat Público`;
                 console.log('Usuario listo:', data);
             });
-
+            
             // Cargar mensajes iniciales
             socket.on('load_messages', (data) => {
                 messagesContainer.innerHTML = '';
@@ -426,13 +420,13 @@
                 });
                 scrollToBottom();
             });
-
+            
             // Nuevo mensaje recibido
             socket.on('new_message', (message) => {
                 addMessageToChat(message);
                 scrollToBottom();
             });
-
+            
             // Actualizar lista de usuarios
             socket.on('users_updated', (data) => {
                 usersList.innerHTML = '';
@@ -447,7 +441,7 @@
                     nameElement.className = 'user-name';
                     nameElement.textContent = user.username;
                     
-                    if (currentUser && user.id === currentUser.id) {
+                    if (user.id == user_id) {
                         nameElement.classList.add('current-user');
                     }
                     
@@ -456,23 +450,15 @@
                     usersList.appendChild(userElement);
                 });
             });
-
+            
             // Manejar errores de autenticación
             socket.on('auth_error', (data) => {
                 alert(`Error de autenticación: ${data.message}`);
-                localStorage.removeItem('socialchat_token');
+                localStorage.removeItem('user_id');
+                localStorage.removeItem('username');
                 window.location.href = '/auth';
             });
-
-            // Manejar errores de conexión
-            socket.on('connect_error', (err) => {
-                console.error('Error de conexión:', err.message);
-                if (err.message.includes('autenticación')) {
-                    localStorage.removeItem('socialchat_token');
-                    window.location.href = '/auth';
-                }
-            });
-
+            
             // Función para añadir mensaje al chat
             function addMessageToChat(message) {
                 const messageElement = document.createElement('div');
@@ -496,7 +482,7 @@
                 }
                 
                 // Estilo diferente para mensajes propios
-                if (currentUser && message.sender_id == currentUser.id) {
+                if (message.sender_id == user_id) {
                     messageElement.classList.add('own-message');
                     textElement.style.backgroundColor = 'var(--primary)';
                     textElement.style.color = 'white';
@@ -506,12 +492,12 @@
                 messageElement.appendChild(textElement);
                 messagesContainer.appendChild(messageElement);
             }
-
+            
             // Función para desplazarse al final del chat
             function scrollToBottom() {
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
             }
-
+            
             // Cargar usuarios al iniciar
             socket.emit('get_users');
         });
