@@ -167,12 +167,9 @@ async def get_users(sid):
     await manager.notify_users_update()
 
 @app.get("/", response_class=HTMLResponse)
-async def root():
-    return FileResponse("templates/login.html")
-
-@app.get("/login", response_class=HTMLResponse)
-async def login_page():
-    return FileResponse("templates/login.html")
+@app.get("/auth", response_class=HTMLResponse)
+async def auth_page():
+    return FileResponse("templates/auth.html")
 
 @app.get("/chat", response_class=HTMLResponse)
 async def chat_page():
