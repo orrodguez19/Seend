@@ -272,29 +272,6 @@
     <script>
         let currentUser = null;
 
-        async function login() {
-            const usernameInput = document.getElementById('loginUsername');
-            const passwordInput = document.getElementById('loginPassword');
-            const username = usernameInput.value;
-            const password = passwordInput.value;
-
-            const response = await fetch('/api/login', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: new URLSearchParams({ username, password }).toString(),
-            });
-
-            const data = await response.json();
-            if (response.ok && data.session_token) {
-                localStorage.setItem('session_token', data.session_token);
-                window.location.href = '/chat';
-            } else {
-                alert(data.detail || data.message || 'Error al iniciar sesión');
-            }
-        }
-
         function getSessionToken() {
             return localStorage.getItem('session_token');
         }
@@ -443,7 +420,7 @@
         });
 
         socket.on('user_ready', (data) => {
-            console.log('Usuario autenticado:', data.username);
+            console.log('Usuario autenticado:', data);
             currentUser = data;
         });
 
