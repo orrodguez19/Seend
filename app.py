@@ -59,14 +59,26 @@ class ConnectionManager:
     async def connect(self, sid: str, user_id: str, username: str):
         self.active_connections[sid] = user_id
         self.user_info[user_id] = {'username': username, 'sid': sid}
-        await sio.emit('user_joined', {'username': username})
+        await self.notify_users_update()
 
     async def disconnect(self, sid: str):
         if sid in self.active_connections:
             user_id = self.active_connections.pop(sid)
             if user_id in self.user_info:
-                username = self.user_info.pop(user_id)['username']
-                await sio.emit('user_left', {'username': username})
+                self.user_info.pop(user_id)
+                await self.notify_users_update()
+
+    async def notify_users_update(self):
+        user_list = []
+        with get_db_connection() as conn:
+            users = conn.execute("SELECT id, username FROM users").fetchall()
+            for user in users:
+                user_list.append({
+                    'id': user['id'],
+                    'username': user['username'],
+                    'online': user['id'] in self.user_info
+                })
+        await sio.emit('users_updated', {'users': user_list})
 
 manager = ConnectionManager()
 
@@ -165,24 +177,88 @@ async def login(sid, data):
         await sio.emit('logged_in', {'session_id': session_id, 'user_id': user['id']}, to=sid)
 
 @sio.event
+async def join_chat(sid, data):
+    session_id = data.get('session_id')
+    if not session_id:
+        await sio.emit('auth_error', {'message': 'Sesión no válida'}, to=sid)
+        return
+    
+    with get_db_connection() as conn:
+        session = conn.execute("""
+            SELECT u.id, u.username 
+            FROM sessions s
+            JOIN users u ON s.user_id = u.id
+            WHERE s.session_id = ? AND s.expires_at > datetime('now')
+        """, (session_id,)).fetchone()
+        
+        if not session:
+            await sio.emit('auth_error', {'message': 'Sesión expirada o inválida'}, to=sid)
+            return
+        
+        await manager.connect(sid, session['id'], session['username'])
+        await sio.emit('user_ready', {'username': session['username']}, to=sid)
+
+@sio.event
 async def send_message(sid, data):
     user_id = manager.active_connections.get(sid)
     if not user_id:
         await sio.emit('auth_error', {'message': 'No autenticado'}, to=sid)
         return
+    
     text = data.get('text', '').strip()
     image_path = None
+    
     if 'image' in data:
-        image_data = data['image'].split(',')[1].encode()
-        image_data = base64.b64decode(image_data)
-        filename = f"{user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
-        image_path = await save_image(image_data, AVATARS_DIR, filename)
+        try:
+            image_data = data['image'].split(',')[1].encode()
+            image_data = base64.b64decode(image_data)
+            filename = f"{user_id}_{datetime.now().strftime('%Y%m%d%H%M%S')}.jpg"
+            image_path = await save_image(image_data, AVATARS_DIR, filename)
+        except Exception as e:
+            logger.error(f"Error procesando imagen: {str(e)}")
+            await sio.emit('error', {'message': 'Error al procesar la imagen'}, to=sid)
+            return
+    
     message_id = str(uuid.uuid4())
     with get_db_connection() as conn:
-        conn.execute("INSERT INTO messages (id, sender_id, text, image_path) VALUES (?, ?, ?, ?)", (message_id, user_id, text, image_path))
+        conn.execute("INSERT INTO messages (id, sender_id, text, image_path) VALUES (?, ?, ?, ?)", 
+                    (message_id, user_id, text, image_path))
         conn.commit()
-    message_data = {'id': message_id, 'sender_id': user_id, 'text': text, 'image_path': image_path}
+    
+    # Obtener el username para el mensaje
+    with get_db_connection() as conn:
+        user = conn.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
+    
+    message_data = {
+        'id': message_id,
+        'sender_id': user_id,
+        'username': user['username'],
+        'text': text,
+        'image_path': image_path,
+        'timestamp': datetime.now().isoformat()
+    }
+    
     await sio.emit('new_message', message_data)
+
+@sio.event
+async def get_history(sid):
+    with get_db_connection() as conn:
+        messages = conn.execute("""
+            SELECT m.id, m.text, m.image_path, m.created_at as timestamp, 
+                   u.username, u.id as sender_id
+            FROM messages m
+            JOIN users u ON m.sender_id = u.id
+            ORDER BY m.created_at DESC
+            LIMIT 50
+        """).fetchall()
+        
+        # Ordenamos cronológicamente para mostrarlos correctamente
+        messages_sorted = sorted([dict(msg) for msg in messages], key=lambda x: x['timestamp'])
+        await sio.emit('history', {'messages': messages_sorted}, to=sid)
+
+@sio.event
+async def get_users(sid):
+    await manager.notify_users_update()
 
 # Rutas de FastAPI
 @app.get("/", response_class=HTMLResponse)
