@@ -2,10 +2,12 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Chat Global Mobile</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SocialChat</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <style>
+        /* Tu CSS anterior aquí */
         :root {
             --primary: #2563eb;
             --primary-dark: #1e40af;
@@ -206,6 +208,7 @@
             padding: 0.75rem;
             gap: 0.75rem;
             border-bottom: 1px solid rgba(0,0,0,0.05);
+            cursor: pointer;
         }
         
         .user-status {
@@ -285,6 +288,18 @@
                 padding: 0.75rem;
             }
         }
+
+        /* Estilos adicionales para el estado del usuario */
+        .current-user {
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .message-time {
+            font-size: 0.7rem;
+            color: var(--gray);
+            margin-left: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -293,7 +308,7 @@
         
         <div class="users-panel" id="usersPanel">
             <div class="users-header">
-                <h3>Usuarios Públicos</h3>
+                <h3>Usuarios Conectados</h3>
                 <button class="close-btn" id="closeBtn">×</button>
             </div>
             <div id="usersList"></div>
@@ -302,7 +317,8 @@
         <div class="chat-area">
             <header class="chat-header">
                 <button class="menu-btn" id="menuBtn">☰</button>
-                <h2 class="chat-title">SocialChat</h2>
+                <h2 class="chat-title" id="chatTitle">SocialChat</h2>
+                <div id="currentUser" class="current-user"></div>
             </header>
             
             <div class="messages" id="messages"></div>
@@ -320,167 +336,184 @@
         </div>
     </div>
 
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const messagesEl = document.getElementById('messages');
-            const messageForm = document.getElementById('messageForm');
-            const messageInput = document.getElementById('messageInput');
-            const usersPanel = document.getElementById('usersPanel');
+            // Elementos del DOM
             const menuBtn = document.getElementById('menuBtn');
             const closeBtn = document.getElementById('closeBtn');
             const overlay = document.getElementById('overlay');
+            const usersPanel = document.getElementById('usersPanel');
+            const messageForm = document.getElementById('messageForm');
+            const messageInput = document.getElementById('messageInput');
+            const messagesContainer = document.getElementById('messages');
             const usersList = document.getElementById('usersList');
-            
-            let socket;
-            let currentUserId;
-            let currentUsername;
-            const sessionToken = localStorage.getItem('session_token');
+            const currentUserElement = document.getElementById('currentUser');
+            const chatTitle = document.getElementById('chatTitle');
+
+            // Obtener el token de sesión de la URL o localStorage
+            const urlParams = new URLSearchParams(window.location.search);
+            let sessionToken = urlParams.get('token') || localStorage.getItem('socialchat_token');
+            let currentUser = null;
 
             if (!sessionToken) {
+                // Redirigir a la página de autenticación si no hay token
                 window.location.href = '/auth';
                 return;
             }
 
-            function connectToChat() {
-                socket = io('http://localhost:10000', {
-                    auth: {
-                        session_id: sessionToken
-                    }
-                });
-                
-                socket.on('connect', () => {
-                    console.log('Conectado al servidor de chat');
-                });
-                
-                socket.on('user_ready', (data) => {
-                    currentUserId = data.id;
-                    currentUsername = data.username;
-                    addSystemMessage(`Bienvenido al chat, ${currentUsername}`);
-                });
+            // Guardar el token en localStorage
+            localStorage.setItem('socialchat_token', sessionToken);
 
-                socket.on('load_messages', (data) => {
-                    data.messages.forEach(msg => {
-                        addMessage(msg.username, msg.text, msg.sender_id === currentUserId, msg.timestamp);
-                    });
-                });
+            // Configurar Socket.IO
+            const socket = io({
+                auth: {
+                    session_id: sessionToken
+                },
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000
+            });
 
-                socket.on('new_message', (message) => {
-                    addMessage(message.username, message.text, message.sender_id === currentUserId, message.timestamp);
-                });
-                
-                socket.on('users_updated', (data) => {
-                    updateUsersList(data.users);
-                });
-                
-                socket.on('auth_error', (data) => {
-                    addSystemMessage(data.message);
-                    setTimeout(() => {
-                        localStorage.removeItem('session_token');
-                        window.location.href = '/auth';
-                    }, 2000);
-                });
+            // Manejar menú móvil
+            menuBtn.addEventListener('click', () => {
+                usersPanel.classList.add('open');
+                overlay.classList.add('active');
+            });
 
-                socket.on('connect_error', (err) => {
-                    addSystemMessage('Error de conexión: ' + err.message);
-                    setTimeout(() => {
-                        localStorage.removeItem('session_token');
-                        window.location.href = '/auth';
-                    }, 2000);
-                });
-                
-                socket.on('disconnect', () => {
-                    addSystemMessage('Desconectado del servidor');
-                });
-            }
-            
-            function addMessage(username, text, isCurrentUser = false, timestamp) {
-                const messageEl = document.createElement('div');
-                messageEl.className = 'message';
-                const time = new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                messageEl.innerHTML = `
-                    <div class="message-user">${isCurrentUser ? 'Tú' : username} <span style="font-size: 0.7rem; color: #64748b">[${time}]</span></div>
-                    <div class="message-text" style="${isCurrentUser ? 'background: var(--primary); color: white' : ''}">${text}</div>
-                `;
-                messagesEl.appendChild(messageEl);
-                scrollToBottom();
-            }
-            
-            function addSystemMessage(text) {
-                const messageEl = document.createElement('div');
-                messageEl.className = 'message';
-                messageEl.innerHTML = `
-                    <div class="message-text" style="background: #e2e8f0; color: #64748b; width: 100%">${text}</div>
-                `;
-                messagesEl.appendChild(messageEl);
-                scrollToBottom();
-            }
-            
-            function updateUsersList(users) {
-                usersList.innerHTML = '';
-                users.forEach(user => {
-                    const userEl = document.createElement('div');
-                    userEl.className = 'user';
-                    userEl.innerHTML = `
-                        <div class="user-status ${user.online ? 'online' : ''}"></div>
-                        <div class="user-name">${user.username} ${user.id === currentUserId ? '(Tú)' : ''}</div>
-                    `;
-                    usersList.appendChild(userEl);
-                });
-            }
-            
-            function scrollToBottom() {
-                setTimeout(() => {
-                    messagesEl.scrollTop = messagesEl.scrollHeight;
-                }, 100);
-            }
-            
-            function adjustTextarea() {
-                messageInput.style.height = 'auto';
-                messageInput.style.height = (messageInput.scrollHeight) + 'px';
-                if (messageInput.scrollHeight > 120) {
-                    messageInput.style.overflowY = 'auto';
-                } else {
-                    messageInput.style.overflowY = 'hidden';
-                }
-            }
-            
+            closeBtn.addEventListener('click', () => {
+                usersPanel.classList.remove('open');
+                overlay.classList.remove('active');
+            });
+
+            overlay.addEventListener('click', () => {
+                usersPanel.classList.remove('open');
+                overlay.classList.remove('active');
+            });
+
+            // Autoajustar altura del textarea
+            messageInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
+
+            // Enviar mensaje
             messageForm.addEventListener('submit', (e) => {
                 e.preventDefault();
                 const message = messageInput.value.trim();
-                if (message && socket) {
+                
+                if (message) {
                     socket.emit('send_message', { text: message });
                     messageInput.value = '';
                     messageInput.style.height = 'auto';
                     messageInput.focus();
                 }
             });
-            
-            messageInput.addEventListener('input', adjustTextarea);
-            
-            menuBtn.addEventListener('click', () => {
-                usersPanel.classList.add('open');
-                overlay.classList.add('active');
+
+            // Eventos Socket.IO
+
+            // Cuando el usuario está listo
+            socket.on('user_ready', (data) => {
+                currentUser = data;
+                currentUserElement.textContent = data.username;
+                chatTitle.textContent = `Chat Público`;
+                console.log('Usuario listo:', data);
             });
-            
-            closeBtn.addEventListener('click', () => {
-                usersPanel.classList.remove('open');
-                overlay.classList.remove('active');
+
+            // Cargar mensajes iniciales
+            socket.on('load_messages', (data) => {
+                messagesContainer.innerHTML = '';
+                data.messages.forEach(msg => {
+                    addMessageToChat(msg);
+                });
+                scrollToBottom();
             });
-            
-            overlay.addEventListener('click', () => {
-                usersPanel.classList.remove('open');
-                overlay.classList.remove('active');
+
+            // Nuevo mensaje recibido
+            socket.on('new_message', (message) => {
+                addMessageToChat(message);
+                scrollToBottom();
             });
-            
-            document.addEventListener('click', (e) => {
-                if (e.target !== messageInput) {
-                    messageInput.blur();
+
+            // Actualizar lista de usuarios
+            socket.on('users_updated', (data) => {
+                usersList.innerHTML = '';
+                data.users.forEach(user => {
+                    const userElement = document.createElement('div');
+                    userElement.className = 'user';
+                    
+                    const statusElement = document.createElement('div');
+                    statusElement.className = `user-status ${user.online ? 'online' : ''}`;
+                    
+                    const nameElement = document.createElement('div');
+                    nameElement.className = 'user-name';
+                    nameElement.textContent = user.username;
+                    
+                    if (currentUser && user.id === currentUser.id) {
+                        nameElement.classList.add('current-user');
+                    }
+                    
+                    userElement.appendChild(statusElement);
+                    userElement.appendChild(nameElement);
+                    usersList.appendChild(userElement);
+                });
+            });
+
+            // Manejar errores de autenticación
+            socket.on('auth_error', (data) => {
+                alert(`Error de autenticación: ${data.message}`);
+                localStorage.removeItem('socialchat_token');
+                window.location.href = '/auth';
+            });
+
+            // Manejar errores de conexión
+            socket.on('connect_error', (err) => {
+                console.error('Error de conexión:', err.message);
+                if (err.message.includes('autenticación')) {
+                    localStorage.removeItem('socialchat_token');
+                    window.location.href = '/auth';
                 }
             });
-            
-            connectToChat();
-            adjustTextarea();
+
+            // Función para añadir mensaje al chat
+            function addMessageToChat(message) {
+                const messageElement = document.createElement('div');
+                messageElement.className = 'message';
+                
+                const userElement = document.createElement('div');
+                userElement.className = 'message-user';
+                userElement.textContent = message.username;
+                
+                const textElement = document.createElement('div');
+                textElement.className = 'message-text';
+                textElement.textContent = message.text;
+                
+                // Añadir hora si está disponible
+                if (message.timestamp) {
+                    const timeElement = document.createElement('span');
+                    timeElement.className = 'message-time';
+                    const time = new Date(message.timestamp);
+                    timeElement.textContent = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    userElement.appendChild(timeElement);
+                }
+                
+                // Estilo diferente para mensajes propios
+                if (currentUser && message.sender_id == currentUser.id) {
+                    messageElement.classList.add('own-message');
+                    textElement.style.backgroundColor = 'var(--primary)';
+                    textElement.style.color = 'white';
+                }
+                
+                messageElement.appendChild(userElement);
+                messageElement.appendChild(textElement);
+                messagesContainer.appendChild(messageElement);
+            }
+
+            // Función para desplazarse al final del chat
+            function scrollToBottom() {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            // Cargar usuarios al iniciar
+            socket.emit('get_users');
         });
     </script>
 </body>
