@@ -23,9 +23,6 @@ import base64
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI()
-sio = AsyncServer(async_mode='asgi', cors_allowed_origins='*')
-
 # Configuración de directorios
 DB_PATH = os.getenv('DB_PATH', 'chat_app.db')
 STATIC_DIR = 'static'
@@ -34,6 +31,54 @@ TEMPLATES_DIR = 'templates'
 
 os.makedirs(STATIC_DIR, exist_ok=True)
 os.makedirs(AVATARS_DIR, exist_ok=True)
+
+# Función para obtener la conexión a la base de datos
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# Función para crear las tablas si no existen
+def create_tables():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id TEXT PRIMARY KEY,
+            sender_id INTEGER NOT NULL,
+            text TEXT,
+            image_path TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (sender_id) REFERENCES users(id)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            session_id TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            expires_at DATETIME NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+# Crear las tablas al inicio de la aplicación
+create_tables()
+
+app = FastAPI()
+sio = AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 
 # Configuración de templates
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
@@ -93,11 +138,6 @@ class ConnectionManager:
         await sio.emit('users_updated', {'users': user_list})
 
 manager = ConnectionManager()
-
-def get_db_connection():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 async def save_image(image_data: bytes, directory: str, filename: str) -> str:
     filepath = os.path.join(directory, filename)
