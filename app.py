@@ -1,5 +1,6 @@
 import os
 import re
+import socketio
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
