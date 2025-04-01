@@ -485,10 +485,6 @@
         // Eventos de Socket.IO
         socket.on('connect', () => {
             console.log('Conectado al servidor');
-            const sessionId = getCookie('access_token');
-            if (sessionId) {
-                socket.emit('join_chat', { session_id: sessionId });
-            }
             socket.emit('get_history');
         });
         
@@ -525,12 +521,11 @@
             updateOnlineUsersList(data.users);
         });
         
-        socket.on('users_list', (data) => {
-            updateOnlineUsersList(data.users);
-        });
-        
         socket.on('error', (data) => {
             alert(data.message);
+            if (data.message.includes('autenticación') || data.message.includes('sesión')) {
+                logout();
+            }
         });
     </script>
 </body>
