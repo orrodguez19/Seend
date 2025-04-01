@@ -325,12 +325,16 @@
     
     <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
+        // Configuración del socket
         const socket = io({
             transports: ['websocket'],
             auth: {
-                token: getCookie('access_token')
+                session_id: getCookie('access_token')
             }
         });
+        
+        // Variables de estado
+        let currentUser = null;
         
         // Obtener cookie
         function getCookie(name) {
@@ -405,7 +409,7 @@
                 messagesDiv.removeChild(emptyMessage);
             }
             
-            const isSent = socket.id === message.sid;
+            const isSent = currentUser && currentUser.id === message.sender_id;
             const messageElement = document.createElement('div');
             messageElement.className = `message ${isSent ? 'sent' : 'received'}`;
             
@@ -450,14 +454,51 @@
             return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         }
         
+        // Actualizar lista de usuarios
+        function updateOnlineUsersList(users) {
+            const usersList = document.getElementById('onlineUsersList');
+            usersList.innerHTML = '';
+            
+            if (users.length === 0) {
+                const li = document.createElement('li');
+                li.className = 'empty-message';
+                li.textContent = 'No hay usuarios en línea';
+                usersList.appendChild(li);
+                return;
+            }
+            
+            users.forEach(user => {
+                const li = document.createElement('li');
+                li.className = 'user-item';
+                
+                const status = document.createElement('div');
+                status.className = `user-status ${user.online ? 'online' : 'offline'}`;
+                
+                const name = document.createTextNode(`${user.username}`);
+                
+                li.appendChild(status);
+                li.appendChild(name);
+                usersList.appendChild(li);
+            });
+        }
+        
         // Eventos de Socket.IO
         socket.on('connect', () => {
             console.log('Conectado al servidor');
+            const sessionId = getCookie('access_token');
+            if (sessionId) {
+                socket.emit('join_chat', { session_id: sessionId });
+            }
             socket.emit('get_history');
         });
         
         socket.on('disconnect', () => {
             console.log('Desconectado del servidor');
+        });
+        
+        socket.on('user_ready', (data) => {
+            console.log('Usuario autenticado:', data.username);
+            currentUser = data;
         });
         
         socket.on('new_message', (message) => {
@@ -471,6 +512,7 @@
             if (emptyMessage && data.messages.length > 0) {
                 messagesDiv.removeChild(emptyMessage);
             } else if (data.messages.length === 0) {
+                emptyMessage.textContent = 'No hay mensajes aún. ¡Envía el primero!';
                 return;
             }
             
@@ -479,31 +521,12 @@
             });
         });
         
+        socket.on('users_updated', (data) => {
+            updateOnlineUsersList(data.users);
+        });
+        
         socket.on('users_list', (data) => {
-            const usersList = document.getElementById('onlineUsersList');
-            usersList.innerHTML = '';
-            
-            if (data.users.length === 0) {
-                const li = document.createElement('li');
-                li.className = 'empty-message';
-                li.textContent = 'No hay usuarios en línea';
-                usersList.appendChild(li);
-                return;
-            }
-            
-            data.users.forEach(user => {
-                const li = document.createElement('li');
-                li.className = 'user-item';
-                
-                const status = document.createElement('div');
-                status.className = `user-status ${user.online ? 'online' : 'offline'}`;
-                
-                const name = document.createTextNode(`${user.username}`);
-                
-                li.appendChild(status);
-                li.appendChild(name);
-                usersList.appendChild(li);
-            });
+            updateOnlineUsersList(data.users);
         });
         
         socket.on('error', (data) => {
