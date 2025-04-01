@@ -3,150 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialChat-Login</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        body {
-            height: 100vh;
-            background: linear-gradient(45deg, #1e3c72, #2a5298);
-            animation: gradientBG 15s ease infinite;
-            background-size: 400% 400%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 10px;
-        }
-
-        @keyframes gradientBG {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
-        }
-
-        .container {
-            width: 100%;
-            max-width: 360px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 20px;
-            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
-            padding: 20px;
-            color: white;
-        }
-
-        h2 {
-            text-align: center;
-            margin-bottom: 20px;
-        }
-
-        .input-group {
-            margin-bottom: 15px;
-        }
-
-        input {
-            width: 100%;
-            padding: 10px;
-            border: none;
-            border-radius: 8px;
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            font-size: 16px;
-            transition: all 0.3s ease;
-        }
-
-        input:focus {
-            outline: none;
-            background: rgba(255, 255, 255, 0.3);
-            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
-        }
-
-        .login-btn {
-            width: 100%;
-            background: linear-gradient(45deg, #2a5298, #1e3c72);
-            border: none;
-            border-radius: 8px;
-            padding: 10px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .login-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(31, 38, 135, 0.4);
-        }
-
-        .login-btn svg {
-            width: 24px;
-            height: 24px;
-            fill: white;
-        }
-
-        .link {
-            text-align: center;
-            margin-top: 15px;
-        }
-
-        a {
-            color: #a1c4fd;
-            text-decoration: none;
-            transition: all 0.3s ease;
-        }
-
-        a:hover {
-            color: white;
-        }
-    </style>
+    <title>Seend - Login</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
 <body>
-    <div class="container">
-        <h2>Iniciar Sesión</h2>
-        <div class="input-group">
-            <input id="username" type="text" placeholder="Usuario">
-        </div>
-        <div class="input-group">
-            <input id="password" type="password" placeholder="Contraseña">
-        </div>
-        <button class="login-btn" onclick="login()">
-            <svg viewBox="0 0 24 24">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
-            </svg>
-        </button>
-        <div class="link">
-            <a href="register.html">¿No tienes cuenta? Regístrate</a>
+    <div class="app-container">
+        <header>
+            <h2>Seend</h2>
+        </header>
+        <div class="group-form active" style="max-width: 400px; margin: 50px auto;">
+            <h3>Iniciar Sesión o Registrarse</h3>
+            {% if error %}
+                <p style="color: #f44336;">{{ error }}</p>
+            {% endif %}
+            <form method="POST">
+                <input type="text" name="username" placeholder="Usuario" required>
+                <input type="password" name="password" placeholder="Contraseña" required>
+                <input type="email" name="email" placeholder="Email (solo registro)" id="emailField">
+                <button type="submit" name="action" value="login">Iniciar Sesión</button>
+                <button type="submit" name="action" value="register" class="cancel">Registrarse</button>
+            </form>
         </div>
     </div>
-
     <script>
-        async function login() {
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            
-            try {
-                const response = await fetch('http://localhost:5000/login', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({username, password})
-                });
-                
-                if (response.ok) {
-                    localStorage.setItem('username', username);
-                    window.location.href = 'chat.html';
-                } else {
-                    const data = await response.json();
-                    alert(data.detail);
-                }
-            } catch (error) {
-                alert('Error de conexión');
-            }
-        }
+        document.addEventListener('DOMContentLoaded', () => {
+            const emailField = document.getElementById('emailField');
+            emailField.style.display = 'none';
+            document.querySelector('button[value="register"]').addEventListener('click', () => {
+                emailField.style.display = 'block';
+                emailField.required = true;
+            });
+            document.querySelector('button[value="login"]').addEventListener('click', () => {
+                emailField.style.display = 'none';
+                emailField.required = false;
+            });
+        });
     </script>
 </body>
 </html>
