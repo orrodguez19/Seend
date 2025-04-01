@@ -3,40 +3,105 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seend - Login</title>
+    <title>Seend - Inicio de Sesión</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 </head>
-<body>
-    <div class="app-container">
-        <header>
-            <h2>Seend</h2>
-        </header>
-        <div class="group-form active" style="max-width: 400px; margin: 50px auto;">
-            <h3>Iniciar Sesión o Registrarse</h3>
-            {% if error %}
-                <p style="color: #f44336;">{{ error }}</p>
-            {% endif %}
-            <form method="POST">
-                <input type="text" name="username" placeholder="Usuario" required>
-                <input type="password" name="password" placeholder="Contraseña" required>
-                <input type="email" name="email" placeholder="Email (solo registro)" id="emailField">
-                <button type="submit" name="action" value="login">Iniciar Sesión</button>
-                <button type="submit" name="action" value="register" class="cancel">Registrarse</button>
-            </form>
-        </div>
+<body class="auth-body">
+    <div class="auth-container">
+        <h1 class="auth-title">Seend</h1>
+        <form id="authForm" class="auth-form">
+            <input type="text" id="username" placeholder="Usuario (@username)" required>
+            <input type="password" id="password" placeholder="Contraseña" required>
+            <input type="text" id="name" placeholder="Nombre" class="hidden">
+            <div class="auth-buttons">
+                <button type="button" id="loginBtn" class="btn-primary">Iniciar Sesión</button>
+                <button type="button" id="registerBtn" class="btn-secondary">Registrarse</button>
+            </div>
+        </form>
+        <p id="errorMsg" class="error-message hidden"></p>
     </div>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const emailField = document.getElementById('emailField');
-            emailField.style.display = 'none';
-            document.querySelector('button[value="register"]').addEventListener('click', () => {
-                emailField.style.display = 'block';
-                emailField.required = true;
+            const socket = io(`wss://${window.location.host}`, { transports: ['websocket'] });
+            const nameField = document.getElementById('name');
+            const loginBtn = document.getElementById('loginBtn');
+            const registerBtn = document.getElementById('registerBtn');
+            const errorMsg = document.getElementById('errorMsg');
+            let isRegisterMode = false;
+
+            registerBtn.addEventListener('click', (e) => {
+                if (!isRegisterMode) {
+                    e.preventDefault();
+                    nameField.classList.remove('hidden');
+                    loginBtn.classList.add('hidden');
+                    registerBtn.textContent = 'Crear Cuenta';
+                    registerBtn.classList.replace('btn-secondary', 'btn-primary');
+                    isRegisterMode = true;
+                }
             });
-            document.querySelector('button[value="login"]').addEventListener('click', () => {
-                emailField.style.display = 'none';
-                emailField.required = false;
+
+            const showError = (message) => {
+                errorMsg.textContent = message;
+                errorMsg.classList.remove('hidden');
+                setTimeout(() => errorMsg.classList.add('hidden'), 5000);
+            };
+
+            socket.on('connect', () => console.log('Socket connected'));
+
+            socket.on('username_status', (data) => {
+                if (!data.available && isRegisterMode) showError(data.message);
+            });
+
+            socket.on('registered', (data) => {
+                localStorage.setItem('token', data.session_id);
+                localStorage.setItem('user_id', data.user_id);
+                localStorage.setItem('user_data', JSON.stringify(data));
+                window.location.href = '/chat';
+            });
+
+            socket.on('logged_in', (data) => {
+                localStorage.setItem('token', data.session_id);
+                localStorage.setItem('user_id', data.user_id);
+                localStorage.setItem('user_data', JSON.stringify(data));
+                window.location.href = '/chat';
+            });
+
+            socket.on('register_error', (data) => showError(data.message));
+            socket.on('login_error', (data) => showError(data.message));
+
+            document.getElementById('username').addEventListener('input', () => {
+                if (isRegisterMode) {
+                    const username = document.getElementById('username').value.trim();
+                    if (username) socket.emit('check_username', { username });
+                }
+            });
+
+            const handleAuth = () => {
+                const username = document.getElementById('username').value.trim();
+                const password = document.getElementById('password').value.trim();
+                const name = isRegisterMode ? document.getElementById('name').value.trim() : '';
+                if (!username || !password || (isRegisterMode && !name)) {
+                    showError('Todos los campos son requeridos');
+                    return;
+                }
+                if (!username.startsWith('@')) {
+                    showError('El usuario debe comenzar con @');
+                    return;
+                }
+                const authData = { username, password };
+                if (isRegisterMode) {
+                    authData.name = name;
+                    socket.emit('register', authData);
+                } else {
+                    socket.emit('login', authData);
+                }
+            };
+
+            loginBtn.addEventListener('click', handleAuth);
+            registerBtn.addEventListener('click', (e) => {
+                if (isRegisterMode) handleAuth();
             });
         });
     </script>
