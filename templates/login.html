@@ -4,104 +4,234 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Seend - Inicio de Sesión</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/css/styles.css">
-    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --primary-hover: #1d4ed8;
+            --secondary-color: #f3f4f6;
+            --text-color: #111827;
+            --error-color: #ef4444;
+            --bg-color: #f9fafb;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .auth-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            width: 100%;
+            max-width: 420px;
+            text-align: center;
+        }
+        
+        .auth-title {
+            color: var(--primary-color);
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 30px;
+        }
+        
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        
+        input {
+            padding: 14px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+        }
+        
+        .auth-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 10px;
+        }
+        
+        button {
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+        
+        .btn-secondary {
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+        }
+        
+        .btn-secondary:hover {
+            background-color: #e5e7eb;
+        }
+        
+        .error-message {
+            color: var(--error-color);
+            font-size: 14px;
+            margin-top: 16px;
+            font-weight: 500;
+            opacity: 0;
+            height: 0;
+            transition: all 0.3s;
+        }
+        
+        .error-message.show {
+            opacity: 1;
+            height: auto;
+            margin-top: 16px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        @media (max-width: 480px) {
+            .auth-container {
+                padding: 30px 20px;
+            }
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
-<body class="auth-body">
+<body>
     <div class="auth-container">
         <h1 class="auth-title">Seend</h1>
         <form id="authForm" class="auth-form">
-            <input type="text" id="username" placeholder="Usuario (@username)" required>
+            <input type="text" id="username" placeholder="Nombre de usuario" required>
             <input type="password" id="password" placeholder="Contraseña" required>
-            <input type="text" id="name" placeholder="Nombre" class="hidden">
             <div class="auth-buttons">
                 <button type="button" id="loginBtn" class="btn-primary">Iniciar Sesión</button>
                 <button type="button" id="registerBtn" class="btn-secondary">Registrarse</button>
             </div>
         </form>
-        <p id="errorMsg" class="error-message hidden"></p>
+        <p id="errorMsg" class="error-message"></p>
     </div>
+
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            const socket = io(`wss://${window.location.host}`, { transports: ['websocket'] });
-            const nameField = document.getElementById('name');
+            const socket = io({
+                transports: ['websocket'],
+                reconnectionAttempts: 5,
+                reconnectionDelay: 1000
+            });
+            
             const loginBtn = document.getElementById('loginBtn');
             const registerBtn = document.getElementById('registerBtn');
             const errorMsg = document.getElementById('errorMsg');
             let isRegisterMode = false;
 
+            // Manejar errores de conexión
+            socket.on('connect_error', (err) => {
+                showError('Error de conexión con el servidor');
+                console.error('Connection error:', err);
+            });
+
+            // Cambiar entre login y registro
             registerBtn.addEventListener('click', (e) => {
                 if (!isRegisterMode) {
                     e.preventDefault();
-                    nameField.classList.remove('hidden');
-                    loginBtn.classList.add('hidden');
-                    registerBtn.textContent = 'Crear Cuenta';
-                    registerBtn.classList.replace('btn-secondary', 'btn-primary');
+                    loginBtn.textContent = 'Registrarse';
+                    registerBtn.textContent = 'Volver a Inicio';
                     isRegisterMode = true;
+                } else {
+                    e.preventDefault();
+                    loginBtn.textContent = 'Iniciar Sesión';
+                    registerBtn.textContent = 'Registrarse';
+                    isRegisterMode = false;
                 }
             });
 
+            // Mostrar errores
             const showError = (message) => {
                 errorMsg.textContent = message;
-                errorMsg.classList.remove('hidden');
-                setTimeout(() => errorMsg.classList.add('hidden'), 5000);
+                errorMsg.classList.add('show');
+                setTimeout(() => errorMsg.classList.remove('show'), 5000);
             };
 
-            socket.on('connect', () => console.log('Socket connected'));
-
-            socket.on('username_status', (data) => {
-                if (!data.available && isRegisterMode) showError(data.message);
-            });
+            // Eventos del servidor
+            socket.on('register_error', (data) => showError(data.message));
+            socket.on('login_error', (data) => showError(data.message));
 
             socket.on('registered', (data) => {
-                localStorage.setItem('token', data.session_id);
+                localStorage.setItem('session_id', data.session_id);
                 localStorage.setItem('user_id', data.user_id);
-                localStorage.setItem('user_data', JSON.stringify(data));
                 window.location.href = '/chat';
             });
 
             socket.on('logged_in', (data) => {
-                localStorage.setItem('token', data.session_id);
+                localStorage.setItem('session_id', data.session_id);
                 localStorage.setItem('user_id', data.user_id);
-                localStorage.setItem('user_data', JSON.stringify(data));
                 window.location.href = '/chat';
             });
 
-            socket.on('register_error', (data) => showError(data.message));
-            socket.on('login_error', (data) => showError(data.message));
-
-            document.getElementById('username').addEventListener('input', () => {
-                if (isRegisterMode) {
-                    const username = document.getElementById('username').value.trim();
-                    if (username) socket.emit('check_username', { username });
-                }
-            });
-
+            // Manejar autenticación
             const handleAuth = () => {
                 const username = document.getElementById('username').value.trim();
                 const password = document.getElementById('password').value.trim();
-                const name = isRegisterMode ? document.getElementById('name').value.trim() : '';
-                if (!username || !password || (isRegisterMode && !name)) {
+
+                if (!username || !password) {
                     showError('Todos los campos son requeridos');
                     return;
                 }
-                if (!username.startsWith('@')) {
-                    showError('El usuario debe comenzar con @');
-                    return;
-                }
-                const authData = { username, password };
+
                 if (isRegisterMode) {
-                    authData.name = name;
-                    socket.emit('register', authData);
+                    if (username.length < 3 || password.length < 6) {
+                        showError('Usuario mínimo 3 caracteres y contraseña mínimo 6');
+                        return;
+                    }
+                    socket.emit('register', { username, password });
                 } else {
-                    socket.emit('login', authData);
+                    socket.emit('login', { username, password });
                 }
             };
 
             loginBtn.addEventListener('click', handleAuth);
             registerBtn.addEventListener('click', (e) => {
-                if (isRegisterMode) handleAuth();
+                if (isRegisterMode) {
+                    e.preventDefault();
+                    loginBtn.textContent = 'Iniciar Sesión';
+                    registerBtn.textContent = 'Registrarse';
+                    isRegisterMode = false;
+                }
             });
         });
     </script>
