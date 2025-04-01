@@ -240,7 +240,7 @@
 
     <div class="container">
         <div class="messages" id="messages">
-            <div class="empty-message" id="emptyMessage">Cargando mensajes...</div>
+            <div class="empty-message" id="emptyMessage">¡Envía el primer mensaje!</div>
         </div>
 
         <div class="message-input-area">
@@ -361,7 +361,7 @@
             const messagesDiv = document.getElementById('messages');
             const emptyMessage = document.getElementById('emptyMessage');
 
-            if (emptyMessage) {
+            if (emptyMessage && messagesDiv.contains(emptyMessage)) {
                 messagesDiv.removeChild(emptyMessage);
             }
 
@@ -436,7 +436,6 @@
 
         socket.on('connect', () => {
             console.log('Conectado al servidor');
-            socket.emit('get_history');
         });
 
         socket.on('disconnect', () => {
@@ -450,22 +449,6 @@
 
         socket.on('new_message', (message) => {
             addMessage(message);
-        });
-
-        socket.on('history', (data) => {
-            const messagesDiv = document.getElementById('messages');
-            const emptyMessage = document.getElementById('emptyMessage');
-
-            if (emptyMessage && data.messages.length > 0) {
-                messagesDiv.removeChild(emptyMessage);
-            } else if (data.messages.length === 0) {
-                emptyMessage.textContent = 'No hay mensajes aún. ¡Envía el primero!';
-                return;
-            }
-
-            data.messages.forEach(message => {
-                addMessage(message);
-            });
         });
 
         socket.on('users_updated', (data) => {
