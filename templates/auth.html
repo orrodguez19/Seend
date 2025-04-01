@@ -83,6 +83,7 @@
         <div id="loginSection">
             <h2>Iniciar Sesión</h2>
             <form id="loginForm">
+                CIRCULAR
                 <div class="form-group">
                     <label for="loginUsername">Usuario</label>
                     <input type="text" id="loginUsername" required>
@@ -178,9 +179,8 @@
 
                 const data = await response.json();
                 if (response.ok) {
-                    alert('Registro exitoso. Por favor, inicia sesión.');
-                    registerSection.classList.add('hidden');
-                    loginSection.classList.remove('hidden');
+                    localStorage.setItem('session_token', data.session_token);
+                    window.location.href = '/chat';
                 } else {
                     errorMsg.textContent = data.detail || 'Error al registrarse';
                     errorMsg.style.display = 'block';
