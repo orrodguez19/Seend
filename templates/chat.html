@@ -3,136 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialChat - Chat General</title>
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <title>Chat</title>
+    <!-- Fuente Poppins desde Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- Socket.IO para comunicación en tiempo real -->
+    <script src="/socket.io/socket.io.js"></script>
     <style>
-        * {
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #e3f2fd; /* Azul claro */
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        body {
-            background-color: #f8f9fa;
-            color: #212529;
-            overflow: hidden;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #007bff, #0056b3);
-            color: white;
-            padding: 15px 20px;
-            font-size: 18px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-        }
-
-        .header-title {
-            flex-grow: 1;
-            text-align: center;
-        }
-
-        .header-icon {
-            width: 30px;
-            height: 30px;
-            cursor: pointer;
         }
 
         .container {
-            flex-grow: 1;
-            overflow-y: auto;
+            max-width: 800px;
+            margin: 20px auto;
             padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #1976d2; /* Azul oscuro */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #1565c0;
+        }
+
+        #messages {
+            min-height: 400px;
+            max-height: 600px;
+            overflow-y: auto;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 5px;
             display: flex;
             flex-direction: column;
         }
 
-        .messages {
-            flex-grow: 1;
-            overflow-y: auto;
-            margin-bottom: 15px;
-        }
-
         .message {
-            background-color: white;
-            color: #212529;
-            border-radius: 8px;
-            padding: 10px 15px;
+            max-width: 70%;
             margin-bottom: 10px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            max-width: 80%;
-            clear: both;
+            padding: 10px;
+            border-radius: 5px;
         }
 
-        .message.sent {
-            background-color: #e9ecef;
-            float: right;
+        .sent {
+            background-color: #1976d2; /* Azul oscuro para mensajes enviados */
+            color: white;
+            align-self: flex-end;
         }
 
-        .message.received {
-            float: left;
+        .received {
+            background-color: #e0e0e0; /* Gris claro para mensajes recibidos */
+            color: black;
+            align-self: flex-start;
         }
 
-        .message-header {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 5px;
-            font-size: 0.9em;
-            color: #6c757d;
-        }
-
-        .message-content {
-            word-break: break-word;
-        }
-
-        .username {
+        .sender-name {
             font-weight: bold;
-            margin-right: 10px;
+            margin-bottom: 5px;
         }
 
-        .timestamp {
-            font-size: 0.8em;
-        }
-
-        .message-input-area {
+        footer {
             display: flex;
-            padding: 10px 20px;
-            background-color: #f8f9fa;
-            border-top: 1px solid #dee2e6;
+            margin-top: 20px;
         }
 
-        .attachment-button {
-            background: none;
-            border: none;
-            padding: 0;
-            margin-right: 10px;
-            cursor: pointer;
-        }
-
-        .message-input {
+        #messageInput {
             flex-grow: 1;
             padding: 10px;
-            border: 1px solid #ced4da;
+            border: 1px solid #ccc;
             border-radius: 5px;
-            margin-right: 10px;
         }
 
-        .send-button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 5px;
-            cursor: pointer;
+        #sendBtn {
+            margin-left: 10px;
         }
 
+        /* Estilos del modal */
         .modal {
             display: none;
             position: fixed;
@@ -141,302 +101,191 @@
             top: 0;
             width: 100%;
             height: 100%;
-            overflow: auto;
             background-color: rgba(0,0,0,0.4);
-            justify-content: center;
-            align-items: center;
         }
 
         .modal-content {
             background-color: #fefefe;
+            margin: 15% auto;
             padding: 20px;
             border: 1px solid #888;
             width: 80%;
-            max-width: 500px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            max-width: 400px;
         }
 
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 10px;
-        }
-
-        .modal-title {
-            font-size: 1.2em;
-            font-weight: bold;
-        }
-
-        .close-button {
+        .close {
             color: #aaa;
             float: right;
             font-size: 28px;
             font-weight: bold;
-            border: none;
-            background: none;
             cursor: pointer;
         }
 
-        .close-button:hover,
-        .close-button:focus {
+        .close:hover,
+        .close:focus {
             color: black;
-            text-decoration: none;
-            cursor: pointer;
         }
 
-        .user-list {
-            list-style: none;
+        #usersList {
             padding: 0;
         }
 
-        .user-item {
-            padding: 10px 0;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            align-items: center;
+        #usersList li {
+            list-style: none;
+            margin-bottom: 10px;
         }
 
-        .user-item:last-child {
-            border-bottom: none;
+        .online {
+            color: green;
         }
 
-        .user-status {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 10px;
-        }
-
-        .user-status.online {
-            background-color: #28a745;
-        }
-
-        .user-status.offline {
-            background-color: #6c757d;
-        }
-
-        .empty-message {
-            color: #6c757d;
-            font-style: italic;
-            text-align: center;
-            padding: 10px;
+        .offline {
+            color: gray;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <svg class="header-icon" onclick="logout()" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M16 17v-3H9v-4h7V7l5 5-5 5M14 2a2 2 0 012 2v2h-2V4H5v16h9v-2h2v2a2 2 0 01-2 2H5a2 2 0 01-2-2V4a2 2 0 012-2h9z"/>
-        </svg>
-        <div class="header-title">Chat General</div>
-        <svg class="header-icon" onclick="showOnlineUsers()" viewBox="0 0 24 24">
-            <path fill="currentColor" d="M12 4a4 4 0 014 4 4 4 0 01-4 4 4 4 0 01-4-4 4 4 0 014-4m0 10c4.42 0 8 1.79 8 4v2H4v-2c0-2.21 3.58-4 8-4z"/>
-        </svg>
-    </div>
-
     <div class="container">
-        <div class="messages" id="messages">
-            <div class="empty-message" id="emptyMessage">¡Envía el primer mensaje!</div>
-        </div>
-
-        <div class="message-input-area">
-            <button class="attachment-button" onclick="attachFile()" title="Adjuntar imagen">
-                <svg viewBox="0 0 24 24" width="24" height="24">
-                    <path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
-                </svg>
-            </button>
-            <input type="text" class="message-input" id="messageInput" placeholder="Escribe un mensaje..." onkeypress="handleKeyPress(event)">
-            <button class="send-button" onclick="sendMessage()" title="Enviar mensaje">
-                <svg viewBox="0 0 24 24" width="20" height="20">
-                    <path fill="currentColor" d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2 .01 7z"/>
-                </svg>
-            </button>
-        </div>
+        <!-- Encabezado con botones -->
+        <header>
+            <button id="logoutBtn">Cerrar sesión</button>
+            <button id="usersBtn">Usuarios</button>
+        </header>
+        <!-- Área de mensajes -->
+        <div id="messages"></div>
+        <!-- Pie de página con entrada de texto y botón -->
+        <footer>
+            <input type="text" id="messageInput" placeholder="Escribe un mensaje...">
+            <button id="sendBtn">Enviar</button>
+        </footer>
     </div>
 
-    <div class="modal" id="onlineUsersModal">
+    <!-- Modal para lista de usuarios -->
+    <div id="usersModal" class="modal">
         <div class="modal-content">
-            <div class="modal-header">
-                <div class="modal-title">Usuarios en línea</div>
-                <button class="close-button" onclick="closeModal()">&times;</button>
-            </div>
-            <ul class="user-list" id="onlineUsersList"></ul>
+            <span class="close">×</span>
+            <h2>Usuarios</h2>
+            <ul id="usersList"></ul>
         </div>
     </div>
 
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
-        let currentUser = null;
-
-        function getSessionToken() {
-            return localStorage.getItem('session_token');
+        // Obtener token de sesión
+        const sessionToken = localStorage.getItem('sessionToken');
+        if (!sessionToken) {
+            window.location.href = '/login';
+            return;
         }
 
+        // Conectar a Socket.IO con autenticación
         const socket = io({
-            transports: ['websocket'],
             auth: {
-                session_id: getSessionToken() // Enviar el token durante la conexión
+                session_id: sessionToken
             }
         });
 
-        function logout() {
-            localStorage.removeItem('session_token');
-            window.location.href = '/login';
-        }
+        let currentUserId;
 
-        function showOnlineUsers() {
-            document.getElementById('onlineUsersModal').style.display = 'flex';
-            socket.emit('get_users');
-        }
-
-        function closeModal() {
-            document.getElementById('onlineUsersModal').style.display = 'none';
-        }
-
-        function attachFile() {
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = 'image/*';
-            fileInput.onchange = async (e) => {
-                const file = e.target.files[0];
-                if (file && file.size < 5 * 1024 * 1024) { // 5MB max
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                        socket.emit('send_message', {
-                            image: event.target.result
-                        });
-                    };
-                    reader.readAsDataURL(file);
-                } else if (file) {
-                    alert('La imagen es demasiado grande (máximo 5MB)');
-                }
-            };
-            fileInput.click();
-        }
-
-        function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const text = input.value.trim();
-            if (!text) return;
-
-            socket.emit('send_message', { text });
-            input.value = '';
-            input.focus();
-        }
-
-        function handleKeyPress(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
+        // Mostrar mensajes en el DOM
+        function displayMessage(message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message');
+            if (message.sender_id === currentUserId) {
+                messageDiv.classList.add('sent');
+                messageDiv.innerHTML = `<p>${message.text}</p>`;
+            } else {
+                messageDiv.classList.add('received');
+                messageDiv.innerHTML = `<div class="sender-name">${message.username}</div><p>${message.text}</p>`;
             }
+            document.getElementById('messages').appendChild(messageDiv);
+            // Desplazar hacia abajo
+            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
         }
 
-        function addMessage(message) {
-            const messagesDiv = document.getElementById('messages');
-            const emptyMessage = document.getElementById('emptyMessage');
-
-            if (emptyMessage && messagesDiv.contains(emptyMessage)) {
-                messagesDiv.removeChild(emptyMessage);
-            }
-
-            const isSent = currentUser && currentUser.id === message.sender_id;
-            const messageElement = document.createElement('div');
-            messageElement.className = `message ${isSent ? 'sent' : 'received'}`;
-
-            const header = document.createElement('div');
-            header.className = 'message-header';
-            if (!isSent) {
-                const username = document.createElement('span');
-                username.className = 'username';
-                username.textContent = message.username;
-                header.appendChild(username);
-            }
-
-            const timestamp = document.createElement('span');
-            timestamp.className = 'timestamp';
-            timestamp.textContent = formatTimestamp(message.timestamp);
-            header.appendChild(timestamp);
-
-            const content = document.createElement('div');
-            content.className = 'message-content';
-            if (message.text) {
-                content.textContent = message.text;
-            } else if (message.image_path) {
-                const img = document.createElement('img');
-                img.src = message.image_path;
-                img.alt = 'Imagen enviada';
-                content.appendChild(img);
-            }
-
-            messageElement.appendChild(header);
-            messageElement.appendChild(content);
-            messagesDiv.appendChild(messageElement);
-
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
-        function formatTimestamp(timestamp) {
-            if (!timestamp) return '';
-            const date = new Date(timestamp);
-            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        }
-
-        function updateOnlineUsersList(users) {
-            const usersList = document.getElementById('onlineUsersList');
-            usersList.innerHTML = '';
-
-            if (users.length === 0) {
-                const li = document.createElement('li');
-                li.className = 'empty-message';
-                li.textContent = 'No hay usuarios en línea';
-                usersList.appendChild(li);
-                return;
-            }
-
-            users.forEach(user => {
-                const li = document.createElement('li');
-                li.className = 'user-item';
-
-                const status = document.createElement('div');
-                status.className = `user-status ${user.online ? 'online' : 'offline'}`;
-
-                const name = document.createTextNode(`${user.username}`);
-
-                li.appendChild(status);
-                li.appendChild(name);
-                usersList.appendChild(li);
-            });
-        }
-
+        // Evento al conectar
         socket.on('connect', () => {
             console.log('Conectado al servidor');
         });
 
-        socket.on('disconnect', () => {
-            console.log('Desconectado del servidor');
-        });
-
+        // Evento para obtener ID del usuario actual
         socket.on('user_ready', (data) => {
-            console.log('Usuario autenticado:', data);
-            currentUser = data;
+            currentUserId = data.id;
         });
 
+        // Cargar mensajes anteriores
+        socket.on('load_messages', (data) => {
+            data.messages.forEach(displayMessage);
+        });
+
+        // Recibir nuevos mensajes
         socket.on('new_message', (message) => {
-            addMessage(message);
+            displayMessage(message);
         });
 
-        socket.on('users_updated', (data) => {
-            updateOnlineUsersList(data.users);
-        });
-
-        socket.on('error', (data) => {
-            alert(data.message);
-            if (data.message.includes('autenticación') || data.message.includes('sesión')) {
-                logout();
+        // Enviar mensaje
+        document.getElementById('sendBtn').addEventListener('click', () => {
+            const text = document.getElementById('messageInput').value.trim();
+            if (text) {
+                socket.emit('send_message', { text: text });
+                document.getElementById('messageInput').value = '';
             }
+        });
+
+        // Enviar mensaje con Enter
+        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                document.getElementById('sendBtn').click();
+            }
+        });
+
+        // Manejar modal de usuarios
+        const modal = document.getElementById('usersModal');
+        const usersBtn = document.getElementById('usersBtn');
+        const closeBtn = document.getElementsByClassName('close')[0];
+
+        usersBtn.onclick = () => {
+            modal.style.display = 'block';
+        };
+
+        closeBtn.onclick = () => {
+            modal.style.display = 'none';
+        };
+
+        window.onclick = (event) => {
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
+
+        // Actualizar lista de usuarios
+        socket.on('users_updated', (data) => {
+            const usersList = document.getElementById('usersList');
+            usersList.innerHTML = '';
+            data.users.forEach(user => {
+                const li = document.createElement('li');
+                const status = user.online ? 'online' : 'offline';
+                li.innerHTML = `${user.username} <span class="${status}">●</span>`;
+                usersList.appendChild(li);
+            });
+        });
+
+        // Cerrar sesión
+        document.getElementById('logoutBtn').addEventListener('click', () => {
+            localStorage.removeItem('sessionToken');
+            window.location.href = '/login';
+        });
+
+        // Manejar errores de autenticación sin mostrar alertas
+        socket.on('auth_error', () => {
+            // Silenciosamente redirigir al login sin alertas
+            localStorage.removeItem('sessionToken');
+            window.location.href = '/login';
+        });
+
+        // Manejar desconexión o errores generales sin mostrar alertas
+        socket.on('connect_error', () => {
+            console.log('Error de conexión');
+            // No hacer nada visible para el usuario
         });
     </script>
 </body>
