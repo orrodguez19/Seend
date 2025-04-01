@@ -9,6 +9,7 @@ import asyncpg
 import uvicorn
 from contextlib import asynccontextmanager
 import logging
+import socketio
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO)
