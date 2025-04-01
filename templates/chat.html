@@ -4,43 +4,36 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat</title>
-    <!-- Fuente Poppins desde Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
-    <!-- Socket.IO para comunicación en tiempo real -->
     <script src="/socket.io/socket.io.js"></script>
     <style>
         body {
             font-family: 'Poppins', sans-serif;
-            background-color: #e3f2fd; /* Azul claro */
+            background-color: #e3f2fd;
             margin: 0;
             padding: 0;
         }
-
         .container {
             max-width: 800px;
             margin: 20px auto;
             padding: 20px;
         }
-
         header {
             display: flex;
             justify-content: space-between;
             margin-bottom: 20px;
         }
-
         button {
             padding: 10px 20px;
-            background-color: #1976d2; /* Azul oscuro */
+            background-color: #1976d2;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
         }
-
         button:hover {
             background-color: #1565c0;
         }
-
         #messages {
             min-height: 400px;
             max-height: 600px;
@@ -51,48 +44,39 @@
             display: flex;
             flex-direction: column;
         }
-
         .message {
             max-width: 70%;
             margin-bottom: 10px;
             padding: 10px;
             border-radius: 5px;
         }
-
         .sent {
-            background-color: #1976d2; /* Azul oscuro para mensajes enviados */
+            background-color: #1976d2;
             color: white;
             align-self: flex-end;
         }
-
         .received {
-            background-color: #e0e0e0; /* Gris claro para mensajes recibidos */
+            background-color: #e0e0e0;
             color: black;
             align-self: flex-start;
         }
-
         .sender-name {
             font-weight: bold;
             margin-bottom: 5px;
         }
-
         footer {
             display: flex;
             margin-top: 20px;
         }
-
         #messageInput {
             flex-grow: 1;
             padding: 10px;
             border: 1px solid #ccc;
             border-radius: 5px;
         }
-
         #sendBtn {
             margin-left: 10px;
         }
-
-        /* Estilos del modal */
         .modal {
             display: none;
             position: fixed;
@@ -103,7 +87,6 @@
             height: 100%;
             background-color: rgba(0,0,0,0.4);
         }
-
         .modal-content {
             background-color: #fefefe;
             margin: 15% auto;
@@ -112,7 +95,6 @@
             width: 80%;
             max-width: 400px;
         }
-
         .close {
             color: #aaa;
             float: right;
@@ -120,25 +102,20 @@
             font-weight: bold;
             cursor: pointer;
         }
-
         .close:hover,
         .close:focus {
             color: black;
         }
-
         #usersList {
             padding: 0;
         }
-
         #usersList li {
             list-style: none;
             margin-bottom: 10px;
         }
-
         .online {
             color: green;
         }
-
         .offline {
             color: gray;
         }
@@ -146,21 +123,16 @@
 </head>
 <body>
     <div class="container">
-        <!-- Encabezado con botones -->
         <header>
             <button id="logoutBtn">Cerrar sesión</button>
             <button id="usersBtn">Usuarios</button>
         </header>
-        <!-- Área de mensajes -->
         <div id="messages"></div>
-        <!-- Pie de página con entrada de texto y botón -->
         <footer>
             <input type="text" id="messageInput" placeholder="Escribe un mensaje...">
             <button id="sendBtn">Enviar</button>
         </footer>
     </div>
-
-    <!-- Modal para lista de usuarios -->
     <div id="usersModal" class="modal">
         <div class="modal-content">
             <span class="close">×</span>
@@ -168,25 +140,19 @@
             <ul id="usersList"></ul>
         </div>
     </div>
-
     <script>
-        // Obtener token de sesión
         const sessionToken = localStorage.getItem('sessionToken');
         if (!sessionToken) {
             window.location.href = '/login';
             return;
         }
 
-        // Conectar a Socket.IO con autenticación
         const socket = io({
-            auth: {
-                session_id: sessionToken
-            }
+            auth: { session_id: sessionToken }
         });
 
         let currentUserId;
 
-        // Mostrar mensajes en el DOM
         function displayMessage(message) {
             const messageDiv = document.createElement('div');
             messageDiv.classList.add('message');
@@ -198,67 +164,78 @@
                 messageDiv.innerHTML = `<div class="sender-name">${message.username}</div><p>${message.text}</p>`;
             }
             document.getElementById('messages').appendChild(messageDiv);
-            // Desplazar hacia abajo
             document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
         }
 
-        // Evento al conectar
         socket.on('connect', () => {
             console.log('Conectado al servidor');
         });
 
-        // Evento para obtener ID del usuario actual
         socket.on('user_ready', (data) => {
             currentUserId = data.id;
+            console.log('Usuario listo:', currentUserId);
+            document.getElementById('sendBtn').disabled = false; // Habilitar botón tras conectar
         });
 
-        // Cargar mensajes anteriores
         socket.on('load_messages', (data) => {
+            console.log('Mensajes cargados:', data.messages);
             data.messages.forEach(displayMessage);
         });
 
-        // Recibir nuevos mensajes
         socket.on('new_message', (message) => {
-            displayMessage(message);
+            console.log('Nuevo mensaje recibido:', message);
+            if (message.sender_id !== currentUserId) { // Evitar duplicados
+                displayMessage(message);
+            }
         });
 
-        // Enviar mensaje
-        document.getElementById('sendBtn').addEventListener('click', () => {
-            const text = document.getElementById('messageInput').value.trim();
-            if (text) {
+        const sendBtn = document.getElementById('sendBtn');
+        const messageInput = document.getElementById('messageInput');
+        sendBtn.disabled = true; // Deshabilitar hasta que se conecte
+
+        sendBtn.addEventListener('click', () => {
+            const text = messageInput.value.trim();
+            if (text && currentUserId) {
+                const message = {
+                    sender_id: currentUserId,
+                    text: text,
+                    timestamp: new Date().toISOString()
+                };
+                console.log('Enviando mensaje:', text);
                 socket.emit('send_message', { text: text });
-                document.getElementById('messageInput').value = '';
+                displayMessage(message); // Mostrar localmente
+                messageInput.value = '';
             }
         });
 
-        // Enviar mensaje con Enter
-        document.getElementById('messageInput').addEventListener('keypress', (e) => {
+        messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                document.getElementById('sendBtn').click();
+                sendBtn.click();
             }
         });
 
-        // Manejar modal de usuarios
         const modal = document.getElementById('usersModal');
         const usersBtn = document.getElementById('usersBtn');
-        const closeBtn = document.getElementsByClassName('close')[0];
+        const closeBtn = document.querySelector('.close');
 
-        usersBtn.onclick = () => {
+        usersBtn.addEventListener('click', () => {
+            console.log('Botón Usuarios clickeado');
             modal.style.display = 'block';
-        };
+            socket.emit('get_users');
+        });
 
-        closeBtn.onclick = () => {
+        closeBtn.addEventListener('click', () => {
             modal.style.display = 'none';
-        };
+        });
 
-        window.onclick = (event) => {
+        window.addEventListener('click', (event) => {
             if (event.target === modal) {
                 modal.style.display = 'none';
             }
-        };
+        });
 
-        // Actualizar lista de usuarios
         socket.on('users_updated', (data) => {
+            console.log('Usuarios actualizados:', data.users);
             const usersList = document.getElementById('usersList');
             usersList.innerHTML = '';
             data.users.forEach(user => {
@@ -269,23 +246,18 @@
             });
         });
 
-        // Cerrar sesión
         document.getElementById('logoutBtn').addEventListener('click', () => {
             localStorage.removeItem('sessionToken');
             window.location.href = '/login';
         });
 
-        // Manejar errores de autenticación sin mostrar alertas
         socket.on('auth_error', () => {
-            // Silenciosamente redirigir al login sin alertas
             localStorage.removeItem('sessionToken');
             window.location.href = '/login';
         });
 
-        // Manejar desconexión o errores generales sin mostrar alertas
-        socket.on('connect_error', () => {
-            console.log('Error de conexión');
-            // No hacer nada visible para el usuario
+        socket.on('connect_error', (err) => {
+            console.log('Error de conexión:', err.message);
         });
     </script>
 </body>
