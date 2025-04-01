@@ -124,114 +124,181 @@
             display: none;
         }
         
+        .form-footer {
+            margin-top: 20px;
+            font-size: 14px;
+        }
+        
+        .form-footer a {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
         @media (max-width: 480px) {
             .auth-container {
                 padding: 30px 20px;
             }
         }
     </style>
-    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
 </head>
 <body>
     <div class="auth-container">
         <h1 class="auth-title">Seend</h1>
-        <form id="authForm" class="auth-form">
-            <input type="text" id="username" placeholder="Nombre de usuario" required>
-            <input type="password" id="password" placeholder="Contraseña" required>
+        
+        <!-- Formulario de Login -->
+        <form id="loginForm" class="auth-form">
+            <input type="text" id="loginUsername" placeholder="Nombre de usuario" required>
+            <input type="password" id="loginPassword" placeholder="Contraseña" required>
             <div class="auth-buttons">
-                <button type="button" id="loginBtn" class="btn-primary">Iniciar Sesión</button>
-                <button type="button" id="registerBtn" class="btn-secondary">Registrarse</button>
+                <button type="submit" id="loginBtn" class="btn-primary">Iniciar Sesión</button>
+                <button type="button" id="showRegisterBtn" class="btn-secondary">Crear una cuenta</button>
             </div>
+            <p id="loginError" class="error-message"></p>
         </form>
-        <p id="errorMsg" class="error-message"></p>
+        
+        <!-- Formulario de Registro (oculto inicialmente) -->
+        <form id="registerForm" class="auth-form hidden">
+            <input type="text" id="registerUsername" placeholder="Nombre de usuario" required>
+            <input type="password" id="registerPassword" placeholder="Contraseña" required>
+            <input type="password" id="confirmPassword" placeholder="Confirmar contraseña" required>
+            <div class="auth-buttons">
+                <button type="submit" id="registerBtn" class="btn-primary">Registrarse</button>
+                <button type="button" id="showLoginBtn" class="btn-secondary">Ya tengo una cuenta</button>
+            </div>
+            <p id="registerError" class="error-message"></p>
+        </form>
+        
+        <div class="form-footer">
+            <p>Al registrarte, aceptas nuestros <a href="#">Términos</a> y <a href="#">Privacidad</a></p>
+        </div>
     </div>
 
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
+            // Elementos del DOM
+            const loginForm = document.getElementById('loginForm');
+            const registerForm = document.getElementById('registerForm');
+            const showRegisterBtn = document.getElementById('showRegisterBtn');
+            const showLoginBtn = document.getElementById('showLoginBtn');
+            const loginError = document.getElementById('loginError');
+            const registerError = document.getElementById('registerError');
+            
+            // Configuración de Socket.IO
             const socket = io({
-                transports: ['websocket'],
+                reconnection: true,
                 reconnectionAttempts: 5,
-                reconnectionDelay: 1000
+                reconnectionDelay: 1000,
+                timeout: 20000
             });
             
-            const loginBtn = document.getElementById('loginBtn');
-            const registerBtn = document.getElementById('registerBtn');
-            const errorMsg = document.getElementById('errorMsg');
-            let isRegisterMode = false;
-
-            // Manejar errores de conexión
-            socket.on('connect_error', (err) => {
-                showError('Error de conexión con el servidor');
-                console.error('Connection error:', err);
+            // Mostrar/ocultar formularios
+            showRegisterBtn.addEventListener('click', () => {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+                clearErrors();
             });
-
-            // Cambiar entre login y registro
-            registerBtn.addEventListener('click', (e) => {
-                if (!isRegisterMode) {
-                    e.preventDefault();
-                    loginBtn.textContent = 'Registrarse';
-                    registerBtn.textContent = 'Volver a Inicio';
-                    isRegisterMode = true;
-                } else {
-                    e.preventDefault();
-                    loginBtn.textContent = 'Iniciar Sesión';
-                    registerBtn.textContent = 'Registrarse';
-                    isRegisterMode = false;
-                }
+            
+            showLoginBtn.addEventListener('click', () => {
+                registerForm.classList.add('hidden');
+                loginForm.classList.remove('hidden');
+                clearErrors();
             });
-
+            
+            // Limpiar mensajes de error
+            function clearErrors() {
+                loginError.classList.remove('show');
+                registerError.classList.remove('show');
+            }
+            
             // Mostrar errores
-            const showError = (message) => {
-                errorMsg.textContent = message;
-                errorMsg.classList.add('show');
-                setTimeout(() => errorMsg.classList.remove('show'), 5000);
-            };
-
+            function showError(element, message) {
+                element.textContent = message;
+                element.classList.add('show');
+                setTimeout(() => element.classList.remove('show'), 5000);
+            }
+            
+            // Manejar conexión Socket.IO
+            socket.on('connect', () => {
+                console.log('Conectado al servidor');
+            });
+            
+            socket.on('connect_error', (err) => {
+                console.error('Error de conexión:', err);
+                showError(loginError, 'Error al conectar con el servidor. Reconectando...');
+            });
+            
+            socket.on('disconnect', (reason) => {
+                if (reason === 'io server disconnect') {
+                    socket.connect();
+                }
+                showError(loginError, 'Desconectado del servidor. Reconectando...');
+            });
+            
             // Eventos del servidor
-            socket.on('register_error', (data) => showError(data.message));
-            socket.on('login_error', (data) => showError(data.message));
-
+            socket.on('register_error', (data) => {
+                showError(registerError, data.message);
+            });
+            
+            socket.on('login_error', (data) => {
+                showError(loginError, data.message);
+            });
+            
             socket.on('registered', (data) => {
                 localStorage.setItem('session_id', data.session_id);
                 localStorage.setItem('user_id', data.user_id);
                 window.location.href = '/chat';
             });
-
+            
             socket.on('logged_in', (data) => {
                 localStorage.setItem('session_id', data.session_id);
                 localStorage.setItem('user_id', data.user_id);
                 window.location.href = '/chat';
             });
-
-            // Manejar autenticación
-            const handleAuth = () => {
-                const username = document.getElementById('username').value.trim();
-                const password = document.getElementById('password').value.trim();
-
+            
+            // Validar formulario de login
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = document.getElementById('loginUsername').value.trim();
+                const password = document.getElementById('loginPassword').value.trim();
+                
                 if (!username || !password) {
-                    showError('Todos los campos son requeridos');
+                    showError(loginError, 'Todos los campos son requeridos');
                     return;
                 }
-
-                if (isRegisterMode) {
-                    if (username.length < 3 || password.length < 6) {
-                        showError('Usuario mínimo 3 caracteres y contraseña mínimo 6');
-                        return;
-                    }
-                    socket.emit('register', { username, password });
-                } else {
-                    socket.emit('login', { username, password });
+                
+                socket.emit('login', { username, password });
+            });
+            
+            // Validar formulario de registro
+            registerForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = document.getElementById('registerUsername').value.trim();
+                const password = document.getElementById('registerPassword').value.trim();
+                const confirmPassword = document.getElementById('confirmPassword').value.trim();
+                
+                if (!username || !password || !confirmPassword) {
+                    showError(registerError, 'Todos los campos son requeridos');
+                    return;
                 }
-            };
-
-            loginBtn.addEventListener('click', handleAuth);
-            registerBtn.addEventListener('click', (e) => {
-                if (isRegisterMode) {
-                    e.preventDefault();
-                    loginBtn.textContent = 'Iniciar Sesión';
-                    registerBtn.textContent = 'Registrarse';
-                    isRegisterMode = false;
+                
+                if (password !== confirmPassword) {
+                    showError(registerError, 'Las contraseñas no coinciden');
+                    return;
                 }
+                
+                if (username.length < 3) {
+                    showError(registerError, 'El usuario debe tener al menos 3 caracteres');
+                    return;
+                }
+                
+                if (password.length < 6) {
+                    showError(registerError, 'La contraseña debe tener al menos 6 caracteres');
+                    return;
+                }
+                
+                socket.emit('register', { username, password });
             });
         });
     </script>
