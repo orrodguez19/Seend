@@ -1,15 +1,16 @@
-from fastapi import FastAPI, Request, HTTPException, status
+from fastapi import FastAPI, Request, HTTPException, status, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from socketio import AsyncServer
 import os
-import asyncpg
+import aiosqlite
 import uvicorn
 from contextlib import asynccontextmanager
 import logging
 import socketio
+from pathlib import Path
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO)
@@ -18,8 +19,38 @@ logger = logging.getLogger(__name__)
 # Configuración Socket.IO
 sio = AsyncServer(async_mode='asgi', cors_allowed_origins=[])
 
+# Configuración de SQLite
+DATABASE_PATH = "chat.db"
+
+async def init_db():
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT UNIQUE NOT NULL,
+                password TEXT NOT NULL,
+                email TEXT,
+                bio TEXT
+            )
+        """)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                sender_id INTEGER NOT NULL,
+                receiver_id INTEGER NOT NULL,
+                text TEXT NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                status TEXT DEFAULT 'sent',
+                FOREIGN KEY (sender_id) REFERENCES users(id),
+                FOREIGN KEY (receiver_id) REFERENCES users(id)
+            )
+        """)
+        await db.commit()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Inicializar la base de datos
+    await init_db()
     # Iniciar Socket.IO
     await sio.emit('server_start', {'message': 'Server started'})
     yield
@@ -31,12 +62,6 @@ socketio_app = socketio.ASGIApp(sio, app)
 
 # Configuración
 PORT = int(os.environ.get("PORT", 5000))
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    logger.error("La variable de entorno DATABASE_URL no está configurada.")
-    # Puedes decidir si quieres detener la aplicación aquí o usar un valor por defecto menos seguro
-    # raise EnvironmentError("DATABASE_URL environment variable not set")
-    DATABASE_URL = "postgresql://seend_user:0pXiVWU99WyqRu39J0HcNESGIp5xTeQM@dpg-cvk4cc8dl3ps73fomqq0-a/seend" # Fallback, usar con precaución
 
 # Middlewares
 app.add_middleware(
@@ -51,7 +76,7 @@ app.add_middleware(
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Eventos Socket.IO
+# Eventos Socket.IO (se mantienen igual)
 @sio.event
 async def connect(sid, environ):
     logger.info(f"Cliente conectado: {sid}")
@@ -75,12 +100,12 @@ async def send_message(sid, data):
         return
 
     try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        try:
-            await conn.execute(
-                "INSERT INTO messages (sender_id, receiver_id, text, timestamp) VALUES ($1, $2, $3, $4)",
-                data['sender_id'], data['receiver_id'], data['text'], data['timestamp']
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            await db.execute(
+                "INSERT INTO messages (sender_id, receiver_id, text, timestamp) VALUES (?, ?, ?, ?)",
+                (data['sender_id'], data['receiver_id'], data['text'], data['timestamp'])
             )
+            await db.commit()
 
             message = {
                 'sender_id': data['sender_id'],
@@ -93,16 +118,8 @@ async def send_message(sid, data):
             await sio.emit('new_message', message, room=str(data['receiver_id']))
             await sio.emit('new_message', message, room=str(data['sender_id']))
             logger.info(f"Mensaje enviado de {data['sender_id']} a {data['receiver_id']}")
-        except Exception as e:
-            logger.error(f"Error al guardar mensaje: {e}")
-        finally:
-            await conn.close()
-    except asyncpg.exceptions.InvalidAuthorizationError as e:
-        logger.error(f"Error de autenticación de la base de datos: {e}")
-    except asyncpg.exceptions.ConnectionDoesNotExistError as e:
-        logger.error(f"No se pudo conectar a la base de datos: {e}")
     except Exception as e:
-        logger.error(f"Error inesperado al procesar el mensaje: {e}")
+        logger.error(f"Error al procesar el mensaje: {e}")
 
 # Rutas HTTP
 @app.get("/", response_class=HTMLResponse)
@@ -123,16 +140,16 @@ async def login_post(request: Request):
     password = form_data.get("password")
 
     try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        try:
+        async with aiosqlite.connect(DATABASE_PATH) as db:
             if action == "login":
-                user = await conn.fetchrow(
-                    "SELECT id, username FROM users WHERE username=$1 AND password=$2",
-                    username, password
+                cursor = await db.execute(
+                    "SELECT id, username FROM users WHERE username=? AND password=?",
+                    (username, password)
                 )
+                user = await cursor.fetchone()
                 if user:
-                    request.session["user_id"] = user["id"]
-                    request.session["username"] = user["username"]
+                    request.session["user_id"] = user[0]
+                    request.session["username"] = user[1]
                     return RedirectResponse(url="/", status_code=303)
                 else:
                     return templates.TemplateResponse(
@@ -143,30 +160,23 @@ async def login_post(request: Request):
             elif action == "register":
                 email = form_data.get("email")
                 try:
-                    user = await conn.fetchrow(
-                        "INSERT INTO users (username, password, email) VALUES ($1, $2, $3) RETURNING id, username",
-                        username, password, email
+                    cursor = await db.execute(
+                        "INSERT INTO users (username, password, email) VALUES (?, ?, ?) RETURNING id, username",
+                        (username, password, email)
                     )
-                    request.session["user_id"] = user["id"]
-                    request.session["username"] = user["username"]
+                    user = await cursor.fetchone()
+                    await db.commit()
+                    request.session["user_id"] = user[0]
+                    request.session["username"] = user[1]
                     return RedirectResponse(url="/", status_code=303)
-                except asyncpg.UniqueViolationError:
+                except aiosqlite.IntegrityError:
                     return templates.TemplateResponse(
                         "login.html",
                         {"request": request, "error": "El usuario ya existe"}
                     )
-        except asyncpg.exceptions.InvalidAuthorizationError as e:
-            logger.error(f"Error de autenticación de la base de datos: {e}")
-            return templates.TemplateResponse("login.html", {"request": request, "error": "Error de base de datos"})
-        except asyncpg.exceptions.ConnectionDoesNotExistError as e:
-            logger.error(f"No se pudo conectar a la base de datos: {e}")
-            return templates.TemplateResponse("login.html", {"request": request, "error": "Error de conexión a la base de datos"})
-        except Exception as e:
-            logger.error(f"Error inesperado al procesar la solicitud de login/registro: {e}")
-            return templates.TemplateResponse("login.html", {"request": request, "error": "Error interno del servidor"})
-    finally:
-        if 'conn' in locals():
-            await conn.close()
+    except Exception as e:
+        logger.error(f"Error inesperado al procesar la solicitud de login/registro: {e}")
+        return templates.TemplateResponse("login.html", {"request": request, "error": "Error interno del servidor"})
 
 @app.get("/api/users")
 async def get_users(request: Request):
@@ -174,34 +184,23 @@ async def get_users(request: Request):
         raise HTTPException(status_code=401, detail="No autenticado")
 
     try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        try:
-            users = await conn.fetch("SELECT id, username, email, bio FROM users")
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            cursor = await db.execute("SELECT id, username, email, bio FROM users")
+            users = await cursor.fetchall()
             return [
                 {
-                    "id": user["id"],
-                    "name": user["username"],
-                    "email": user["email"],
-                    "bio": user["bio"],
-                    "lastSeen": "En línea", # Esto podría ser más dinámico en una aplicación real
-                    "isOnline": True # Esto también podría ser gestionado de forma más precisa
+                    "id": user[0],
+                    "name": user[1],
+                    "email": user[2],
+                    "bio": user[3],
+                    "lastSeen": "En línea",
+                    "isOnline": True
                 }
                 for user in users
             ]
-        except Exception as e:
-            logger.error(f"Error al obtener usuarios: {e}")
-            raise HTTPException(status_code=500, detail="Error al obtener la lista de usuarios")
-        finally:
-            await conn.close()
-    except asyncpg.exceptions.InvalidAuthorizationError as e:
-        logger.error(f"Error de autenticación de la base de datos: {e}")
-        raise HTTPException(status_code=500, detail="Error de base de datos")
-    except asyncpg.exceptions.ConnectionDoesNotExistError as e:
-        logger.error(f"No se pudo conectar a la base de datos: {e}")
-        raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
     except Exception as e:
-        logger.error(f"Error inesperado al procesar la solicitud de usuarios: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        logger.error(f"Error al obtener usuarios: {e}")
+        raise HTTPException(status_code=500, detail="Error al obtener la lista de usuarios")
 
 @app.get("/api/messages/{receiver_id}")
 async def get_messages(receiver_id: int, request: Request):
@@ -209,38 +208,27 @@ async def get_messages(receiver_id: int, request: Request):
         raise HTTPException(status_code=401, detail="No autenticado")
 
     try:
-        conn = await asyncpg.connect(DATABASE_URL)
-        try:
-            messages = await conn.fetch(
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            cursor = await db.execute(
                 "SELECT sender_id, receiver_id, text, timestamp, status FROM messages "
-                "WHERE (sender_id=$1 AND receiver_id=$2) OR (sender_id=$2 AND receiver_id=$1) "
+                "WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?) "
                 "ORDER BY timestamp",
-                request.session["user_id"], receiver_id
+                (request.session["user_id"], receiver_id, receiver_id, request.session["user_id"])
             )
+            messages = await cursor.fetchall()
             return [
                 {
-                    "sender_id": msg["sender_id"],
-                    "receiver_id": msg["receiver_id"],
-                    "text": msg["text"],
-                    "timestamp": msg["timestamp"].isoformat(),
-                    "status": msg["status"]
+                    "sender_id": msg[0],
+                    "receiver_id": msg[1],
+                    "text": msg[2],
+                    "timestamp": msg[3],
+                    "status": msg[4]
                 }
                 for msg in messages
             ]
-        except Exception as e:
-            logger.error(f"Error al obtener mensajes con {receiver_id}: {e}")
-            raise HTTPException(status_code=500, detail="Error al obtener los mensajes")
-        finally:
-            await conn.close()
-    except asyncpg.exceptions.InvalidAuthorizationError as e:
-        logger.error(f"Error de autenticación de la base de datos: {e}")
-        raise HTTPException(status_code=500, detail="Error de base de datos")
-    except asyncpg.exceptions.ConnectionDoesNotExistError as e:
-        logger.error(f"No se pudo conectar a la base de datos: {e}")
-        raise HTTPException(status_code=500, detail="Error de conexión a la base de datos")
     except Exception as e:
-        logger.error(f"Error inesperado al procesar la solicitud de mensajes: {e}")
-        raise HTTPException(status_code=500, detail="Error interno del servidor")
+        logger.error(f"Error al obtener mensajes con {receiver_id}: {e}")
+        raise HTTPException(status_code=500, detail="Error al obtener los mensajes")
 
 @app.get("/logout")
 async def logout(request: Request):
