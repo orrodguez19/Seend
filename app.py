@@ -1,7 +1,7 @@
 import os
 import re
 import socketio
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Response
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -134,69 +134,82 @@ async def save_image(file_data: bytes, directory: str, filename: str, max_size: 
         logger.error(f"Error procesando imagen: {str(e)}")
         raise HTTPException(500, "Error procesando la imagen")
 
+# Rutas HTTP para autenticación
+@app.post("/api/register")
+async def register_user(username: str = Form(...), password: str = Form(...)):
+    if not username or len(username) < 3 or len(password) < 6:
+        raise HTTPException(400, "Usuario o contraseña inválidos")
+    
+    with get_db_connection() as conn:
+        if conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
+            raise HTTPException(400, "El usuario ya existe")
+        
+        user_id = str(uuid.uuid4())
+        session_id = secrets.token_hex(32)
+        conn.execute("INSERT INTO users (id, username, password) VALUES (?, ?, ?)", 
+                     (user_id, username, password))
+        conn.execute("INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))", 
+                     (session_id, user_id))
+        conn.commit()
+        
+        response = RedirectResponse(url="/chat", status_code=303)
+        response.set_cookie(key="access_token", value=session_id, httponly=True, max_age=30*24*60*60)
+        return response
+
+@app.post("/api/login")
+async def login_user(username: str = Form(...), password: str = Form(...)):
+    with get_db_connection() as conn:
+        user = conn.execute("SELECT id FROM users WHERE username = ? AND password = ?", 
+                          (username, password)).fetchone()
+        if not user:
+            raise HTTPException(400, "Usuario o contraseña incorrectos")
+        
+        session_id = secrets.token_hex(32)
+        conn.execute("INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))", 
+                     (session_id, user['id']))
+        conn.commit()
+        
+        response = RedirectResponse(url="/chat", status_code=303)
+        response.set_cookie(key="access_token", value=session_id, httponly=True, max_age=30*24*60*60)
+        return response
+
 # Eventos de Socket.IO
 @sio.event
 async def connect(sid, environ):
-    logger.info(f"Cliente conectado: {sid}")
+    try:
+        cookies = environ.get('HTTP_COOKIE', '')
+        session_id = None
+        for cookie in cookies.split(';'):
+            if 'access_token' in cookie:
+                session_id = cookie.split('=')[1].strip()
+                break
+        
+        if not session_id:
+            raise ConnectionRefusedError('No autenticado')
+        
+        with get_db_connection() as conn:
+            session = conn.execute("""
+                SELECT u.id, u.username 
+                FROM sessions s
+                JOIN users u ON s.user_id = u.id
+                WHERE s.session_id = ? AND s.expires_at > datetime('now')
+            """, (session_id,)).fetchone()
+            
+            if not session:
+                raise ConnectionRefusedError('Sesión expirada o inválida')
+            
+            await manager.connect(sid, session['id'], session['username'])
+            await sio.emit('user_ready', {'username': session['username']}, to=sid)
+            logger.info(f"Cliente autenticado conectado: {sid}")
+            
+    except Exception as e:
+        logger.error(f"Error de conexión: {str(e)}")
+        raise ConnectionRefusedError('Autenticación fallida')
 
 @sio.event
 async def disconnect(sid):
     await manager.disconnect(sid)
     logger.info(f"Cliente desconectado: {sid}")
-
-@sio.event
-async def register(sid, data):
-    username = data.get('username', '').strip()
-    password = data.get('password', '')
-    if not username or len(username) < 3 or len(password) < 6:
-        await sio.emit('register_error', {'message': 'Usuario o contraseña inválidos'}, to=sid)
-        return
-    with get_db_connection() as conn:
-        if conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
-            await sio.emit('register_error', {'message': 'El usuario ya existe'}, to=sid)
-            return
-        user_id = str(uuid.uuid4())
-        session_id = secrets.token_hex(32)
-        conn.execute("INSERT INTO users (id, username, password) VALUES (?, ?, ?)", (user_id, username, password))
-        conn.execute("INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))", (session_id, user_id))
-        conn.commit()
-        await sio.emit('registered', {'session_id': session_id, 'user_id': user_id}, to=sid)
-
-@sio.event
-async def login(sid, data):
-    username = data.get('username', '').strip()
-    password = data.get('password', '')
-    with get_db_connection() as conn:
-        user = conn.execute("SELECT id FROM users WHERE username = ? AND password = ?", (username, password)).fetchone()
-        if not user:
-            await sio.emit('login_error', {'message': 'Usuario o contraseña incorrectos'}, to=sid)
-            return
-        session_id = secrets.token_hex(32)
-        conn.execute("INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))", (session_id, user['id']))
-        conn.commit()
-        await sio.emit('logged_in', {'session_id': session_id, 'user_id': user['id']}, to=sid)
-
-@sio.event
-async def join_chat(sid, data):
-    session_id = data.get('session_id')
-    if not session_id:
-        await sio.emit('auth_error', {'message': 'Sesión no válida'}, to=sid)
-        return
-    
-    with get_db_connection() as conn:
-        session = conn.execute("""
-            SELECT u.id, u.username 
-            FROM sessions s
-            JOIN users u ON s.user_id = u.id
-            WHERE s.session_id = ? AND s.expires_at > datetime('now')
-        """, (session_id,)).fetchone()
-        
-        if not session:
-            await sio.emit('auth_error', {'message': 'Sesión expirada o inválida'}, to=sid)
-            return
-        
-        await manager.connect(sid, session['id'], session['username'])
-        await sio.emit('user_ready', {'username': session['username']}, to=sid)
 
 @sio.event
 async def send_message(sid, data):
@@ -252,7 +265,6 @@ async def get_history(sid):
             LIMIT 50
         """).fetchall()
         
-        # Ordenamos cronológicamente para mostrarlos correctamente
         messages_sorted = sorted([dict(msg) for msg in messages], key=lambda x: x['timestamp'])
         await sio.emit('history', {'messages': messages_sorted}, to=sid)
 
