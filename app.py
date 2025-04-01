@@ -5,6 +5,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.templating import Jinja2Templates
 import sqlite3
 import uuid
 import logging
@@ -16,6 +17,7 @@ from contextlib import asynccontextmanager
 import aiofiles
 from PIL import Image
 import io
+import base64
 
 # Configuración inicial
 logging.basicConfig(level=logging.INFO)
@@ -24,14 +26,20 @@ logger = logging.getLogger(__name__)
 app = FastAPI()
 sio = AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 
+# Configuración de directorios
 DB_PATH = os.getenv('DB_PATH', 'chat_app.db')
-STATIC_DIR = os.getenv('STATIC_DIR', 'static')
+STATIC_DIR = 'static'
 AVATARS_DIR = os.path.join(STATIC_DIR, 'avatars')
+TEMPLATES_DIR = 'templates'
+
 os.makedirs(STATIC_DIR, exist_ok=True)
 os.makedirs(AVATARS_DIR, exist_ok=True)
 
+# Configuración de templates
+templates = Jinja2Templates(directory=TEMPLATES_DIR)
+
 # Montaje de archivos estáticos
-app.mount("/templates", StaticFiles(directory=STATIC_DIR), name="templates")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 # Middleware CORS
 app.add_middleware(
@@ -109,7 +117,7 @@ async def save_image(file_data: bytes, directory: str, filename: str, max_size: 
         image.thumbnail((max_size, max_size))
         file_path = os.path.join(directory, filename)
         image.save(file_path, quality=85)
-        return f"/templates/{os.path.relpath(file_path, start='static')}"
+        return f"/static/avatars/{filename}"
     except Exception as e:
         logger.error(f"Error procesando imagen: {str(e)}")
         raise HTTPException(500, "Error procesando la imagen")
@@ -177,18 +185,19 @@ async def send_message(sid, data):
     await sio.emit('new_message', message_data)
 
 # Rutas de FastAPI
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root():
-    return RedirectResponse(url="/templates/login")
+    return FileResponse("templates/login.html")
 
-@app.get("/templates/login")
+@app.get("/login", response_class=HTMLResponse)
 async def login_page():
     return FileResponse("templates/login.html")
 
-@app.get("/chat")
+@app.get("/chat", response_class=HTMLResponse)
 async def chat_page():
     return FileResponse("templates/chat.html")
 
+# Montar la aplicación de Socket.IO
 app.mount("/", socketio.ASGIApp(sio))
 
 if __name__ == "__main__":
