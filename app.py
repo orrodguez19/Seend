@@ -166,11 +166,11 @@ async def login_user(request: Request, username: str = Form(...), password: str 
         if not user:
             return JSONResponse(status_code=400, content={"detail": "Usuario o contraseña incorrectos"})
 
-        session_token = secrets.token_hex(32)
-        conn.execute("INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))", (session_token, user['id']))
-        conn.commit()
+    session_token = secrets.token_hex(32)
+    conn.execute("INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))", (session_token, user['id']))
+    conn.commit()
 
-        return JSONResponse(content={"message": "Inicio de sesión exitoso", "session_token": session_token})
+    return JSONResponse(content={"message": "Inicio de sesión exitoso", "session_token": session_token})
 
 @sio.event
 async def connect(sid, environ, auth):
@@ -192,6 +192,7 @@ async def connect(sid, environ, auth):
 
             await manager.connect(sid, session['id'], session['username'], session_token)
             await sio.emit('user_ready', {'username': session['username'], 'id': session['id']}, to=sid)
+            await manager.notify_users_update()  # Notificar a todos sobre el nuevo usuario conectado
             logger.info(f"Cliente autenticado conectado: {sid}")
 
     except Exception as e:
@@ -201,6 +202,7 @@ async def connect(sid, environ, auth):
 @sio.event
 async def disconnect(sid):
     await manager.disconnect(sid)
+    await manager.notify_users_update() # Notificar a todos sobre el usuario desconectado
     logger.info(f"Cliente desconectado: {sid}")
 
 @sio.event
@@ -248,21 +250,6 @@ async def send_message(sid, data):
     }
 
     await sio.emit('new_message', message_data)
-
-@sio.event
-async def get_history(sid):
-    with get_db_connection() as conn:
-        messages = conn.execute("""
-            SELECT m.id, m.text, m.image_path, m.created_at as timestamp,
-                   u.username, u.id as sender_id
-            FROM messages m
-            JOIN users u ON m.sender_id = u.id
-            ORDER BY m.created_at DESC
-            LIMIT 50
-        """).fetchall()
-
-        messages_sorted = sorted([dict(msg) for msg in messages], key=lambda x: x['timestamp'])
-        await sio.emit('history', {'messages': messages_sorted}, to=sid)
 
 @sio.event
 async def get_users(sid):
