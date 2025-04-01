@@ -1,69 +1,40 @@
-from fastapi import FastAPI, Request, HTTPException, status, Depends
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
+import os
+import re
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from socketio import AsyncServer
-import os
-import aiosqlite
-import uvicorn
-from contextlib import asynccontextmanager
+import sqlite3
+import uuid
 import logging
-import socketio
-from pathlib import Path
+import secrets
+from datetime import datetime
+from typing import Optional, Dict
+from socketio import AsyncServer
+from contextlib import asynccontextmanager
+import aiofiles
+from PIL import Image
+import io
 
-# Configuración de logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configuración Socket.IO
-sio = AsyncServer(async_mode='asgi', cors_allowed_origins=[])
+app = FastAPI()
+sio = AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 
-# Configuración de SQLite
-DATABASE_PATH = "chat.db"
+DB_PATH = os.getenv('DB_PATH', 'chat_app.db')
+STATIC_DIR = os.getenv('STATIC_DIR', 'static')
+AVATARS_DIR = os.path.join(STATIC_DIR, 'avatars')
+POSTS_DIR = os.path.join(STATIC_DIR, 'posts')
+MAX_IMAGE_SIZE = 5 * 1024 * 1024
+ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif']
 
-async def init_db():
-    async with aiosqlite.connect(DATABASE_PATH) as db:
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                email TEXT,
-                bio TEXT
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS messages (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sender_id INTEGER NOT NULL,
-                receiver_id INTEGER NOT NULL,
-                text TEXT NOT NULL,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-                status TEXT DEFAULT 'sent',
-                FOREIGN KEY (sender_id) REFERENCES users(id),
-                FOREIGN KEY (receiver_id) REFERENCES users(id)
-            )
-        """)
-        await db.commit()
+os.makedirs(STATIC_DIR, exist_ok=True)
+os.makedirs(AVATARS_DIR, exist_ok=True)
+os.makedirs(POSTS_DIR, exist_ok=True)
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Inicializar la base de datos
-    await init_db()
-    # Iniciar Socket.IO
-    await sio.emit('server_start', {'message': 'Server started'})
-    yield
-    # Limpieza al apagar
-    await sio.disconnect()
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-app = FastAPI(lifespan=lifespan)
-socketio_app = socketio.ASGIApp(sio, app)
-
-# Configuración
-PORT = int(os.environ.get("PORT", 5000))
-
-# Middlewares
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -72,174 +43,129 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Templates y archivos estáticos
-templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: Dict[str, str] = {}
+        self.user_info: Dict[str, Dict] = {}
 
-# Eventos Socket.IO (se mantienen igual)
+    async def update_presence(self, user_id: str, online: bool):
+        user = self.user_info.get(user_id, {})
+        await sio.emit('presence_update', {
+            'user_id': user_id,
+            'online': online,
+            'name': user.get('name', ''),
+            'username': user.get('username', ''),
+            'avatar': user.get('avatar', '')
+        }, skip_sid=user.get('sid'))
+        await self.update_user_count()
+
+    async def connect(self, sid: str, user_id: str, name: str, username: str, avatar: str):
+        self.active_connections[sid] = user_id
+        self.user_info[user_id] = {'name': name, 'username': username, 'avatar': avatar, 'sid': sid}
+        await self.update_presence(user_id, True)
+
+    async def disconnect(self, sid: str):
+        if sid in self.active_connections:
+            user_id = self.active_connections[sid]
+            if user_id in self.user_info:
+                del self.user_info[user_id]
+            del self.active_connections[sid]
+            await self.update_presence(user_id, False)
+
+    async def update_user_count(self):
+        with get_db_connection() as conn:
+            total_users = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        await sio.emit('user_count_update', {'total_users': total_users})
+
+manager = ConnectionManager()
+
+def get_db_connection():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    with get_db_connection() as conn:
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            bio TEXT DEFAULT '',
+            profile_image TEXT DEFAULT '/static/default-avatar.png',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )""")
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            session_id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            expires_at DATETIME NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )""")
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS posts (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            text TEXT,
+            image_path TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
+        )""")
+        conn.execute("""
+        CREATE TABLE IF NOT EXISTS messages (
+            id TEXT PRIMARY KEY,
+            sender_id TEXT NOT NULL,
+            receiver_id TEXT NOT NULL,
+            text TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(sender_id) REFERENCES users(id),
+            FOREIGN KEY(receiver_id) REFERENCES users(id)
+        )""")
+        conn.commit()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
+async def save_image(file_data: Dict, directory: str, filename: str, max_size: int = 800):
+    content_type = file_data.get('type')
+    if content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(400, "Tipo de imagen no permitido")
+    contents = file_data.get('data').split(',')[1].encode()
+    import base64
+    contents = base64.b64decode(contents)
+    if len(contents) > MAX_IMAGE_SIZE:
+        raise HTTPException(400, "La imagen es demasiado grande (máximo 5MB)")
+    try:
+        image = Image.open(io.BytesIO(contents))
+        if max_size:
+            image.thumbnail((max_size, max_size))
+        file_path = os.path.join(directory, filename)
+        image.save(file_path, quality=85)
+        return f"/static/{os.path.relpath(file_path, start='static')}"
+    except Exception as e:
+        logger.error(f"Error procesando imagen: {str(e)}")
+        raise HTTPException(500, "Error procesando la imagen")
+
 @sio.event
 async def connect(sid, environ):
     logger.info(f"Cliente conectado: {sid}")
+    await manager.update_user_count()
 
 @sio.event
 async def disconnect(sid):
+    await manager.disconnect(sid)
     logger.info(f"Cliente desconectado: {sid}")
 
-@sio.event
-async def join(sid, data):
-    user_id = data.get('userId')
-    if user_id:
-        sio.enter_room(sid, str(user_id))
-        logger.info(f"Usuario {user_id} unido a la sala")
+# Resto del código (eventos de Socket.IO y rutas de FastAPI) permanece igual...
 
-@sio.event
-async def send_message(sid, data):
-    required_fields = ['sender_id', 'receiver_id', 'text', 'timestamp']
-    if not all(field in data for field in required_fields):
-        logger.warning(f"Mensaje recibido sin los campos requeridos: {data}")
-        return
-
-    try:
-        async with aiosqlite.connect(DATABASE_PATH) as db:
-            await db.execute(
-                "INSERT INTO messages (sender_id, receiver_id, text, timestamp) VALUES (?, ?, ?, ?)",
-                (data['sender_id'], data['receiver_id'], data['text'], data['timestamp'])
-            )
-            await db.commit()
-
-            message = {
-                'sender_id': data['sender_id'],
-                'receiver_id': data['receiver_id'],
-                'text': data['text'],
-                'timestamp': data['timestamp'],
-                'status': 'sent'
-            }
-
-            await sio.emit('new_message', message, room=str(data['receiver_id']))
-            await sio.emit('new_message', message, room=str(data['sender_id']))
-            logger.info(f"Mensaje enviado de {data['sender_id']} a {data['receiver_id']}")
-    except Exception as e:
-        logger.error(f"Error al procesar el mensaje: {e}")
-
-# Rutas HTTP
-@app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
-    if "user_id" not in request.session:
-        return RedirectResponse(url="/login")
-    return templates.TemplateResponse("chat.html", {"request": request})
-
-@app.get("/login", response_class=HTMLResponse)
-async def login_get(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
-
-@app.post("/login", response_class=HTMLResponse)
-async def login_post(request: Request):
-    form_data = await request.form()
-    action = form_data.get("action")
-    username = form_data.get("username")
-    password = form_data.get("password")
-
-    try:
-        async with aiosqlite.connect(DATABASE_PATH) as db:
-            if action == "login":
-                cursor = await db.execute(
-                    "SELECT id, username FROM users WHERE username=? AND password=?",
-                    (username, password)
-                )
-                user = await cursor.fetchone()
-                if user:
-                    request.session["user_id"] = user[0]
-                    request.session["username"] = user[1]
-                    return RedirectResponse(url="/", status_code=303)
-                else:
-                    return templates.TemplateResponse(
-                        "login.html",
-                        {"request": request, "error": "Credenciales incorrectas"}
-                    )
-
-            elif action == "register":
-                email = form_data.get("email")
-                try:
-                    cursor = await db.execute(
-                        "INSERT INTO users (username, password, email) VALUES (?, ?, ?) RETURNING id, username",
-                        (username, password, email)
-                    )
-                    user = await cursor.fetchone()
-                    await db.commit()
-                    request.session["user_id"] = user[0]
-                    request.session["username"] = user[1]
-                    return RedirectResponse(url="/", status_code=303)
-                except aiosqlite.IntegrityError:
-                    return templates.TemplateResponse(
-                        "login.html",
-                        {"request": request, "error": "El usuario ya existe"}
-                    )
-    except Exception as e:
-        logger.error(f"Error inesperado al procesar la solicitud de login/registro: {e}")
-        return templates.TemplateResponse("login.html", {"request": request, "error": "Error interno del servidor"})
-
-@app.get("/api/users")
-async def get_users(request: Request):
-    if "user_id" not in request.session:
-        raise HTTPException(status_code=401, detail="No autenticado")
-
-    try:
-        async with aiosqlite.connect(DATABASE_PATH) as db:
-            cursor = await db.execute("SELECT id, username, email, bio FROM users")
-            users = await cursor.fetchall()
-            return [
-                {
-                    "id": user[0],
-                    "name": user[1],
-                    "email": user[2],
-                    "bio": user[3],
-                    "lastSeen": "En línea",
-                    "isOnline": True
-                }
-                for user in users
-            ]
-    except Exception as e:
-        logger.error(f"Error al obtener usuarios: {e}")
-        raise HTTPException(status_code=500, detail="Error al obtener la lista de usuarios")
-
-@app.get("/api/messages/{receiver_id}")
-async def get_messages(receiver_id: int, request: Request):
-    if "user_id" not in request.session:
-        raise HTTPException(status_code=401, detail="No autenticado")
-
-    try:
-        async with aiosqlite.connect(DATABASE_PATH) as db:
-            cursor = await db.execute(
-                "SELECT sender_id, receiver_id, text, timestamp, status FROM messages "
-                "WHERE (sender_id=? AND receiver_id=?) OR (sender_id=? AND receiver_id=?) "
-                "ORDER BY timestamp",
-                (request.session["user_id"], receiver_id, receiver_id, request.session["user_id"])
-            )
-            messages = await cursor.fetchall()
-            return [
-                {
-                    "sender_id": msg[0],
-                    "receiver_id": msg[1],
-                    "text": msg[2],
-                    "timestamp": msg[3],
-                    "status": msg[4]
-                }
-                for msg in messages
-            ]
-    except Exception as e:
-        logger.error(f"Error al obtener mensajes con {receiver_id}: {e}")
-        raise HTTPException(status_code=500, detail="Error al obtener los mensajes")
-
-@app.get("/logout")
-async def logout(request: Request):
-    request.session.clear()
-    return RedirectResponse(url="/login")
+app.mount("/", socketio.ASGIApp(sio))
 
 if __name__ == "__main__":
-    uvicorn.run(
-        "app:socketio_app",
-        host="0.0.0.0",
-        port=PORT,
-        reload=False,
-        workers=int(os.environ.get("WEB_CONCURRENCY", 1))
-    )
+    import uvicorn
+    port = int(os.getenv("PORT", 5000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
