@@ -53,204 +53,110 @@ app.add_middleware(
 # Gestión de conexiones
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: Dict[str, str] = {}
-        self.user_info: Dict[str, Dict] = {}
+        self.active_connections: Dict[str, str] = {} # session_token: user_id
+        self.user_info: Dict[str, Dict] = {} # user_id: {'username': ..., 'sid': ...}
 
-    async def connect(self, sid: str, user_id: str, username: str):
-        self.active_connections[sid] = user_id
+    async def connect(self, sid: str, user_id: str, username: str, session_token: str):
+        self.active_connections[session_token] = user_id
         self.user_info[user_id] = {'username': username, 'sid': sid}
         await self.notify_users_update()
 
-    async def disconnect(self, sid: str):
-        if sid in self.active_connections:
-            user_id = self.active_connections.pop(sid)
-            if user_id in self.user_info:
-                self.user_info.pop(user_id)
-                await self.notify_users_update()
+    async def disconnect(self, sid):
+        user_id_to_remove = None
+        session_token_to_remove = None
+        for token, user_id in self.active_connections.items():
+            if self.user_info.get(user_id, {}).get('sid') == sid:
+                user_id_to_remove = user_id
+                session_token_to_remove = token
+                break
+
+        if session_token_to_remove:
+            del self.active_connections[session_token_to_remove]
+        if user_id_to_remove in self.user_info:
+            del self.user_info[user_id_to_remove]
+            await self.notify_users_update()
+
+    async def get_user_id_by_session_token(self, session_token: str) -> Optional[str]:
+        return self.active_connections.get(session_token)
 
     async def notify_users_update(self):
         user_list = []
         with get_db_connection() as conn:
             users = conn.execute("SELECT id, username FROM users").fetchall()
             for user in users:
+                is_online = user['id'] in self.user_info
                 user_list.append({
                     'id': user['id'],
                     'username': user['username'],
-                    'online': user['id'] in self.user_info
+                    'online': is_online
                 })
         await sio.emit('users_updated', {'users': user_list})
 
 manager = ConnectionManager()
 
-# Base de datos
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
-def init_db():
-    with get_db_connection() as conn:
-        conn.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id TEXT PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )""")
-        conn.execute("""
-        CREATE TABLE IF NOT EXISTS sessions (
-            session_id TEXT PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            expires_at DATETIME NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )""")
-        conn.execute("""
-        CREATE TABLE IF NOT EXISTS messages (
-            id TEXT PRIMARY KEY,
-            sender_id TEXT NOT NULL,
-            text TEXT,
-            image_path TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(sender_id) REFERENCES users(id)
-        )""")
-        conn.commit()
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    init_db()
-    yield
-
-app = FastAPI(lifespan=lifespan)
-
-# Guardar imágenes
-async def save_image(file_data: bytes, directory: str, filename: str, max_size: int = 800):
-    try:
-        image = Image.open(io.BytesIO(file_data))
-        image.thumbnail((max_size, max_size))
-        file_path = os.path.join(directory, filename)
-        image.save(file_path, quality=85)
-        return f"/static/avatars/{filename}"
-    except Exception as e:
-        logger.error(f"Error procesando imagen: {str(e)}")
-        raise HTTPException(500, "Error procesando la imagen")
-
-# Rutas HTTP para autenticación
-@app.post("/api/login")
-async def login_user(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...)
-):
-    with get_db_connection() as conn:
-        user = conn.execute(
-            "SELECT id FROM users WHERE username = ? AND password = ?",
-            (username, password)
-        ).fetchone()
-        
-        if not user:
-            return JSONResponse(
-                status_code=400,
-                content={"detail": "Usuario o contraseña incorrectos"}
-            )
-        
-        session_id = secrets.token_hex(32)
-        conn.execute(
-            "INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))",
-            (session_id, user['id'])
-        )
-        conn.commit()
-        
-        response = JSONResponse(
-            status_code=200,
-            content={"message": "Inicio de sesión exitoso"}
-        )
-        response.set_cookie(
-            key="access_token",
-            value=session_id,
-            httponly=True,
-            max_age=30*24*60*60,
-            path="/",
-            samesite="Lax"
-        )
-        return response
+async def save_image(image_data: bytes, directory: str, filename: str) -> str:
+    filepath = os.path.join(directory, filename)
+    async with aiofiles.open(filepath, 'wb') as f:
+        await f.write(image_data)
+    return f"/static/avatars/{filename}"
 
 @app.post("/api/register")
-async def register_user(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...)
-):
-    if not username or len(username) < 3 or len(password) < 6:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": "Usuario debe tener al menos 3 caracteres y contraseña 6 caracteres"}
-        )
-    
+async def register_user(username: str = Form(...), password: str = Form(...)):
+    if len(username) < 3 or len(password) < 6:
+        raise HTTPException(status_code=400, detail="El nombre de usuario debe tener al menos 3 caracteres y la contraseña al menos 6.")
     with get_db_connection() as conn:
-        if conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
-            return JSONResponse(
-                status_code=400,
-                content={"detail": "El usuario ya existe"}
-            )
-        
-        user_id = str(uuid.uuid4())
-        session_id = secrets.token_hex(32)
-        conn.execute(
-            "INSERT INTO users (id, username, password) VALUES (?, ?, ?)",
-            (user_id, username, password)
-        )
-        conn.execute(
-            "INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))",
-            (session_id, user_id)
-        )
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM users WHERE username = ?", (username,))
+        existing_user = cursor.fetchone()
+        if existing_user:
+            raise HTTPException(status_code=400, detail="El nombre de usuario ya existe.")
+        cursor.execute("INSERT INTO users (username, password) VALUES (?, ?)", (username, password))
         conn.commit()
-        
-        response = JSONResponse(
-            status_code=200,
-            content={"message": "Registro exitoso"}
-        )
-        response.set_cookie(
-            key="access_token",
-            value=session_id,
-            httponly=True,
-            max_age=30*24*60*60,
-            path="/",
-            samesite="Lax"
-        )
-        return response
+        return {"message": "Usuario registrado exitosamente."}
 
-# Eventos de Socket.IO
+@app.post("/api/login")
+async def login_user(request: Request, username: str = Form(...), password: str = Form(...)):
+    with get_db_connection() as conn:
+        user = conn.execute("SELECT id FROM users WHERE username = ? AND password = ?", (username, password)).fetchone()
+        if not user:
+            return JSONResponse(status_code=400, content={"detail": "Usuario o contraseña incorrectos"})
+
+        session_token = secrets.token_hex(32)
+        conn.execute("INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))", (session_token, user['id']))
+        conn.commit()
+
+        return JSONResponse(content={"message": "Inicio de sesión exitoso", "session_token": session_token})
+
 @sio.event
-async def connect(sid, environ):
+async def connect(sid, environ, auth):
     try:
-        cookies = environ.get('HTTP_COOKIE', '')
-        session_id = None
-        for cookie in cookies.split(';'):
-            if 'access_token' in cookie.strip():
-                session_id = cookie.split('=')[1].strip()
-                break
-        
-        if not session_id:
-            raise ConnectionRefusedError('No autenticado')
-        
+        session_token = auth.get('session_id')
+        if not session_token:
+            raise ConnectionRefusedError('No autenticado: Token de sesión no proporcionado')
+
         with get_db_connection() as conn:
             session = conn.execute("""
-                SELECT u.id, u.username 
+                SELECT u.id, u.username
                 FROM sessions s
                 JOIN users u ON s.user_id = u.id
                 WHERE s.session_id = ? AND s.expires_at > datetime('now')
-            """, (session_id,)).fetchone()
-            
+            """, (session_token,)).fetchone()
+
             if not session:
-                raise ConnectionRefusedError('Sesión expirada o inválida')
-            
-            await manager.connect(sid, session['id'], session['username'])
+                raise ConnectionRefusedError('No autenticado: Sesión inválida o expirada')
+
+            await manager.connect(sid, session['id'], session['username'], session_token)
             await sio.emit('user_ready', {'username': session['username'], 'id': session['id']}, to=sid)
             logger.info(f"Cliente autenticado conectado: {sid}")
-            
+
     except Exception as e:
         logger.error(f"Error de conexión: {str(e)}")
-        raise ConnectionRefusedError('Autenticación fallida')
+        raise ConnectionRefusedError(f'Autenticación fallida: {str(e)}')
 
 @sio.event
 async def disconnect(sid):
@@ -259,14 +165,19 @@ async def disconnect(sid):
 
 @sio.event
 async def send_message(sid, data):
-    user_id = manager.active_connections.get(sid)
+    user_id = None
+    for token, uid in manager.active_connections.items():
+        if manager.user_info.get(uid, {}).get('sid') == sid:
+            user_id = uid
+            break
+
     if not user_id:
         await sio.emit('auth_error', {'message': 'No autenticado'}, to=sid)
         return
-    
+
     text = data.get('text', '').strip()
     image_path = None
-    
+
     if 'image' in data:
         try:
             image_data = data['image'].split(',')[1].encode()
@@ -277,16 +188,16 @@ async def send_message(sid, data):
             logger.error(f"Error procesando imagen: {str(e)}")
             await sio.emit('error', {'message': 'Error al procesar la imagen'}, to=sid)
             return
-    
+
     message_id = str(uuid.uuid4())
     with get_db_connection() as conn:
-        conn.execute("INSERT INTO messages (id, sender_id, text, image_path) VALUES (?, ?, ?, ?)", 
+        conn.execute("INSERT INTO messages (id, sender_id, text, image_path) VALUES (?, ?, ?, ?)",
                     (message_id, user_id, text, image_path))
         conn.commit()
-    
+
     with get_db_connection() as conn:
         user = conn.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
-    
+
     message_data = {
         'id': message_id,
         'sender_id': user_id,
@@ -295,21 +206,21 @@ async def send_message(sid, data):
         'image_path': image_path,
         'timestamp': datetime.now().isoformat()
     }
-    
+
     await sio.emit('new_message', message_data)
 
 @sio.event
 async def get_history(sid):
     with get_db_connection() as conn:
         messages = conn.execute("""
-            SELECT m.id, m.text, m.image_path, m.created_at as timestamp, 
+            SELECT m.id, m.text, m.image_path, m.created_at as timestamp,
                    u.username, u.id as sender_id
             FROM messages m
             JOIN users u ON m.sender_id = u.id
             ORDER BY m.created_at DESC
             LIMIT 50
         """).fetchall()
-        
+
         messages_sorted = sorted([dict(msg) for msg in messages], key=lambda x: x['timestamp'])
         await sio.emit('history', {'messages': messages_sorted}, to=sid)
 
@@ -328,22 +239,6 @@ async def login_page():
 
 @app.get("/chat", response_class=HTMLResponse)
 async def chat_page(request: Request):
-    # Verificar cookie de acceso
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        return RedirectResponse(url="/")
-    
-    with get_db_connection() as conn:
-        session = conn.execute("""
-            SELECT 1 FROM sessions 
-            WHERE session_id = ? AND expires_at > datetime('now')
-        """, (access_token,)).fetchone()
-        
-        if not session:
-            response = RedirectResponse(url="/")
-            response.delete_cookie("access_token")
-            return response
-    
     return FileResponse("templates/chat.html")
 
 # Montar la aplicación de Socket.IO
