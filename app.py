@@ -1,8 +1,8 @@
 import os
 import re
 import socketio
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Response
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Response, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
@@ -135,42 +135,88 @@ async def save_image(file_data: bytes, directory: str, filename: str, max_size: 
         raise HTTPException(500, "Error procesando la imagen")
 
 # Rutas HTTP para autenticación
+@app.post("/api/login")
+async def login_user(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...)
+):
+    with get_db_connection() as conn:
+        user = conn.execute(
+            "SELECT id FROM users WHERE username = ? AND password = ?",
+            (username, password)
+        ).fetchone()
+        
+        if not user:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Usuario o contraseña incorrectos"}
+            )
+        
+        session_id = secrets.token_hex(32)
+        conn.execute(
+            "INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))",
+            (session_id, user['id'])
+        )
+        conn.commit()
+        
+        response = JSONResponse(
+            status_code=200,
+            content={"message": "Inicio de sesión exitoso"}
+        )
+        response.set_cookie(
+            key="access_token",
+            value=session_id,
+            httponly=True,
+            max_age=30*24*60*60,
+            path="/",
+            samesite="Lax"
+        )
+        return response
+
 @app.post("/api/register")
-async def register_user(username: str = Form(...), password: str = Form(...)):
+async def register_user(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...)
+):
     if not username or len(username) < 3 or len(password) < 6:
-        raise HTTPException(400, "Usuario o contraseña inválidos")
+        return JSONResponse(
+            status_code=400,
+            content={"detail": "Usuario debe tener al menos 3 caracteres y contraseña 6 caracteres"}
+        )
     
     with get_db_connection() as conn:
         if conn.execute("SELECT 1 FROM users WHERE username = ?", (username,)).fetchone():
-            raise HTTPException(400, "El usuario ya existe")
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "El usuario ya existe"}
+            )
         
         user_id = str(uuid.uuid4())
         session_id = secrets.token_hex(32)
-        conn.execute("INSERT INTO users (id, username, password) VALUES (?, ?, ?)", 
-                     (user_id, username, password))
-        conn.execute("INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))", 
-                     (session_id, user_id))
+        conn.execute(
+            "INSERT INTO users (id, username, password) VALUES (?, ?, ?)",
+            (user_id, username, password)
+        )
+        conn.execute(
+            "INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))",
+            (session_id, user_id)
+        )
         conn.commit()
         
-        response = RedirectResponse(url="/chat", status_code=303)
-        response.set_cookie(key="access_token", value=session_id, httponly=True, max_age=30*24*60*60)
-        return response
-
-@app.post("/api/login")
-async def login_user(username: str = Form(...), password: str = Form(...)):
-    with get_db_connection() as conn:
-        user = conn.execute("SELECT id FROM users WHERE username = ? AND password = ?", 
-                          (username, password)).fetchone()
-        if not user:
-            raise HTTPException(400, "Usuario o contraseña incorrectos")
-        
-        session_id = secrets.token_hex(32)
-        conn.execute("INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))", 
-                     (session_id, user['id']))
-        conn.commit()
-        
-        response = RedirectResponse(url="/chat", status_code=303)
-        response.set_cookie(key="access_token", value=session_id, httponly=True, max_age=30*24*60*60)
+        response = JSONResponse(
+            status_code=200,
+            content={"message": "Registro exitoso"}
+        )
+        response.set_cookie(
+            key="access_token",
+            value=session_id,
+            httponly=True,
+            max_age=30*24*60*60,
+            path="/",
+            samesite="Lax"
+        )
         return response
 
 # Eventos de Socket.IO
@@ -180,7 +226,7 @@ async def connect(sid, environ):
         cookies = environ.get('HTTP_COOKIE', '')
         session_id = None
         for cookie in cookies.split(';'):
-            if 'access_token' in cookie:
+            if 'access_token' in cookie.strip():
                 session_id = cookie.split('=')[1].strip()
                 break
         
@@ -199,7 +245,7 @@ async def connect(sid, environ):
                 raise ConnectionRefusedError('Sesión expirada o inválida')
             
             await manager.connect(sid, session['id'], session['username'])
-            await sio.emit('user_ready', {'username': session['username']}, to=sid)
+            await sio.emit('user_ready', {'username': session['username'], 'id': session['id']}, to=sid)
             logger.info(f"Cliente autenticado conectado: {sid}")
             
     except Exception as e:
@@ -238,7 +284,6 @@ async def send_message(sid, data):
                     (message_id, user_id, text, image_path))
         conn.commit()
     
-    # Obtener el username para el mensaje
     with get_db_connection() as conn:
         user = conn.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
     
@@ -282,7 +327,23 @@ async def login_page():
     return FileResponse("templates/login.html")
 
 @app.get("/chat", response_class=HTMLResponse)
-async def chat_page():
+async def chat_page(request: Request):
+    # Verificar cookie de acceso
+    access_token = request.cookies.get("access_token")
+    if not access_token:
+        return RedirectResponse(url="/")
+    
+    with get_db_connection() as conn:
+        session = conn.execute("""
+            SELECT 1 FROM sessions 
+            WHERE session_id = ? AND expires_at > datetime('now')
+        """, (access_token,)).fetchone()
+        
+        if not session:
+            response = RedirectResponse(url="/")
+            response.delete_cookie("access_token")
+            return response
+    
     return FileResponse("templates/chat.html")
 
 # Montar la aplicación de Socket.IO
