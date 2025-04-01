@@ -19,11 +19,9 @@ from PIL import Image
 import io
 import base64
 
-# Configuración inicial
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configuración de directorios
 DB_PATH = os.getenv('DB_PATH', 'chat_app.db')
 STATIC_DIR = 'static'
 AVATARS_DIR = os.path.join(STATIC_DIR, 'avatars')
@@ -32,17 +30,14 @@ TEMPLATES_DIR = 'templates'
 os.makedirs(STATIC_DIR, exist_ok=True)
 os.makedirs(AVATARS_DIR, exist_ok=True)
 
-# Función para obtener la conexión a la base de datos
 def get_db_connection():
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
-# Función para crear las tablas si no existen
 def create_tables():
     conn = get_db_connection()
     cursor = conn.cursor()
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,7 +45,6 @@ def create_tables():
             password TEXT NOT NULL
         )
     """)
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS messages (
             id TEXT PRIMARY KEY,
@@ -61,7 +55,6 @@ def create_tables():
             FOREIGN KEY (sender_id) REFERENCES users(id)
         )
     """)
-
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sessions (
             session_id TEXT PRIMARY KEY,
@@ -70,23 +63,16 @@ def create_tables():
             FOREIGN KEY (user_id) REFERENCES users(id)
         )
     """)
-
     conn.commit()
     conn.close()
 
-# Crear las tablas al inicio de la aplicación
 create_tables()
 
 app = FastAPI()
 sio = AsyncServer(async_mode='asgi', cors_allowed_origins='*')
-
-# Configuración de templates
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
-
-# Montaje de archivos estáticos
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
-# Middleware CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -95,11 +81,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Gestión de conexiones
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: Dict[str, str] = {} # session_token: user_id
-        self.user_info: Dict[str, Dict] = {} # user_id: {'username': ..., 'sid': ...}
+        self.active_connections: Dict[str, str] = {}
+        self.user_info: Dict[str, Dict] = {}
 
     async def connect(self, sid: str, user_id: str, username: str, session_token: str):
         self.active_connections[session_token] = user_id
@@ -114,7 +99,6 @@ class ConnectionManager:
                 user_id_to_remove = user_id
                 session_token_to_remove = token
                 break
-
         if session_token_to_remove:
             del self.active_connections[session_token_to_remove]
         if user_id_to_remove in self.user_info:
@@ -165,11 +149,9 @@ async def login_user(request: Request, username: str = Form(...), password: str 
         user = conn.execute("SELECT id FROM users WHERE username = ? AND password = ?", (username, password)).fetchone()
         if not user:
             return JSONResponse(status_code=400, content={"detail": "Usuario o contraseña incorrectos"})
-
     session_token = secrets.token_hex(32)
     conn.execute("INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, datetime('now', '+30 days'))", (session_token, user['id']))
     conn.commit()
-
     return JSONResponse(content={"message": "Inicio de sesión exitoso", "session_token": session_token})
 
 @sio.event
@@ -178,7 +160,6 @@ async def connect(sid, environ, auth):
         session_token = auth.get('session_id')
         if not session_token:
             raise ConnectionRefusedError('No autenticado: Token de sesión no proporcionado')
-
         with get_db_connection() as conn:
             session = conn.execute("""
                 SELECT u.id, u.username
@@ -186,15 +167,19 @@ async def connect(sid, environ, auth):
                 JOIN users u ON s.user_id = u.id
                 WHERE s.session_id = ? AND s.expires_at > datetime('now')
             """, (session_token,)).fetchone()
-
             if not session:
                 raise ConnectionRefusedError('No autenticado: Sesión inválida o expirada')
-
             await manager.connect(sid, session['id'], session['username'], session_token)
             await sio.emit('user_ready', {'username': session['username'], 'id': session['id']}, to=sid)
-            await manager.notify_users_update()  # Notificar a todos sobre el nuevo usuario conectado
+            messages = conn.execute("""
+                SELECT m.id, m.sender_id, u.username, m.text, m.image_path, m.created_at as timestamp
+                FROM messages m
+                JOIN users u ON m.sender_id = u.id
+                ORDER BY m.created_at ASC
+            """).fetchall()
+            await sio.emit('load_messages', {'messages': [dict(msg) for msg in messages]}, to=sid)
+            await manager.notify_users_update()
             logger.info(f"Cliente autenticado conectado: {sid}")
-
     except Exception as e:
         logger.error(f"Error de conexión: {str(e)}")
         raise ConnectionRefusedError(f'Autenticación fallida: {str(e)}')
@@ -202,7 +187,7 @@ async def connect(sid, environ, auth):
 @sio.event
 async def disconnect(sid):
     await manager.disconnect(sid)
-    await manager.notify_users_update() # Notificar a todos sobre el usuario desconectado
+    await manager.notify_users_update()
     logger.info(f"Cliente desconectado: {sid}")
 
 @sio.event
@@ -212,14 +197,12 @@ async def send_message(sid, data):
         if manager.user_info.get(uid, {}).get('sid') == sid:
             user_id = uid
             break
-
     if not user_id:
         await sio.emit('auth_error', {'message': 'No autenticado'}, to=sid)
         return
-
     text = data.get('text', '').strip()
+    logger.info(f"Mensaje recibido de {user_id}: {text}")  # Log para verificar recepción
     image_path = None
-
     if 'image' in data:
         try:
             image_data = data['image'].split(',')[1].encode()
@@ -230,16 +213,13 @@ async def send_message(sid, data):
             logger.error(f"Error procesando imagen: {str(e)}")
             await sio.emit('error', {'message': 'Error al procesar la imagen'}, to=sid)
             return
-
     message_id = str(uuid.uuid4())
     with get_db_connection() as conn:
         conn.execute("INSERT INTO messages (id, sender_id, text, image_path) VALUES (?, ?, ?, ?)",
                     (message_id, user_id, text, image_path))
         conn.commit()
-
     with get_db_connection() as conn:
         user = conn.execute("SELECT username FROM users WHERE id = ?", (user_id,)).fetchone()
-
     message_data = {
         'id': message_id,
         'sender_id': user_id,
@@ -248,14 +228,13 @@ async def send_message(sid, data):
         'image_path': image_path,
         'timestamp': datetime.now().isoformat()
     }
-
+    logger.info(f"Enviando new_message: {message_data}")  # Log para verificar emisión
     await sio.emit('new_message', message_data)
 
 @sio.event
 async def get_users(sid):
     await manager.notify_users_update()
 
-# Rutas de FastAPI
 @app.get("/", response_class=HTMLResponse)
 async def root():
     return FileResponse("templates/login.html")
@@ -268,7 +247,6 @@ async def login_page():
 async def chat_page(request: Request):
     return FileResponse("templates/chat.html")
 
-# Montar la aplicación de Socket.IO
 app.mount("/", socketio.ASGIApp(sio))
 
 if __name__ == "__main__":
