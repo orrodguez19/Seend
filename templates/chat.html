@@ -509,7 +509,9 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
+       
+const socket = io('https://localhost:10000', { autoConnect: false });
+ document.addEventListener('DOMContentLoaded', () => {
             // Elementos del DOM
             const sidebar = document.getElementById('sidebar');
             const chatContainer = document.getElementById('chatContainer');
