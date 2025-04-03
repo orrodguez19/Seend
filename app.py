@@ -9,7 +9,6 @@ import socketio
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 load_dotenv()
@@ -51,8 +50,7 @@ async def create_tables():
 # FastAPI and SocketIO Setup
 sio = socketio.AsyncServer(cors_allowed_origins="*", async_mode="asgi")
 app = FastAPI()
-templates = Jinja2Templates(directory="statics")
-app.mount("/statics", StaticFiles(directory="statics"), name="statics")
+templates = Jinja2Templates(directory="templates")
 
 @app.on_event("startup")
 async def startup_event():
@@ -108,16 +106,16 @@ async def chat_page(request: Request):
 # SocketIO Event Handlers
 connected_users = {}
 
-@sio.on("connect")
-async def connect(sid, environ, auth):
-    user_id = auth.get("user_id")
-    username = auth.get("username")
+@sio.on("authenticate")
+async def authenticate(sid, data):
+    user_id = data.get("user_id")
+    username = data.get("username")
     if user_id and username:
-        print(f"Client connected: {sid}, User ID: {user_id}, Username: {username}")
+        print(f"User authenticated: {sid}, User ID: {user_id}, Username: {username}")
         connected_users[sid] = {"user_id": user_id, "username": username, "status": "En línea"}
         await update_user_list()
     else:
-        print(f"Client connection rejected: {sid}, missing user_id or username")
+        print(f"Authentication failed: {sid}, missing user_id or username")
         return False  # Reject connection
 
 @sio.on("disconnect")
@@ -134,9 +132,18 @@ async def send_message(sid, data):
     if user_info and message:
         user_id = user_info["user_id"]
         username = user_info["username"]
-        await database.execute(messages_table.insert().values(sender_id=user_id, sender_username=username, content=message))
+        await database.execute(messages_table.insert().values(
+            sender_id=user_id,
+            sender_username=username,
+            content=message
+        ))
         timestamp = datetime.datetime.utcnow().isoformat()
-        await sio.emit("receive_message", {"sender_id": user_id, "sender": username, "message": message, "timestamp": timestamp})
+        await sio.emit("receive_message", {
+            "sender_id": user_id,
+            "sender": username,
+            "message": message,
+            "timestamp": timestamp
+        })
 
 @sio.on("typing")
 async def typing(sid, data):
@@ -145,19 +152,10 @@ async def typing(sid, data):
         username = user_info["username"]
         connected_users[sid]["status"] = "Escribiendo..."
         await update_user_list()
-        asyncio.sleep(3)
+        await asyncio.sleep(3)
         if sid in connected_users and connected_users[sid].get("username") == username and connected_users[sid]["status"] == "Escribiendo...":
             connected_users[sid]["status"] = "En línea"
             await update_user_list()
-
-@sio.on("online")
-async def online(sid, data):
-    # Online status is now managed on connect
-    pass
-
-@sio.on("get_users")
-async def get_users(sid):
-    await sio.emit("user_list_updated", list(connected_users.values()), room=sid)
 
 async def update_user_list():
     await sio.emit("user_list_updated", list(connected_users.values()))
