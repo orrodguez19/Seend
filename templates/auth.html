@@ -3,301 +3,129 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialChat - Autenticación</title>
+    <title>Seend - Autenticación</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --primary: #2563eb;
-            --primary-dark: #1e40af;
-            --light: #f8fafc;
-            --dark: #1e293b;
-            --gray: #64748b;
-            --success: #10b981;
-            --bg: #f1f5f9;
-            --card: #ffffff;
-            --radius: 8px;
-            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            -webkit-tap-highlight-color: transparent;
-        }
-        
         body {
             font-family: 'Poppins', sans-serif;
-            background: var(--bg);
-            color: var(--dark);
-            height: 100vh;
+            background-color: #f0f4f8;
             display: flex;
             justify-content: center;
             align-items: center;
+            height: 100vh;
+            margin: 0;
         }
-        
+
         .auth-container {
-            width: 100%;
-            max-width: 400px;
-            background: var(--card);
-            border-radius: var(--radius);
-            box-shadow: var(--shadow);
-            overflow: hidden;
-        }
-        
-        .auth-header {
-            background: var(--primary);
-            color: white;
-            padding: 1.5rem;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+            width: 350px;
             text-align: center;
         }
-        
-        .auth-tabs {
-            display: flex;
-            border-bottom: 1px solid rgba(0,0,0,0.1);
+
+        h2 {
+            color: #007bff;
+            margin-bottom: 20px;
         }
-        
-        .auth-tab {
-            flex: 1;
-            padding: 1rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-            font-weight: 500;
-        }
-        
-        .auth-tab.active {
-            color: var(--primary);
-            border-bottom: 2px solid var(--primary);
-        }
-        
-        .auth-content {
-            padding: 1.5rem;
-        }
-        
-        .auth-form {
-            display: none;
-        }
-        
-        .auth-form.active {
-            display: block;
-        }
-        
+
         .form-group {
-            margin-bottom: 1rem;
+            margin-bottom: 20px;
         }
-        
-        .form-group label {
+
+        label {
             display: block;
-            margin-bottom: 0.5rem;
-            font-size: 0.9rem;
-            color: var(--dark);
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 500;
+            text-align: left;
         }
-        
-        .form-group input {
+
+        input[type="text"],
+        input[type="password"] {
             width: 100%;
-            padding: 0.75rem;
-            border: 1px solid rgba(0,0,0,0.1);
-            border-radius: var(--radius);
-            font-family: inherit;
-            font-size: 1rem;
+            padding: 12px;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            box-sizing: border-box;
+            font-size: 16px;
+            outline: none;
         }
-        
-        .auth-btn {
-            width: 100%;
-            padding: 0.75rem;
-            background: var(--primary);
-            color: white;
+
+        button {
+            background-color: #007bff;
+            color: #fff;
+            padding: 12px 20px;
             border: none;
-            border-radius: var(--radius);
-            font-family: inherit;
-            font-size: 1rem;
+            border-radius: 5px;
             cursor: pointer;
-            margin-top: 1rem;
-            transition: background 0.2s;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+            width: 100%;
         }
-        
-        .auth-btn:hover {
-            background: var(--primary-dark);
+
+        button:hover {
+            background-color: #0056b3;
         }
-        
-        .auth-message {
-            margin-top: 1rem;
-            padding: 0.75rem;
-            border-radius: var(--radius);
-            font-size: 0.9rem;
-            text-align: center;
-            display: none;
+
+        .switch-auth {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #777;
         }
-        
-        .auth-message.error {
-            background: #fee2e2;
-            color: #b91c1c;
-            display: block;
+
+        .switch-auth a {
+            color: #007bff;
+            text-decoration: none;
         }
-        
-        .auth-message.success {
-            background: #dcfce7;
-            color: #166534;
-            display: block;
-        }
-        
-        @media (max-width: 480px) {
-            .auth-container {
-                margin: 1rem;
-                max-width: calc(100% - 2rem);
-            }
+
+        .switch-auth a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 <body>
     <div class="auth-container">
-        <div class="auth-header">
-            <h1>SocialChat</h1>
+        <h2>Iniciar Sesión</h2>
+        <form id="loginForm" action="/login" method="post">
+            <div class="form-group">
+                <label for="loginUsername">Usuario:</label>
+                <input type="text" id="loginUsername" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="loginPassword">Contraseña:</label>
+                <input type="password" id="loginPassword" name="password">
+            </div>
+            <button type="submit">Iniciar Sesión</button>
+        </form>
+        <div class="switch-auth">
+            ¿No tienes una cuenta? <a href="#" onclick="showRegister()">Regístrate</a>
         </div>
-        
-        <div class="auth-tabs">
-            <div class="auth-tab active" data-tab="login">Iniciar Sesión</div>
-            <div class="auth-tab" data-tab="register">Registrarse</div>
-        </div>
-        
-        <div class="auth-content">
-            <form id="loginForm" class="auth-form active">
-                <div class="form-group">
-                    <label for="loginUsername">Usuario</label>
-                    <input type="text" id="loginUsername" required>
-                </div>
-                <div class="form-group">
-                    <label for="loginPassword">Contraseña</label>
-                    <input type="password" id="loginPassword" required>
-                </div>
-                <button type="submit" class="auth-btn">Ingresar</button>
-                <div id="loginMessage" class="auth-message"></div>
-            </form>
-            
-            <form id="registerForm" class="auth-form">
-                <div class="form-group">
-                    <label for="registerUsername">Usuario</label>
-                    <input type="text" id="registerUsername" required>
-                </div>
-                <div class="form-group">
-                    <label for="registerPassword">Contraseña</label>
-                    <input type="password" id="registerPassword" required>
-                </div>
-                <div class="form-group">
-                    <label for="registerConfirm">Confirmar Contraseña</label>
-                    <input type="password" id="registerConfirm" required>
-                </div>
-                <button type="submit" class="auth-btn">Registrarse</button>
-                <div id="registerMessage" class="auth-message"></div>
-            </form>
-        </div>
+
+        <h2 style="margin-top: 30px;">Registrarse</h2>
+        <form id="registerForm" action="/register" method="post" style="display: none;">
+            <div class="form-group">
+                <label for="registerUsername">Usuario:</label>
+                <input type="text" id="registerUsername" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="registerPassword">Contraseña:</label>
+                <input type="password" id="registerPassword" name="password" required>
+            </div>
+            <button type="submit">Registrarse</button>
+        </form>
+
+        {% if error %}
+        <p style="color: red;">{{ error }}</p>
+        {% endif %}
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Cambio entre pestañas
-            const tabs = document.querySelectorAll('.auth-tab');
-            const forms = document.querySelectorAll('.auth-form');
-            
-            tabs.forEach(tab => {
-                tab.addEventListener('click', () => {
-                    tabs.forEach(t => t.classList.remove('active'));
-                    forms.forEach(f => f.classList.remove('active'));
-                    
-                    tab.classList.add('active');
-                    document.getElementById(`${tab.dataset.tab}Form`).classList.add('active');
-                });
-            });
-            
-            // Formulario de login
-            document.getElementById('loginForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                const username = document.getElementById('loginUsername').value;
-                const password = document.getElementById('loginPassword').value;
-                const message = document.getElementById('loginMessage');
-                
-                message.classList.remove('error', 'success');
-                message.textContent = '';
-                
-                try {
-                    const response = await fetch('/api/login', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (response.ok) {
-                        // Guardar user_id y redirigir
-                        localStorage.setItem('user_id', data.user_id);
-                        localStorage.setItem('username', data.username);
-                        window.location.href = '/chat';
-                    } else {
-                        message.textContent = data.detail || 'Error de autenticación';
-                        message.classList.add('error');
-                    }
-                } catch (error) {
-                    console.error('Error:', error);
-                    message.textContent = 'Error al conectar con el servidor';
-                    message.classList.add('error');
-                }
-            });
-            
-            // Formulario de registro
-            document.getElementById('registerForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                const username = document.getElementById('registerUsername').value;
-                const password = document.getElementById('registerPassword').value;
-                const confirm = document.getElementById('registerConfirm').value;
-                const message = document.getElementById('registerMessage');
-                
-                message.classList.remove('error', 'success');
-                message.textContent = '';
-                
-                if (password !== confirm) {
-                    message.textContent = 'Las contraseñas no coinciden';
-                    message.classList.add('error');
-                    return;
-                }
-                
-                try {
-                    const response = await fetch('/api/register', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: `username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (response.ok) {
-                        message.textContent = 'Registro exitoso. Redirigiendo...';
-                        message.classList.add('success');
-                        
-                        // Auto login después de registro
-                        setTimeout(() => {
-                            localStorage.setItem('user_id', data.user_id);
-                            localStorage.setItem('username', data.username);
-                            window.location.href = '/chat';
-                        }, 1500);
-                    } else {
-                        message.textContent = data.detail || 'Error en el registro';
-                        message.classList.add('error');
-                    }
-                } catch (error) {
-                    console.error('Error:', error);
-                    message.textContent = 'Error al conectar con el servidor';
-                    message.classList.add('error');
-                }
-            });
-        });
+        function showRegister() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('registerForm').style.display = 'block';
+        }
     </script>
 </body>
 </html>
