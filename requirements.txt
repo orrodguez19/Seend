@@ -6,3 +6,4 @@ python-multipart==0.0.9
 databases>=0.8.0
 sqlalchemy>=2.0.28
 python-dotenv>=1.0.1
+aiosqlite>=0.20.0
