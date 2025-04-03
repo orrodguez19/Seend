@@ -1,178 +1,170 @@
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from typing import Dict
-import sqlite3
+import asyncio
+import datetime
 import os
-from datetime import datetime
+import uuid  # For generating unique user IDs
 
-# Configuración básica
+import databases
+import sqlalchemy
+import socketio
+from dotenv import load_dotenv
+from fastapi import FastAPI, Request, Form
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+load_dotenv()
+
+# Database Configuration
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./seend_chat.db")
+database = databases.Database(DATABASE_URL)
+metadata = sqlalchemy.MetaData()
+
+# Define User Table
+users_table = sqlalchemy.Table(
+    "users",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("user_id", sqlalchemy.String, unique=True, default=lambda: str(uuid.uuid4())), # Unique user ID
+    sqlalchemy.Column("username", sqlalchemy.String, unique=True),
+    sqlalchemy.Column("password", sqlalchemy.String),  # Store hashed password in real app
+    sqlalchemy.Column("status", sqlalchemy.String, default="En línea"),
+    sqlalchemy.Column("last_seen", sqlalchemy.DateTime, nullable=True),
+)
+
+# Define Message Table
+messages_table = sqlalchemy.Table(
+    "messages",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("sender_id", sqlalchemy.String),  # Store sender's user ID
+    sqlalchemy.Column("sender_username", sqlalchemy.String),
+    sqlalchemy.Column("content", sqlalchemy.String),
+    sqlalchemy.Column("timestamp", sqlalchemy.DateTime, default=datetime.datetime.utcnow),
+)
+
+engine = sqlalchemy.create_engine(DATABASE_URL)
+
+async def create_tables():
+    async with engine.begin() as conn:
+        await conn.run_sync(metadata.create_all)
+
+# FastAPI and SocketIO Setup
+sio = socketio.AsyncServer(cors_allowed_origins="*", async_mode="asgi")
 app = FastAPI()
-app.mount("/static", StaticFiles(directory="static"), name="static")
+templates = Jinja2Templates(directory="statics")
+app.mount("/statics", StaticFiles(directory="statics"), name="statics")
 
-# Función para inicializar la base de datos
-def init_db():
-    conn = sqlite3.connect("chat.db")
-    cursor = conn.cursor()
-    
-    # Crear tabla de usuarios
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id TEXT PRIMARY KEY,
-            username TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL
-        )
-    """)
-    
-    # Crear tabla de mensajes
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS messages (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT,
-            text TEXT,
-            image_path TEXT,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (user_id) REFERENCES users (user_id)
-        )
-    """)
-    
-    # Insertar usuarios iniciales si la tabla está vacía
-    cursor.execute("SELECT COUNT(*) FROM users")
-    if cursor.fetchone()[0] == 0:
-        cursor.executemany("""
-            INSERT INTO users (user_id, username, password) VALUES (?, ?, ?)
-        """, [
-            ("1", "user1", "pass1"),
-            ("2", "user2", "pass2")
-        ])
-    
-    conn.commit()
-    conn.close()
+@app.on_event("startup")
+async def startup_event():
+    await database.connect()
+    await create_tables()
+    global connected_users
+    connected_users = {}
 
-# Inicializar la base de datos al arrancar
-init_db()
+@app.on_event("shutdown")
+async def shutdown_event():
+    await database.disconnect()
 
-# Clase para manejar las conexiones WebSocket
-class ConnectionManager:
-    def __init__(self):
-        self.active_connections: Dict[str, WebSocket] = {}
+@app.get("/", response_class=HTMLResponse)
+async def read_root():
+    return RedirectResponse("/auth")
 
-    async def connect(self, websocket: WebSocket, user_id: str):
-        await websocket.accept()
-        conn = sqlite3.connect("chat.db")
-        cursor = conn.cursor()
-        cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
-        if cursor.fetchone():
-            self.active_connections[user_id] = websocket
-            print(f"Usuario {user_id} conectado")
-        else:
-            await websocket.close(code=1008, reason="User ID inválido")
-        conn.close()
+@app.get("/auth", response_class=HTMLResponse)
+async def auth_page(request: Request):
+    return templates.TemplateResponse("auth.html", {"request": request, "error": None})
 
-    def disconnect(self, user_id: str):
-        if user_id in self.active_connections:
-            del self.active_connections[user_id]
-            print(f"Usuario {user_id} desconectado")
-
-    async def send_personal_message(self, message: dict, user_id: str):
-        if user_id in self.active_connections:
-            await self.active_connections[user_id].send_json(message)
-
-    async def broadcast(self, message: dict):
-        for connection in self.active_connections.values():
-            await connection.send_json(message)
-
-manager = ConnectionManager()
-
-# Ruta para la página de login
-@app.get("/login", response_class=HTMLResponse)
-async def get_login():
-    with open("login.html") as f:
-        return f.read()
-
-# Ruta para la página del chat
-@app.get("/chat", response_class=HTMLResponse)
-async def get_chat():
-    with open("chat.html") as f:
-        return f.read()
-
-# Endpoint para autenticación
-@app.post("/auth")
-async def authenticate(username: str, password: str):
-    conn = sqlite3.connect("chat.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id FROM users WHERE username = ? AND password = ?", (username, password))
-    result = cursor.fetchone()
-    conn.close()
-    if result:
-        return {"user_id": result[0]}
-    raise HTTPException(status_code=401, detail="Credenciales inválidas")
-
-# WebSocket endpoint
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    user_id = websocket.query_params.get("user_id")
-    if not user_id:
-        await websocket.close(code=1008, reason="User ID requerido")
-        return
-
-    await manager.connect(websocket, user_id)
+@app.post("/register", response_class=HTMLResponse)
+async def register_user(request: Request, username: str = Form(...), password: str = Form(...)):
+    # In a real application, hash the password
+    hashed_password = password
     try:
-        while True:
-            data = await websocket.receive_json()
-            action = data.get("action")
+        query = users_table.insert().values(username=username, password=hashed_password)
+        await database.execute(query)
+        return RedirectResponse(url="/auth", status_code=303) # Redirect to login after registration
+    except Exception as e:
+        return templates.TemplateResponse("auth.html", {"request": request, "error": "Error al registrar el usuario. El nombre de usuario puede estar en uso."})
 
-            if action == "send_message":
-                conn = sqlite3.connect("chat.db")
-                cursor = conn.cursor()
-                if "text" in data:
-                    # Guardar y enviar mensaje de texto
-                    cursor.execute("INSERT INTO messages (user_id, text) VALUES (?, ?)", (user_id, data["text"]))
-                    conn.commit()
-                    await manager.broadcast({"type": "new_message", "text": data["text"]})
-                elif "file" in data:
-                    # Guardar y enviar archivo (imagen)
-                    file_data = base64.b64decode(data["file"]["data"])
-                    file_type = data["file"]["type"]
-                    file_ext = file_type.split("/")[-1]
-                    file_name = f"static/uploads/{user_id}_{datetime.now().timestamp()}.{file_ext}"
-                    os.makedirs("static/uploads", exist_ok=True)
-                    with open(file_name, "wb") as f:
-                        f.write(file_data)
-                    cursor.execute("INSERT INTO messages (user_id, image_path) VALUES (?, ?)", (user_id, file_name))
-                    conn.commit()
-                    await manager.broadcast({"type": "new_message", "image_path": f"/{file_name}"})
-                conn.close()
+@app.post("/login", response_class=HTMLResponse)
+async def login_user(request: Request, username: str = Form(...), password: str = Form(...)):
+    # In a real application, verify the hashed password
+    query = users_table.select().where(users_table.c.username == username)
+    user = await database.fetch_one(query)
+    if user and user["password"] == password:
+        response = RedirectResponse(url="/chat", status_code=303)
+        response.set_cookie(key="user_id", value=user["user_id"])
+        response.set_cookie(key="username", value=user["username"])
+        return response
+    else:
+        return templates.TemplateResponse("auth.html", {"request": request, "error": "Credenciales inválidas."})
 
-            elif action == "get_users":
-                # Enviar lista de usuarios en línea
-                conn = sqlite3.connect("chat.db")
-                cursor = conn.cursor()
-                cursor.execute("SELECT username, user_id FROM users")
-                users = [{"username": row[0], "online": row[1] in manager.active_connections} for row in cursor.fetchall()]
-                conn.close()
-                await manager.send_personal_message({"type": "users_list", "users": users}, user_id)
+@app.get("/chat", response_class=HTMLResponse)
+async def chat_page(request: Request):
+    user_id = request.cookies.get("user_id")
+    username = request.cookies.get("username")
+    if not user_id or not username:
+        return RedirectResponse(url="/auth", status_code=303)
+    return templates.TemplateResponse("chat.html", {"request": request, "user_id": user_id, "username": username})
 
-    except WebSocketDisconnect:
-        manager.disconnect(user_id)
-        conn = sqlite3.connect("chat.db")
-        cursor = conn.cursor()
-        cursor.execute("SELECT username FROM users WHERE user_id = ?", (user_id,))
-        username = cursor.fetchone()[0]
-        conn.close()
-        await manager.broadcast({"type": "user_left", "username": username})
+# SocketIO Event Handlers
+connected_users = {}
 
-# Cargar mensajes previos al conectar (opcional)
-@app.get("/messages")
-async def get_messages():
-    conn = sqlite3.connect("chat.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, text, image_path FROM messages ORDER BY timestamp ASC")
-    messages = [{"user_id": row[0], "text": row[1], "image_path": row[2]} for row in cursor.fetchall()]
-    conn.close()
-    return messages
+@sio.on("connect")
+async def connect(sid, environ, auth):
+    user_id = auth.get("user_id")
+    username = auth.get("username")
+    if user_id and username:
+        print(f"Client connected: {sid}, User ID: {user_id}, Username: {username}")
+        connected_users[sid] = {"user_id": user_id, "username": username, "status": "En línea"}
+        await update_user_list()
+    else:
+        print(f"Client connection rejected: {sid}, missing user_id or username")
+        return False  # Reject connection
 
-# Iniciar el servidor
+@sio.on("disconnect")
+async def disconnect(sid):
+    print(f"Client disconnected: {sid}")
+    if sid in connected_users:
+        del connected_users[sid]
+        await update_user_list()
+
+@sio.on("send_message")
+async def send_message(sid, data):
+    user_info = connected_users.get(sid)
+    message = data.get("message")
+    if user_info and message:
+        user_id = user_info["user_id"]
+        username = user_info["username"]
+        await database.execute(messages_table.insert().values(sender_id=user_id, sender_username=username, content=message))
+        timestamp = datetime.datetime.utcnow().isoformat()
+        await sio.emit("receive_message", {"sender_id": user_id, "sender": username, "message": message, "timestamp": timestamp})
+
+@sio.on("typing")
+async def typing(sid, data):
+    user_info = connected_users.get(sid)
+    if user_info:
+        username = user_info["username"]
+        connected_users[sid]["status"] = "Escribiendo..."
+        await update_user_list()
+        asyncio.sleep(3)
+        if sid in connected_users and connected_users[sid].get("username") == username and connected_users[sid]["status"] == "Escribiendo...":
+            connected_users[sid]["status"] = "En línea"
+            await update_user_list()
+
+@sio.on("online")
+async def online(sid, data):
+    # Online status is now managed on connect
+    pass
+
+@sio.on("get_users")
+async def get_users(sid):
+    await sio.emit("user_list_updated", list(connected_users.values()), room=sid)
+
+async def update_user_list():
+    await sio.emit("user_list_updated", list(connected_users.values()))
+
+# Integrate SocketIO with FastAPI
+app = socketio.ASGIApp(sio, app)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=10000)
