@@ -557,9 +557,7 @@
           }
 
           // Conectar con Socket.IO
-          function connectSocket() {
-          socket = io({
-          auth: {
+                    socket = io('https://seend.onrender.com',{ auth: {
           user_id: currentUser.id
           },
           reconnectionAttempts: 5,
