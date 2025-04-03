@@ -1,7 +1,8 @@
 import asyncio
 import datetime
 import os
-import uuid  # For generating unique user IDs
+import uuid
+from contextlib import asynccontextmanager
 
 import databases
 import sqlalchemy
@@ -10,6 +11,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncEngine
 
 load_dotenv()
 
@@ -23,9 +25,9 @@ users_table = sqlalchemy.Table(
     "users",
     metadata,
     sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
-    sqlalchemy.Column("user_id", sqlalchemy.String, unique=True, default=lambda: str(uuid.uuid4())), # Unique user ID
+    sqlalchemy.Column("user_id", sqlalchemy.String, unique=True, default=lambda: str(uuid.uuid4())),
     sqlalchemy.Column("username", sqlalchemy.String, unique=True),
-    sqlalchemy.Column("password", sqlalchemy.String),  # Store hashed password in real app
+    sqlalchemy.Column("password", sqlalchemy.String),
     sqlalchemy.Column("status", sqlalchemy.String, default="En línea"),
     sqlalchemy.Column("last_seen", sqlalchemy.DateTime, nullable=True),
 )
@@ -35,13 +37,14 @@ messages_table = sqlalchemy.Table(
     "messages",
     metadata,
     sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
-    sqlalchemy.Column("sender_id", sqlalchemy.String),  # Store sender's user ID
+    sqlalchemy.Column("sender_id", sqlalchemy.String),
     sqlalchemy.Column("sender_username", sqlalchemy.String),
     sqlalchemy.Column("content", sqlalchemy.String),
     sqlalchemy.Column("timestamp", sqlalchemy.DateTime, default=datetime.datetime.utcnow),
 )
 
-engine = sqlalchemy.create_engine(DATABASE_URL)
+# Cambiado a motor asíncrono
+engine = create_async_engine(DATABASE_URL)
 
 async def create_tables():
     async with engine.begin() as conn:
@@ -49,19 +52,21 @@ async def create_tables():
 
 # FastAPI and SocketIO Setup
 sio = socketio.AsyncServer(cors_allowed_origins="*", async_mode="asgi")
-app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
-@app.on_event("startup")
-async def startup_event():
+connected_users = {}
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
     await database.connect()
     await create_tables()
-    global connected_users
-    connected_users = {}
-
-@app.on_event("shutdown")
-async def shutdown_event():
+    connected_users.clear()
+    yield
+    # Shutdown
     await database.disconnect()
+
+app = FastAPI(lifespan=lifespan)
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root():
@@ -73,18 +78,16 @@ async def auth_page(request: Request):
 
 @app.post("/register", response_class=HTMLResponse)
 async def register_user(request: Request, username: str = Form(...), password: str = Form(...)):
-    # In a real application, hash the password
     hashed_password = password
     try:
         query = users_table.insert().values(username=username, password=hashed_password)
         await database.execute(query)
-        return RedirectResponse(url="/auth", status_code=303) # Redirect to login after registration
+        return RedirectResponse(url="/auth", status_code=303)
     except Exception as e:
         return templates.TemplateResponse("auth.html", {"request": request, "error": "Error al registrar el usuario. El nombre de usuario puede estar en uso."})
 
 @app.post("/login", response_class=HTMLResponse)
 async def login_user(request: Request, username: str = Form(...), password: str = Form(...)):
-    # In a real application, verify the hashed password
     query = users_table.select().where(users_table.c.username == username)
     user = await database.fetch_one(query)
     if user and user["password"] == password:
@@ -104,8 +107,6 @@ async def chat_page(request: Request):
     return templates.TemplateResponse("chat.html", {"request": request, "user_id": user_id, "username": username})
 
 # SocketIO Event Handlers
-connected_users = {}
-
 @sio.on("authenticate")
 async def authenticate(sid, data):
     user_id = data.get("user_id")
@@ -116,7 +117,7 @@ async def authenticate(sid, data):
         await update_user_list()
     else:
         print(f"Authentication failed: {sid}, missing user_id or username")
-        return False  # Reject connection
+        return False
 
 @sio.on("disconnect")
 async def disconnect(sid):
