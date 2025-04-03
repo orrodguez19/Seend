@@ -1,277 +1,88 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
-    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialChat - Chat General</title>
-    <!-- Material Design Icons -->
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <style>
-        /* Reset básico */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
-        }
         body {
-            background-color: #f8f9fa;
-            color: #212529;
-            overflow: hidden;
+            font-family: 'Poppins', sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
             display: flex;
             flex-direction: column;
             height: 100vh;
+            justify-content: flex-end;
         }
-        /* Encabezado */
-        .header {
-            background: linear-gradient(135deg, #007bff, #0056b3);
-            color: white;
-            padding: 15px;
-            font-size: 18px;
-            font-weight: 600;
-            text-align: center;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        .header svg {
-            width: 24px;
-            height: 24px;
-            fill: white;
-            cursor: pointer;
-        }
-        /* Contenedor principal */
-        .container {
-            flex: 1;
+        #chat-container {
             display: flex;
             flex-direction: column;
-            overflow: hidden;
+            height: 100vh;
+            justify-content: flex-end;
+            background-color: #f0f0f0;
         }
-        /* Área de mensajes */
-        .messages {
-            flex: 1;
-            padding: 16px;
-            overflow-y: auto;
-            background: #f8f9fa;
-        }
-        /* Mensajes recibidos */
-        .message.received {
-            max-width: 70%;
-            margin-bottom: 16px;
-            align-self: flex-start;
-        }
-        .message.received .username {
-            font-size: 12px;
-            color: #6c757d;
-            margin-bottom: 4px;
-        }
-        .message.received .content {
-            background: #e9ecef;
-            padding: 12px;
-            border-radius: 16px;
-            word-wrap: break-word;
-        }
-        .message.received img {
-            max-width: 100%;
-            border-radius: 8px;
-            margin-top: 8px;
-        }
-        /* Mensajes enviados */
-        .message.sent {
-            max-width: 70%;
-            margin-bottom: 16px;
-            align-self: flex-end;
-            position: relative;
-        }
-        .message.sent .content {
-            background: #007bff;
-            color: white;
-            padding: 12px;
-            border-radius: 16px;
-            word-wrap: break-word;
-        }
-        .message.sent img {
-            max-width: 100%;
-            border-radius: 8px;
-            margin-top: 8px;
-        }
-        /* Estado del mensaje */
-        .message.sent .status {
-            position: absolute;
-            bottom: 4px;
-            right: 4px;
-            font-size: 12px;
-            color: white;
-        }
-        /* Barra de entrada de mensaje */
-        .message-input {
-            display: flex;
-            align-items: center;
+        #messages {
+            flex-grow: 1;
             padding: 10px;
-            background: white;
-            border-top: 1px solid #dee2e6;
+            overflow-y: auto;
         }
-        .message-input input {
-            flex: 1;
-            padding: 12px;
-            border: 1px solid #ced4da;
-            border-radius: 24px;
-            margin-right: 8px;
+        .message {
+            max-width: 60%;
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 10px;
         }
-        .message-input button {
-            background: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 16px;
-            border-radius: 24px;
-            cursor: pointer;
+        .message.sent {
+            align-self: flex-end;
+            background-color: #d1e7ff;
         }
-        .message-input button:hover {
-            background: #0056b3;
+        .message.received {
+            align-self: flex-start;
+            background-color: #ffffff;
         }
-        /* Botón de adjuntar archivo */
-        .attachment-button {
+        #message-input {
+            display: flex;
+            padding: 10px;
+            background-color: #ffffff;
+        }
+        #message-text {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
             background: none;
             border: none;
-            color: #007bff;
-            font-size: 24px;
             cursor: pointer;
-            margin-right: 8px;
-        }
-        .attachment-button:hover {
-            color: #0056b3;
+            font-size: 24px; /* Font size for emojis */
         }
     </style>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
 </head>
 <body>
-    <!-- Encabezado -->
-    <div class="header">
-        <svg onclick="logout()" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
-        <h3>Chat General</h3>
-        <svg onclick="showOnlineUsers()" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-14h2v5h-2zm0 7h2v5h-2z"/></svg>
-    </div>
-    <!-- Contenedor principal -->
-    <div class="container">
-        <!-- Área de mensajes -->
-        <div class="messages" id="messages"></div>
-        <!-- Barra de entrada de mensaje -->
-        <div class="message-input">
-            <button class="attachment-button" onclick="attachFile()">
-                <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-            </button>
-            <input type="text" id="messageField" placeholder="Escribe un mensaje...">
-            <button onclick="sendMessage()">
-                <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2 .01 7z"/></svg>
-            </button>
-        </div>
-    </div>
-    <!-- Modal de Usuarios en Línea -->
-    <div id="onlineUsersModal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5);">
-        <div style="background: white; padding: 24px; border-radius: 8px; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%;">
-            <h3>Usuarios en Línea</h3>
-            <ul id="onlineUsersList"></ul>
-            <button onclick="closeOnlineUsersModal()">Cerrar</button>
+    <div id="chat-container">
+        <div id="messages"></div>
+        <div id="message-input">
+            <input type="text" id="message-text" placeholder="Type a message...">
+            <button id="send-btn">📤</button> <!-- Send emoji -->
+            <button id="photo-btn">📷</button> <!-- Photo emoji -->
         </div>
     </div>
     <script>
-        const socket = io(`ws://${window.location.host}`, { transports: ['websocket'] });
+        var socket = io();
+        var username = prompt("Enter your username:");
 
-        // Función para cerrar sesión
-        function logout() {
-            document.cookie = "access_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-            window.location.href = '/';
-        }
-
-        // Función para mostrar usuarios en línea
-        function showOnlineUsers() {
-            socket.emit('get_users');
-        }
-
-        // Función para cerrar el modal de usuarios en línea
-        function closeOnlineUsersModal() {
-            document.getElementById('onlineUsersModal').style.display = 'none';
-        }
-
-        // Función para adjuntar archivos
-        function attachFile() {
-            const fileInput = document.createElement('input');
-            fileInput.type = 'file';
-            fileInput.accept = 'image/*';
-            fileInput.onchange = async () => {
-                const file = fileInput.files[0];
-                if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        const base64String = e.target.result.split(',')[1];
-                        socket.emit('send_message', { file: { data: base64String, type: file.type } });
-                    };
-                    reader.readAsDataURL(file);
-                }
-            };
-            fileInput.click();
-        }
-
-        // Función para enviar mensajes
-        function sendMessage() {
-            const messageField = document.getElementById('messageField');
-            const text = messageField.value.trim();
-            if (!text) return;
-            socket.emit('send_message', { text });
-            addMessage(true, text); // Añadir mensaje enviado al chat
-            messageField.value = '';
-        }
-
-        // Función para agregar mensajes al chat
-        function addMessage(isSent, content, isImage = false) {
-            const messagesDiv = document.getElementById('messages');
-            const message = document.createElement('div');
-            message.className = `message ${isSent ? 'sent' : 'received'}`;
-            const contentDiv = document.createElement('div');
-            contentDiv.className = 'content';
-            if (isImage) {
-                const img = document.createElement('img');
-                img.src = content;
-                contentDiv.appendChild(img);
-            } else {
-                contentDiv.textContent = content;
-            }
-            message.appendChild(contentDiv);
-            messagesDiv.appendChild(message);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        }
-
-        // Conectar Socket.IO
-        socket.on('connect', () => {
-            console.log('Conectado a Socket.IO');
-        });
-
-        socket.on('new_message', (data) => {
-            addMessage(false, data.text || data.image_path, !!data.image_path);
-        });
-
-        socket.on('users_list', (data) => {
-            const onlineUsersList = document.getElementById('onlineUsersList');
-            onlineUsersList.innerHTML = '';
-            data.users.forEach(user => {
-                const li = document.createElement('li');
-                li.textContent = `${user.username} (${user.online ? 'En línea' : 'Fuera de línea'})`;
-                onlineUsersList.appendChild(li);
-            });
-            document.getElementById('onlineUsersModal').style.display = 'block';
-        });
-
-        socket.on('disconnect', () => {
-            console.log('Desconectado de Socket.IO');
-        });
-
-        window.onload = () => {
-            const token = document.cookie.replace(/(?:(?:^|.*;\s*)access_token\s*=\s*([^;]*).*$)|^.*$/, "$1");
-            if (!token) {
-                window.location.href = '/';
-            }
-            socket.auth = { token };
+        document.getElementById('send-btn').onclick = function() {
+            var message = document.getElementById('message-text').value;
+            socket.emit('chat_message', {username: username, message: message});
+            document.getElementById('message-text').value = "";
         };
+
+        socket.on('chat_message', function(data) {
+            var msgDiv = document.createElement('div');
+            msgDiv.className = data.username === username ? 'message sent' : 'message received';
+            msgDiv.innerHTML = `<strong>${data.username}</strong> <span>${data.timestamp}</span><p>${data.message}</p>`;
+            document.getElementById('messages').appendChild(msgDiv);
+        });
     </script>
 </body>
 </html>
