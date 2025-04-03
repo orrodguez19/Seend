@@ -207,7 +207,13 @@ async def update_user_list():
 app = socketio.ASGIApp(sio, app)
 
 if __name__ == "__main__":
-    import uvicorn
-    import os
-    port = int(os.environ.get("PORT", 10000))
-    uvicorn.run("app:app", host="0.0.0.0", port=port)
+    # Render asigna el puerto mediante la variable de entorno PORT
+    port = int(os.environ.get("PORT", 8000))  # 8000 para desarrollo local
+    
+    # Configuración óptima para Render:
+    uvicorn.run(
+        "main:app",  # Reemplaza "main" por el nombre de tu archivo si es diferente
+        host="0.0.0.0",  # Escucha en todas las interfaces
+        port=port,
+        reload=False  # Desactiva reload en producción (Render lo maneja)
+    )
