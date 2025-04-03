@@ -10,6 +10,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict
 from socketio import AsyncServer
+import asyncio
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -34,6 +35,7 @@ def create_tables():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
+            last_seen DATETIME,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     """)
@@ -41,7 +43,9 @@ def create_tables():
         CREATE TABLE IF NOT EXISTS messages (
             id TEXT PRIMARY KEY,
             sender_id INTEGER NOT NULL,
+            receiver_id INTEGER NOT NULL,
             text TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'sent',
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (sender_id) REFERENCES users(id)
         )
@@ -65,10 +69,11 @@ app.add_middleware(
 
 class ConnectionManager:
     def __init__(self):
-        self.active_connections: Dict[str, Dict] = {}  # {user_id: {sid, username}}
+        self.active_connections: Dict[str, Dict] = {}
 
     async def connect(self, sid: str, user_id: str, username: str):
         self.active_connections[user_id] = {'sid': sid, 'username': username}
+        await self.update_last_seen(user_id)
         await self.notify_users_update()
 
     async def disconnect(self, sid: str):
@@ -80,22 +85,30 @@ class ConnectionManager:
         
         if user_id_to_remove:
             del self.active_connections[user_id_to_remove]
+            await self.update_last_seen(user_id_to_remove)
             await self.notify_users_update()
+
+    async def update_last_seen(self, user_id: str):
+        with get_db_connection() as conn:
+            conn.execute(
+                "UPDATE users SET last_seen = ? WHERE id = ?",
+                (datetime.now(), user_id)
+            )
+            conn.commit()
 
     async def notify_users_update(self):
         with get_db_connection() as conn:
-            users = conn.execute("SELECT id, username FROM users").fetchall()
-            user_list = []
+            users = conn.execute("SELECT id, username, last_seen FROM users").fetchall()
+            users_data = []
             for user in users:
-                is_online = str(user['id']) in self.active_connections
-                user_list.append({
+                users_data.append({
                     'id': user['id'],
                     'username': user['username'],
-                    'online': is_online
+                    'is_online': str(user['id']) in self.active_connections,
+                    'last_seen': user['last_seen']
                 })
         
-        await sio.emit('users_updated', {'users': user_list})
-        logger.info("Lista de usuarios actualizada enviada")
+        await sio.emit('users_updated', {'users': users_data})
 
 manager = ConnectionManager()
 
@@ -159,6 +172,19 @@ async def login_user(username: str = Form(...), password: str = Form(...)):
                 content={"detail": "Error interno del servidor"}
             )
 
+@app.get("/api/user/{user_id}/status")
+async def get_user_status(user_id: int):
+    with get_db_connection() as conn:
+        user = conn.execute(
+            "SELECT username, last_seen FROM users WHERE id = ?",
+            (user_id,)
+        ).fetchone()
+        is_online = str(user_id) in manager.active_connections
+        return {
+            "is_online": is_online,
+            "last_seen": user['last_seen']
+        }
+
 @sio.event
 async def connect(sid, environ, auth):
     try:
@@ -181,12 +207,12 @@ async def connect(sid, environ, auth):
                 'id': user['id']
             }, to=sid)
             
-            # Cargar últimos 50 mensajes
             messages = conn.execute("""
-                SELECT m.id, m.sender_id, u.username, m.text, m.created_at as timestamp 
+                SELECT m.id, m.sender_id, u.username, m.text, m.status, m.created_at as timestamp 
                 FROM messages m JOIN users u ON m.sender_id = u.id 
+                WHERE m.receiver_id = ? OR m.sender_id = ?
                 ORDER BY m.created_at DESC LIMIT 50
-            """).fetchall()
+            """, (user['id'], user['id'])).fetchall()
             
             await sio.emit('load_messages', {
                 'messages': [dict(msg) for msg in reversed(messages)]
@@ -207,7 +233,6 @@ async def disconnect(sid):
 @sio.event
 async def send_message(sid, data):
     try:
-        # Encontrar user_id por sid
         user_id = None
         username = None
         for uid, info in manager.active_connections.items():
@@ -217,9 +242,7 @@ async def send_message(sid, data):
                 break
         
         if not user_id:
-            await sio.emit('auth_error', {
-                'message': 'No autenticado'
-            }, to=sid)
+            await sio.emit('auth_error', {'message': 'No autenticado'}, to=sid)
             return
         
         text = data.get('text', '').strip()
@@ -227,37 +250,95 @@ async def send_message(sid, data):
             return
         
         message_id = str(uuid.uuid4())
+        receiver_id = data.get('receiver_id')
+        
         with get_db_connection() as conn:
             conn.execute(
-                "INSERT INTO messages (id, sender_id, text) VALUES (?, ?, ?)",
-                (message_id, user_id, text)
+                "INSERT INTO messages (id, sender_id, receiver_id, text, status) VALUES (?, ?, ?, ?, 'sent')",
+                (message_id, user_id, receiver_id, text)
             )
             conn.commit()
         
         message_data = {
             'id': message_id,
             'sender_id': user_id,
+            'receiver_id': receiver_id,
             'username': username,
             'text': text,
+            'status': 'sent',
             'timestamp': datetime.now().isoformat()
         }
         
-        await sio.emit('new_message', message_data)
+        await sio.emit('new_message', message_data, room=receiver_id)
+        await sio.emit('new_message', message_data, room=user_id)  # Para el remitente
+        
+        # Simular entrega después de 1s
+        await asyncio.sleep(1)
+        await message_delivered(sid, {'message_id': message_id})
+        
         logger.info(f"Nuevo mensaje de {username}: {text}")
         
     except Exception as e:
         logger.error(f"Error al enviar mensaje: {str(e)}")
 
 @sio.event
-async def get_users(sid):
-    await manager.notify_users_update()
+async def message_delivered(sid, data):
+    message_id = data.get('message_id')
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE messages SET status = 'delivered' WHERE id = ?",
+            (message_id,)
+        )
+        conn.commit()
+    
+    message = conn.execute(
+        "SELECT sender_id, receiver_id FROM messages WHERE id = ?",
+        (message_id,)
+    ).fetchone()
+    
+    await sio.emit('message_status_updated', {
+        'message_id': message_id,
+        'status': 'delivered'
+    }, room=message['sender_id'])
+    await sio.emit('message_status_updated', {
+        'message_id': message_id,
+        'status': 'delivered'
+    }, room=message['receiver_id'])
+
+@sio.event
+async def message_read(sid, data):
+    message_id = data.get('message_id')
+    with get_db_connection() as conn:
+        conn.execute(
+            "UPDATE messages SET status = 'read' WHERE id = ?",
+            (message_id,)
+        )
+        conn.commit()
+    
+    message = conn.execute(
+        "SELECT sender_id FROM messages WHERE id = ?",
+        (message_id,)
+    ).fetchone()
+    
+    await sio.emit('message_status_updated', {
+        'message_id': message_id,
+        'status': 'read'
+    }, room=message['sender_id'])
+
+@sio.event
+async def typing(sid, data):
+    user_id = data.get('user_id')
+    chat_id = data.get('chat_id')
+    is_typing = data.get('is_typing')
+    
+    await sio.emit('typing_indicator', {
+        'user_id': user_id,
+        'chat_id': chat_id,
+        'is_typing': is_typing
+    }, room=chat_id)
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    return FileResponse(os.path.join(TEMPLATES_DIR, "auth.html"))
-
-@app.get("/auth", response_class=HTMLResponse)
-async def auth_page():
     return FileResponse(os.path.join(TEMPLATES_DIR, "auth.html"))
 
 @app.get("/chat", response_class=HTMLResponse)
