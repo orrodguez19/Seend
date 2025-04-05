@@ -3,508 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seend - Chat</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
-        /* Variables de color para facilitar la personalización */
-        :root {
-            --primary-color: #007bff;
-            --primary-darker: #0056b3;
-            --secondary-color: #f8fafc;
-            --text-color-primary: #333;
-            --text-color-secondary: #fff;
-            --border-color: #e9ecef;
-            --background-color: #f0f4f8;
-            --shadow-color: rgba(0, 0, 0, 0.05);
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        body {
-            height: 100vh;
-            background: var(--background-color);
-            overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .chat-container {
-            display: flex;
-            height: 90%;
-            width: 95%;
-            max-width: 1200px;
-            background: var(--text-color-secondary);
-            overflow: hidden;
-            border-radius: 10px;
-            box-shadow: 0 5px 20px var(--shadow-color);
-        }
-
-        /* Sidebar */
-        .sidebar {
-            width: 320px;
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-darker));
-            color: var(--text-color-secondary);
-            padding: 25px;
-            overflow-y: auto;
-            position: absolute;
-            top: 0;
-            left: 0;
-            height: 100%;
-            transition: transform 0.3s ease;
-            z-index: 10;
-            border-top-left-radius: 10px;
-            border-bottom-left-radius: 10px;
-            transform: translateX(-100%);
-        }
-
-        .sidebar.collapsed {
-            transform: translateX(0);
-        }
-
-        .sidebar h2 {
-            font-size: 24px;
-            margin-bottom: 25px;
-            font-weight: 600;
-            text-align: center;
-        }
-
-        .close-sidebar {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            padding: 6px 12px;
-            background: rgba(255, 255, 255, 0.15);
-            color: var(--text-color-secondary);
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-            z-index: 11;
-        }
-
-        .close-sidebar:hover {
-            background: rgba(255, 255, 255, 0.25);
-        }
-
-        .user-list {
-            list-style: none;
-            margin-top: 30px;
-            padding: 0 10px;
-        }
-
-        .user-item {
-            display: flex;
-            align-items: center;
-            padding: 15px;
-            margin-bottom: 8px;
-            border-radius: 10px;
-            cursor: pointer;
-            background: rgba(255, 255, 255, 0.1);
-            transition: background-color 0.3s ease;
-        }
-
-        .user-item:hover {
-            background: rgba(255, 255, 255, 0.2);
-        }
-
-        .user-item .status {
-            font-size: 13px;
-            opacity: 0.9;
-            margin-top: 3px;
-            margin-left: 10px;
-            color: rgba(255, 255, 255, 0.8);
-        }
-
-        /* Chat Area */
-        .chat-area {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            position: relative;
-            background: var(--text-color-secondary);
-            border-top-right-radius: 10px;
-            border-bottom-right-radius: 10px;
-        }
-
-        .chat-header {
-            padding: 20px;
-            border-bottom: 1px solid var(--border-color);
-            text-align: center;
-            background: var(--text-color-secondary);
-            box-shadow: 0 2px 5px var(--shadow-color);
-            z-index: 1;
-            border-top-right-radius: 10px;
-        }
-
-        .chat-header h2 {
-            color: var(--primary-color);
-            font-size: 22px;
-            font-weight: 600;
-            margin-bottom: 0;
-        }
-
-        .messages {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            background: var(--secondary-color);
-            scrollbar-width: thin;
-            scrollbar-color: var(--border-color) var(--secondary-color);
-            display: flex;
-            flex-direction: column;
-            align-items: flex-start;
-        }
-
-        /* Estilo para la barra de desplazamiento en navegadores WebKit (Chrome, Safari) */
-        .messages::-webkit-scrollbar {
-            width: 8px;
-        }
-
-        .messages::-webkit-scrollbar-track {
-            background: var(--secondary-color);
-            border-radius: 5px;
-        }
-
-        .messages::-webkit-scrollbar-thumb {
-            background-color: var(--border-color);
-            border-radius: 5px;
-        }
-
-        .message {
-            max-width: 70%;
-            margin: 15px 0;
-            position: relative;
-            word-wrap: break-word;
-            align-self: flex-start;
-        }
-
-        .sent {
-            align-self: flex-end;
-        }
-
-        .message .sender {
-            font-size: 11px;
-            font-weight: 500;
-            margin-bottom: 3px;
-            color: #777;
-            display: block;
-            text-align: left;
-        }
-
-        .sent .sender {
-            text-align: right;
-        }
-
-        .message .content {
-            padding: 12px 18px;
-            border-radius: 20px;
-            box-shadow: 0 1px 3px var(--shadow-color);
-            line-height: 1.4;
-            font-size: 15px;
-        }
-
-        .sent .content {
-            background: linear-gradient(135deg, var(--primary-color), var(--primary-darker));
-            color: var(--text-color-secondary);
-            border-bottom-right-radius: 5px;
-            border-top-left-radius: 20px;
-            border-bottom-left-radius: 20px;
-        }
-
-        .received .content {
-            background: var(--text-color-secondary);
-            color: var(--text-color-primary);
-            border: 1px solid var(--border-color);
-            border-bottom-left-radius: 5px;
-            border-top-right-radius: 20px;
-            border-bottom-right-radius: 20px;
-        }
-
-        .message-info {
-            font-size: 11px;
-            opacity: 0.7;
-            margin-top: 4px;
-            font-weight: 400;
-            color: #777;
-            text-align: right;
-        }
-
-        .sent .message-info {
-            text-align: left;
-        }
-
-        /* Input Area */
-        .input-area {
-            padding: 15px;
-            border-top: 1px solid var(--border-color);
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: var(--text-color-secondary);
-            box-shadow: 0 -1px 3px var(--shadow-color);
-            border-bottom-right-radius: 10px;
-        }
-
-        .input-area input {
-            flex: 1;
-            padding: 12px 15px;
-            border: 1px solid var(--border-color);
-            border-radius: 25px;
-            font-size: 14px;
-            outline: none;
-            background: var(--secondary-color);
-            transition: border-color 0.3s ease;
-        }
-
-        .input-area input:focus {
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 0.1rem rgba(0, 123, 255, 0.25);
-        }
-
-        .send-btn {
-            background: var(--primary-color);
-            border: none;
-            padding: 12px;
-            border-radius: 50%;
-            cursor: pointer;
-            transition: background-color 0.3s ease, transform 0.2s ease;
-            box-shadow: 0 1px 3px var(--shadow-color);
-            outline: none;
-        }
-
-        .send-btn:hover {
-            background: var(--primary-darker);
-            transform: scale(1.05);
-        }
-
-        .send-btn svg {
-            display: block;
-            width: 18px;
-            height: 18px;
-        }
-
-        .toggle-sidebar {
-            position: absolute;
-            top: 15px;
-            left: 15px;
-            padding: 8px 12px;
-            background: var(--primary-color);
-            color: var(--text-color-secondary);
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            z-index: 5;
-            transition: background-color 0.3s ease;
-            box-shadow: 0 1px 3px var(--shadow-color);
-            outline: none;
-        }
-
-        .toggle-sidebar:hover {
-            background: var(--primary-darker);
-        }
-
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            body {
-                align-items: flex-start;
-            }
-
-            .chat-container {
-                height: 100%;
-                width: 100%;
-                max-width: none;
-                border-radius: 0;
-                margin: 0;
-            }
-
-            .sidebar {
-                width: 100%;
-                max-width: 300px;
-                border-radius: 0;
-                transform: translateX(-100%);
-            }
-
-            .sidebar.collapsed {
-                transform: translateX(0);
-            }
-
-            .chat-area {
-                border-radius: 0;
-            }
-
-            .chat-header h2 {
-                font-size: 18px;
-            }
-
-            .messages {
-                padding: 15px;
-            }
-
-            .message {
-                max-width: 85%;
-                margin: 10px 0;
-            }
-
-            .message .content {
-                padding: 10px 15px;
-                font-size: 14px;
-                border-radius: 15px;
-            }
-
-            .input-area {
-                padding: 10px;
-                gap: 8px;
-            }
-
-            .input-area input {
-                font-size: 13px;
-                padding: 10px 12px;
-                border-radius: 20px;
-            }
-
-            .send-btn {
-                padding: 10px;
-            }
-
-            .send-btn svg {
-                width: 16px;
-                height: 16px;
-            }
-
-            .toggle-sidebar {
-                top: 10px;
-                left: 10px;
-                padding: 6px 10px;
-                border-radius: 5px;
-                z-index: 12;
-            }
-        }
-    </style>
+    <title>Seend Messenger</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/chat.css">
 </head>
 <body>
-    <div class="chat-container">
-        <div class="sidebar collapsed">
-            <button class="close-sidebar" onclick="toggleSidebar()">X</button>
+    <div id="chat-container" class="container">
+        <div class="users-panel" id="usersPanel">
+            <button class="close-panel" id="closePanel">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
             <h2>Usuarios</h2>
-            <ul class="user-list">
-                </ul>
+            <ul class="user-list" id="userList">
+                <li class="user-item active" data-user="public">
+                    <div class="user-avatar">GP</div>
+                    <div class="user-info">
+                        <div class="user-name">Chat Público</div>
+                        <div class="user-status-text">Todos los usuarios</div>
+                    </div>
+                </li>
+            </ul>
         </div>
+        
         <div class="chat-area">
-            <button class="toggle-sidebar" onclick="toggleSidebar()">☰</button>
             <div class="chat-header">
-                <h2>Seend - Chat General</h2>
-            </div>
-            <div class="messages" id="messages">
-            </div>
-            <div class="input-area">
-                <input type="text" id="messageInput" placeholder="Escribe un mensaje...">
-                <button class="send-btn" onclick="sendMessage()">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                <button class="menu-button" id="menuButton">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M3 12H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M3 6H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        <path d="M3 18H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                     </svg>
                 </button>
+                <div>
+                    <div class="chat-title" id="chatTitle">Chat Público</div>
+                    <div class="chat-status" id="chatStatus">Todos los usuarios</div>
+                </div>
+            </div>
+            
+            <div class="messages-container" id="messagesContainer">
+                <div class="current-time">Hoy</div>
+                <div class="message-wrapper">
+                    <div class="message received">
+                        <div class="message-content">
+                            <div class="message-sender">Sistema</div>
+                            <div class="message-text">Bienvenido a Seend Messenger</div>
+                            <div class="message-time">10:00 AM</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chat-input-container">
+                <div id="replyIndicator" class="reply-indicator-container">
+                    <div class="reply-info">
+                        <div>
+                            <span class="reply-sender">Respondiendo a <span id="replyingTo"></span></span>
+                            <div id="replyPreview" class="reply-text"></div>
+                        </div>
+                        <button id="cancelReply" class="cancel-reply">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                                <path d="M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="chat-input-area">
+                    <textarea class="chat-input" placeholder="Escribe un mensaje..." id="chatInput" rows="1"></textarea>
+                    <button class="send-button" id="sendButton">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
-    <script>
-        const socket = io('http://localhost:10000', {
-            auth: {
-                user_id: "{{ user_id }}",
-                username: "{{ username }}"
-            }
-        });
-
-        const currentUser = "{{ username }}";
-
-        socket.on('connect', () => {
-            console.log('Connected to server with User ID: {{ user_id }}');
-            socket.emit('get_users'); // Request the initial user list
-        });
-
-        socket.on('disconnect', () => {
-            console.log('Disconnected from server');
-        });
-
-        socket.on('receive_message', (data) => {
-            const messagesDiv = document.getElementById('messages');
-            const isMe = data.sender === currentUser;
-            const messageClass = isMe ? 'sent' : 'received';
-
-            const messageDiv = document.createElement('div');
-            messageDiv.classList.add('message', messageClass);
-            messageDiv.innerHTML = `
-                <div class="sender">${data.sender}</div>
-                <div class="content">${data.message}</div>
-                <div class="message-info">${new Date(data.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-            `;
-            messagesDiv.appendChild(messageDiv);
-            messagesDiv.scrollTop = messagesDiv.scrollHeight;
-        });
-
-        socket.on('user_list_updated', (users) => {
-            const userListDiv = document.querySelector('.user-list');
-            userListDiv.innerHTML = ''; // Clear the current list
-            users.forEach(user => {
-                const listItem = document.createElement('li');
-                listItem.classList.add('user-item');
-                listItem.textContent = user.username;
-                const statusDiv = document.createElement('div');
-                statusDiv.classList.add('status');
-                statusDiv.textContent = user.status;
-                listItem.appendChild(statusDiv);
-                userListDiv.appendChild(listItem);
-            });
-        });
-
-        socket.on('user_typing', (data) => {
-            console.log(`${data.username} está escribiendo...`);
-            const userListItems = document.querySelectorAll('.user-item');
-            userListItems.forEach(item => {
-                if (item.textContent === data.username) {
-                    const statusDiv = item.querySelector('.status');
-                    if (statusDiv) {
-                        statusDiv.textContent = 'Escribiendo...';
-                        setTimeout(() => {
-                            if (item.textContent === data.username && statusDiv.textContent === 'Escribiendo...') {
-                                statusDiv.textContent = 'En línea';
-                            }
-                        }, 3000);
-                    }
-                }
-            });
-        });
-
-        function sendMessage() {
-            const input = document.getElementById('messageInput');
-            const message = input.value.trim();
-            if (!message) return;
-
-            socket.emit('send_message', { message: message, sender: currentUser });
-            input.value = '';
-        }
-
-        function toggleSidebar() {
-            const sidebar = document.querySelector('.sidebar');
-            sidebar.classList.toggle('collapsed');
-        }
-
-        document.getElementById('messageInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-
-        document.getElementById('messageInput').addEventListener('input', function() {
-            socket.emit('typing', { username: currentUser });
-        });
-    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
+    <script src="/static/chat.js" defer></script>
 </body>
 </html>
