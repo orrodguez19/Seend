@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, send_from_directory
 from flask_socketio import SocketIO, emit, disconnect
 import sqlite3
 import secrets
@@ -58,7 +58,12 @@ def init_db():
 # Estado de la aplicación
 connected_users = {}
 
-# Rutas HTTP
+# Ruta para archivos estáticos
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename)
+
+# Ruta principal
 @app.route('/')
 def index():
     return render_template('seend.html')
