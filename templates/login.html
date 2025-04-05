@@ -3,312 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SocialChat - Inicio de Sesión y Registro</title>
+    <title>Seend Messenger - Login</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --primary-color: #2563eb;
-            --primary-hover: #1d4ed8;
-            --secondary-color: #f3f4f6;
-            --text-color: #111827;
-            --error-color: #ef4444;
-            --success-color: #28a745;
-            --bg-color: #f9fafb;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
-        }
-
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            min-height: 100vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            padding: 20px;
-        }
-
-        .auth-container {
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-            padding: 40px;
-            width: 100%;
-            max-width: 420px;
-            text-align: center;
-        }
-
-        .auth-title {
-            color: var(--primary-color);
-            font-size: 32px;
-            font-weight: 700;
-            margin-bottom: 30px;
-        }
-
-        .auth-form {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        input {
-            padding: 14px 16px;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 16px;
-            transition: all 0.3s;
-        }
-
-        input:focus {
-            outline: none;
-            border-color: var(--primary-color);
-            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
-        }
-
-        .auth-buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-top: 10px;
-        }
-
-        button {
-            padding: 14px;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .btn-primary {
-            background-color: var(--primary-color);
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background-color: var(--primary-hover);
-        }
-
-        .btn-secondary {
-            background-color: var(--secondary-color);
-            color: var(--text-color);
-        }
-
-        .btn-secondary:hover {
-            background-color: #e5e7eb;
-        }
-
-        .message {
-            font-size: 14px;
-            margin-top: 16px;
-            font-weight: 500;
-            opacity: 0;
-            height: 0;
-            transition: all 0.3s;
-            text-align: center;
-        }
-
-        .error-message {
-            color: var(--error-color);
-        }
-
-        .success-message {
-            color: var(--success-color);
-        }
-
-        .message.show {
-            opacity: 1;
-            height: auto;
-            margin-top: 16px;
-        }
-
-        .hidden {
-            display: none;
-        }
-
-        .form-footer {
-            margin-top: 20px;
-            font-size: 14px;
-        }
-
-        .form-footer a {
-            color: var(--primary-color);
-            text-decoration: none;
-            font-weight: 500;
-        }
-
-        @media (max-width: 480px) {
-            .auth-container {
-                padding: 30px 20px;
-            }
-        }
-    </style>
+    <link rel="stylesheet" href="/static/login.css">
 </head>
 <body>
     <div class="auth-container">
-        <h1 class="auth-title">SocialChat</h1>
-
-        <form id="loginForm" class="auth-form">
-            <input type="text" id="loginUsername" placeholder="Nombre de usuario" required>
-            <input type="password" id="loginPassword" placeholder="Contraseña" required>
-            <div class="auth-buttons">
-                <button type="submit" id="loginBtn" class="btn-primary">Iniciar Sesión</button>
-                <button type="button" id="showRegisterBtn" class="btn-secondary">Crear una cuenta</button>
+        <div class="auth-box">
+            <h2>Seend Messenger</h2>
+            <div class="auth-tabs">
+                <div class="auth-tab active">Iniciar Sesión</div>
+                <div class="auth-tab">Registrarse</div>
             </div>
-            <p id="loginMessage" class="message error-message"></p>
-        </form>
-
-        <form id="registerForm" class="auth-form hidden">
-            <input type="text" id="registerUsername" placeholder="Nombre de usuario" required>
-            <input type="password" id="registerPassword" placeholder="Contraseña" required>
-            <input type="password" id="confirmPassword" placeholder="Confirmar contraseña" required>
-            <div class="auth-buttons">
-                <button type="submit" id="registerBtn" class="btn-primary">Registrarse</button>
-                <button type="button" id="showLoginBtn" class="btn-secondary">Ya tengo una cuenta</button>
+            
+            <!-- Formulario Login -->
+            <div id="login-form">
+                <div class="input-group">
+                    <input type="text" id="login-username" class="auth-input" placeholder="Usuario">
+                    <input type="password" id="login-password" class="auth-input" placeholder="Contraseña">
+                </div>
+                <button id="login-button" class="auth-button">Ingresar</button>
             </div>
-            <p id="registerMessage" class="message error-message"></p>
-        </form>
-
-        <div class="form-footer">
-            <p>Al registrarte, aceptas nuestros <a href="#">Términos</a> y <a href="#">Privacidad</a></p>
+            
+            <!-- Formulario Registro (oculto inicialmente) -->
+            <div id="register-form" style="display: none;">
+                <div class="input-group">
+                    <input type="text" id="register-username" class="auth-input" placeholder="Usuario">
+                    <input type="password" id="register-password" class="auth-input" placeholder="Contraseña">
+                    <input type="password" id="register-confirm" class="auth-input" placeholder="Confirmar Contraseña">
+                </div>
+                <button id="register-button" class="auth-button">Registrarse</button>
+            </div>
+            
+            <div id="auth-message"></div>
         </div>
     </div>
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            // Elementos del DOM
-            const loginForm = document.getElementById('loginForm');
-            const registerForm = document.getElementById('registerForm');
-            const showRegisterBtn = document.getElementById('showRegisterBtn');
-            const showLoginBtn = document.getElementById('showLoginBtn');
-            const loginMessage = document.getElementById('loginMessage');
-            const registerMessage = document.getElementById('registerMessage');
-
-            // Mostrar/ocultar formularios
-            showRegisterBtn.addEventListener('click', () => {
-                loginForm.classList.add('hidden');
-                registerForm.classList.remove('hidden');
-                clearMessages();
-            });
-
-            showLoginBtn.addEventListener('click', () => {
-                registerForm.classList.add('hidden');
-                loginForm.classList.remove('hidden');
-                clearMessages();
-            });
-
-            // Limpiar mensajes
-            function clearMessages() {
-                loginMessage.classList.remove('show');
-                registerMessage.classList.remove('show');
-            }
-
-            // Mostrar mensaje
-            function showMessage(element, message, isSuccess = false) {
-                clearMessages();
-                element.textContent = message;
-                element.className = isSuccess ?
-                    'message success-message show' :
-                    'message error-message show';
-            }
-
-            // Manejar login
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const username = document.getElementById('loginUsername').value.trim();
-                const password = document.getElementById('loginPassword').value.trim();
-
-                if (!username || !password) {
-                    showMessage(loginMessage, 'Todos los campos son requeridos');
-                    return;
-                }
-
-                try {
-                    const response = await fetch('/api/login', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: new URLSearchParams({
-                            username: username,
-                            password: password
-                        })
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok && data.session_token) {
-                        showMessage(loginMessage, 'Inicio de sesión exitoso! Redirigiendo...', true);
-                        localStorage.setItem('session_token', data.session_token); // Guardar el token
-                        setTimeout(() => window.location.href = '/chat', 1500);
-                    } else {
-                        showMessage(loginMessage, data.detail || 'Error en el inicio de sesión');
-                    }
-                } catch (err) {
-                    showMessage(loginMessage, 'Error de conexión con el servidor');
-                }
-            });
-
-            // Manejar registro
-            registerForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const username = document.getElementById('registerUsername').value.trim();
-                const password = document.getElementById('registerPassword').value.trim();
-                const confirmPassword = document.getElementById('confirmPassword').value.trim();
-
-                // Validaciones del cliente
-                if (!username || !password || !confirmPassword) {
-                    showMessage(registerMessage, 'Todos los campos son requeridos');
-                    return;
-                }
-
-                if (password !== confirmPassword) {
-                    showMessage(registerMessage, 'Las contraseñas no coinciden');
-                    return;
-                }
-
-                if (username.length < 3) {
-                    showMessage(registerMessage, 'El usuario debe tener al menos 3 caracteres');
-                    return;
-                }
-
-                if (password.length < 6) {
-                    showMessage(registerMessage, 'La contraseña debe tener al menos 6 caracteres');
-                    return;
-                }
-
-                try {
-                    const response = await fetch('/api/register', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                        },
-                        body: new URLSearchParams({
-                            username: username,
-                            password: password
-                        })
-                    });
-
-                    const data = await response.json();
-
-                    if (response.ok) {
-                        showMessage(registerMessage, 'Registro exitoso! Redirigiendo...', true);
-                        setTimeout(() => window.location.href = '/chat', 1500);
-                    } else {
-                        showMessage(registerMessage, data.detail || 'Error en el registro');
-                    }
-                } catch (err) {
-                    showMessage(registerMessage, 'Error de conexión con el servidor');
-                }
-            });
-        });
-    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
+    <script src="/static/login.js" defer></script>
 </body>
 </html>
