@@ -1,258 +1,540 @@
-let users = [];
-let chats = [];
-let selectedUsers = [];
-let currentChat = null;
-let currentUserId = null;
-let socket;
+// Elementos del DOM
+const authContainer = document.getElementById('auth-container');
+const chatContainer = document.getElementById('chat-container');
+const loginForm = document.getElementById('login-form');
+const registerForm = document.getElementById('register-form');
+const loginTab = document.querySelector('.auth-tab.active');
+const registerTab = document.querySelector('.auth-tab:not(.active)');
+const authMessage = document.getElementById('auth-message');
+const menuButton = document.getElementById('menuButton');
+const closePanel = document.getElementById('closePanel');
+const usersPanel = document.getElementById('usersPanel');
+const userList = document.getElementById('userList');
+const chatTitle = document.getElementById('chatTitle');
+const chatStatus = document.getElementById('chatStatus');
+const messagesContainer = document.getElementById('messagesContainer');
+const chatInput = document.getElementById('chatInput');
+const sendButton = document.getElementById('sendButton');
+const replyIndicator = document.getElementById('replyIndicator');
+const replyPreview = document.getElementById('replyPreview');
+const replyingTo = document.getElementById('replyingTo');
+const cancelReply = document.getElementById('cancelReply');
+const logoutButton = document.getElementById('logout-button');
 
-const DOM = {
-    chatList: document.getElementById("chatList"),
-    usersList: document.getElementById("usersList"),
-    groupUsersList: document.getElementById("groupUsersList"),
-    conversationArea: document.getElementById("conversationArea"),
-    messageInput: document.getElementById("messageInput"),
-    chatTitle: document.getElementById("chatTitle"),
-    chatUserImage: document.getElementById("chatUserImage"),
-    chatStatus: document.getElementById("chatStatus"),
-    selectedCount: document.getElementById("selectedCount"),
-    profileArea: document.getElementById("profileArea"),
-    profileTitle: document.getElementById("profileTitle")
-};
+// Estado de la aplicación
+let currentUser = null;
+let currentChat = 'public';
+let currentReply = null;
+let socket = null;
+let typingTimeout = null;
 
-// Funciones auxiliares
-function sanitizeInput(input) {
-    const div = document.createElement('div');
-    div.textContent = input;
-    return div.innerHTML;
+// Inicialización
+function init() {
+    // Verificar si ya está autenticado
+    const userId = localStorage.getItem('user_id');
+    const sessionToken = localStorage.getItem('session_token');
+    
+    if (userId && sessionToken) {
+        connectSocket(userId, sessionToken);
+    } else {
+        showAuth();
+    }
+    
+    setupEventListeners();
 }
 
-function formatTime(date) {
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
+// Mostrar pantalla de autenticación
+function showAuth() {
+    authContainer.style.display = 'flex';
+    chatContainer.style.display = 'none';
 }
 
-function getStatusIcon(status) {
-    if (!status || status === 'sent') return '<svg viewBox="0 0 24 24"><path fill="#bbb" d="M18 8l-8 8-4-4-1.5 1.5L10 19l9.5-9.5z"/></svg>';
-    if (status === 'delivered') return '<svg viewBox="0 0 24 24"><path fill="#bbb" d="M18 8l-8 8-4-4-1.5 1.5L10 19l9.5-9.5z"/></svg>';
-    if (status === 'read') return '<svg viewBox="0 0 24 24"><path fill="#4CAF50" d="M18 8l-8 8-4-4-1.5 1.5L10 19l9.5-9.5z"/></svg>';
-    return '';
+// Mostrar chat
+function showChat() {
+    authContainer.style.display = 'none';
+    chatContainer.style.display = 'flex';
 }
 
-// Funciones de la interfaz
-function showScreen(screenId) {
-    document.querySelectorAll('.screen').forEach(screen => screen.classList.remove('active'));
-    document.getElementById(screenId).classList.add('active');
-    if (screenId === 'screen-new-chat') loadUsers();
-    if (screenId === 'screen-group-create') loadGroupUsers();
+// Conectar con Socket.IO
+function connectSocket(userId, sessionToken) {
+    // Cambia esta URL por la de tu servidor en producción
+    const socketUrl = window.location.hostname === 'localhost' 
+        ? 'http://localhost:5000';
+    
+    socket = io(socketUrl);
+
+    socket.on('connect', () => {
+        console.log('Conectado al servidor');
+        socket.emit('authenticate', { user_id: userId, session_token: sessionToken });
+    });
+
+    socket.on('disconnect', () => {
+        console.log('Desconectado del servidor');
+    });
+
+    socket.on('auth_failed', () => {
+        localStorage.removeItem('user_id');
+        localStorage.removeItem('session_token');
+        showAuth();
+        showMessage('La sesión ha expirado. Por favor inicia sesión nuevamente.', 'error');
+    });
+
+    socket.on('register_response', handleRegisterResponse);
+    socket.on('login_response', handleLoginResponse);
+    socket.on('user_list', renderUserList);
+    socket.on('user_status', updateUserStatus);
+    socket.on('user_typing', showTypingIndicator);
+    socket.on('public_message', handlePublicMessage);
+    socket.on('private_message', handlePrivateMessage);
+    socket.on('unread_count', updateUnreadCount);
+    socket.on('message_read', handleMessageRead);
 }
 
-async function loadUsers() {
-    try {
-        const response = await fetch('/api/users');
-        if (!response.ok) {
-            console.error('Error loading users:', response.status);
-            return;
-        }
-        const data = await response.json();
-        users = data;
-        DOM.usersList.innerHTML = "";
-        users.forEach(user => {
-            if (user.id !== currentUserId) {
-                const div = document.createElement("div");
-                div.classList.add("list-item");
-                div.innerHTML = `<img src="https://i.pravatar.cc/150?img=${user.id}" alt="${user.name}"><div class="details"><strong>${user.name}</strong><p>${user.lastSeen}</p></div>`;
-                div.onclick = () => startChat(user.id);
-                DOM.usersList.appendChild(div);
-            }
-        });
-    } catch (error) {
-        console.error('Error loading users:', error);
+// Manejadores de eventos de autenticación
+function handleRegisterResponse(data) {
+    if (data.success) {
+        showMessage('¡Registro exitoso! Redirigiendo...', 'success');
+        saveUserData(data);
+        setTimeout(() => {
+            showChat();
+            socket.emit('authenticate', { 
+                user_id: data.user_id, 
+                session_token: data.session_token 
+            });
+        }, 1500);
+    } else {
+        showMessage(data.message, 'error');
     }
 }
 
-function loadGroupUsers() {
-    DOM.groupUsersList.innerHTML = "";
-    users.forEach(user => {
-        if (user.id !== currentUserId) {
-            const div = document.createElement("div");
-            div.classList.add("list-item");
-            div.innerHTML = `<img src="https://i.pravatar.cc/150?img=${user.id}" alt="${user.name}"><div class="details"><strong>${user.name}</strong><p>${user.lastSeen}</p></div><input type="checkbox" id="user-${user.id}" onchange="updateSelectedUsers(${user.id})">`;
-            DOM.groupUsersList.appendChild(div);
+function handleLoginResponse(data) {
+    if (data.success) {
+        saveUserData(data);
+        showChat();
+    } else {
+        showMessage(data.message, 'error');
+    }
+}
+
+function saveUserData(data) {
+    localStorage.setItem('user_id', data.user_id);
+    localStorage.setItem('session_token', data.session_token);
+    localStorage.setItem('username', data.username);
+    localStorage.setItem('avatar_initials', data.avatar_initials);
+    
+    currentUser = {
+        id: data.user_id,
+        username: data.username,
+        avatar: data.avatar_initials
+    };
+    
+    // Actualizar UI
+    document.getElementById('current-username').textContent = data.username;
+    document.getElementById('user-avatar').textContent = data.avatar_initials;
+}
+
+// Manejadores de mensajes
+function handlePublicMessage(message) {
+    if (currentChat === 'public') {
+        addMessage(
+            message.sender_name,
+            message.content,
+            formatTime(message.timestamp),
+            message.sender_id === currentUser.id ? 'sent' : 'received',
+            false,
+            message.reply_to
+        );
+    }
+}
+
+function handlePrivateMessage(message) {
+    const isCurrent = (message.recipient_id === currentChat && message.sender_id === currentUser.id) || 
+                     (message.sender_id === currentChat && message.recipient_id === currentUser.id);
+    
+    if (isCurrent) {
+        addMessage(
+            message.sender_name,
+            message.content,
+            formatTime(message.timestamp),
+            message.sender_id === currentUser.id ? 'sent' : 'received',
+            true,
+            message.reply_to
+        );
+
+        if (message.sender_id !== currentUser.id && !message.is_read) {
+            socket.emit('mark_as_read', { message_id: message.message_id });
+        }
+    } else if (message.sender_id !== currentUser.id) {
+        updateUnreadCount({ recipient_id: message.sender_id, count: 1 });
+    }
+}
+
+function handleMessageRead(data) {
+    // Puedes implementar lógica para marcar mensajes como leídos en la UI si es necesario
+    console.log(`Mensaje ${data.message_id} leído por ${data.reader_id}`);
+}
+
+// Renderizado de UI
+function renderUserList(users) {
+    userList.innerHTML = '';
+    
+    // Chat público fijo
+    const publicChat = document.createElement('li');
+    publicChat.className = `user-item ${currentChat === 'public' ? 'active' : ''}`;
+    publicChat.dataset.user = 'public';
+    publicChat.innerHTML = `
+        <div class="user-avatar">GP</div>
+        <div class="user-info">
+            <div class="user-name">Chat Público</div>
+            <div class="user-status-text">Todos los usuarios</div>
+        </div>
+    `;
+    publicChat.addEventListener('click', () => switchChat('public'));
+    userList.appendChild(publicChat);
+    
+    // Usuarios
+    users.filter(user => user.id !== 'public').forEach(user => {
+        const isOnline = user.online_status === 'online';
+        const isTyping = user.online_status === 'typing';
+        
+        const userItem = document.createElement('li');
+        userItem.className = `user-item ${currentChat === user.id ? 'active' : ''}`;
+        userItem.dataset.user = user.id;
+        userItem.innerHTML = `
+            <div class="user-avatar">${user.avatar_initials}
+                <div class="user-status status-${isTyping ? 'typing' : isOnline ? 'online' : 'offline'}"></div>
+            </div>
+            <div class="user-info">
+                <div class="user-name">${user.username}</div>
+                ${isTyping ? 
+                    '<div class="typing-indicator">Escribiendo<div class="typing-dots"><span></span><span></span><span></span></div></div>' : 
+                    `<div class="user-status-text">${isOnline ? 'En línea' : 'Desconectado'}</div>`
+                }
+            </div>
+            <div class="notification-badge" style="display:none">0</div>
+        `;
+        userItem.addEventListener('click', () => switchChat(user.id));
+        userList.appendChild(userItem);
+    });
+}
+
+function updateUserStatus(data) {
+    const userItems = document.querySelectorAll(`.user-item[data-user="${data.user_id}"]`);
+    
+    userItems.forEach(item => {
+        const statusElement = item.querySelector('.user-status');
+        const statusText = item.querySelector('.user-status-text');
+        const typingIndicator = item.querySelector('.typing-indicator');
+        
+        if (statusElement) {
+            statusElement.className = `user-status status-${data.status === 'typing' ? 'typing' : data.status === 'online' ? 'online' : 'offline'}`;
+        }
+        
+        if (statusText && typingIndicator) {
+            if (data.status === 'typing') {
+                statusText.style.display = 'none';
+                typingIndicator.style.display = 'flex';
+            } else {
+                statusText.style.display = 'block';
+                typingIndicator.style.display = 'none';
+                statusText.textContent = data.status === 'online' ? 'En línea' : 'Desconectado';
+            }
+        }
+        
+        if (data.user_id === currentChat) {
+            chatStatus.textContent = data.status === 'online' ? 'En línea' : 
+                                   data.status === 'typing' ? 'Escribiendo...' : 
+                                   'Desconectado';
         }
     });
-    updateSelectedCount();
 }
 
-function updateSelectedUsers(userId) {
-    const checkbox = document.getElementById(`user-${userId}`);
-    if (checkbox.checked) {
-        if (!selectedUsers.includes(userId)) selectedUsers.push(userId);
-    } else {
-        selectedUsers = selectedUsers.filter(id => id !== userId);
-    }
-    updateSelectedCount();
-}
-
-function updateSelectedCount() {
-    DOM.selectedCount.textContent = `${selectedUsers.length} usuario${selectedUsers.length !== 1 ? 's' : ''} seleccionado${selectedUsers.length !== 1 ? 's' : ''}`;
-}
-
-function createGroup() {
-    const groupName = sanitizeInput(document.getElementById('groupName').value.trim());
-    if (!groupName) return alert("Por favor ingresa un nombre para el grupo");
-    if (selectedUsers.length < 2) return alert("Selecciona al menos 2 usuarios para crear un grupo");
-    const newGroup = {id: Date.now(), name: groupName, creatorId: currentUserId, members: selectedUsers.concat(currentUserId), isGroup: true, messages: []};
-    chats.push(newGroup);
-    updateChatList();
-    document.getElementById('groupName').value = '';
-    selectedUsers = [];
-    updateSelectedCount();
-    showScreen('screen-chats');
-    openConversation(newGroup);
-}
-
-function startChat(userId) {
-    const existingChat = chats.find(chat => !chat.isGroup && chat.memberId === userId);
-    if (existingChat) return openConversation(existingChat);
-    const user = users.find(u => u.id === userId);
-    const newChat = {id: Date.now(), name: user.name, memberId: userId, isGroup: false, messages: []};
-    chats.push(newChat);
-    updateChatList();
-    openConversation(newChat);
-}
-
-function updateChatList() {
-    DOM.chatList.innerHTML = chats.length === 0 ?
-        `<p class="empty-message">Inicie una nueva conversación</p>` : chats.map(chat => `
-        <div class="list-item" onclick="openConversation(chats[${chats.indexOf(chat)}])">
-            ${chat.isGroup ? `<svg viewBox="0 0 24 24" width="50" height="50" fill="#fff" style="margin-right:12px;"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM9 12c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm7 0c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3z"/></svg>` : `<img src="https://i.pravatar.cc/150?img=${chat.memberId}" alt="${chat.name}">`}
-            <div class="details"><strong>${chat.name}</strong><p>${chat.isGroup ? 'Grupo' : 'Chat individual'}</p></div>
-        </div>`).join('');
-}
-
-async function openConversation(chat) {
-    currentChat = chat;
-    DOM.chatTitle.textContent = chat.name;
-    if (!chat.isGroup) {
-        const user = users.find(u => u.id === chat.memberId);
-        DOM.chatUserImage.src = `https://i.pravatar.cc/150?img=${chat.memberId}`;
-        DOM.chatUserImage.alt = chat.name;
-        DOM.chatStatus.textContent = user.isOnline ? "En línea" : user.lastSeen;
-        try {
-            const response = await fetch(`/api/messages/${chat.memberId}`);
-            if (!response.ok) {
-                console.error('Error loading messages:', response.status);
-                DOM.conversationArea.innerHTML = `<div class="message received">Error al cargar los mensajes.</div>`;
-                return;
+function showTypingIndicator(data) {
+    if (data.recipient_id === currentChat || (currentChat === 'public' && data.recipient_id === 'public')) {
+        const userItems = document.querySelectorAll(`.user-item[data-user="${data.user_id}"]`);
+        
+        userItems.forEach(item => {
+            const statusText = item.querySelector('.user-status-text');
+            const typingIndicator = item.querySelector('.typing-indicator');
+            
+            if (statusText && typingIndicator) {
+                if (data.is_typing) {
+                    statusText.style.display = 'none';
+                    typingIndicator.style.display = 'flex';
+                } else {
+                    statusText.style.display = 'block';
+                    typingIndicator.style.display = 'none';
+                    statusText.textContent = 'En línea';
+                }
             }
-            const messages = await response.json();
-            DOM.conversationArea.innerHTML = messages.length > 0 ? messages.map(msg => `
-                <div class="message ${msg.sender_id === currentUserId ? 'sent' : 'received'}">${msg.text}<div class="message-status">${formatTime(new Date(msg.timestamp))}${msg.sender_id === currentUserId ? getStatusIcon(msg.status) : ''}</div></div>`).join('') : `<div class="message received">¡Hola! Este es el inicio de tu conversación.</div>`;
-            DOM.conversationArea.scrollTop = DOM.conversationArea.scrollHeight;
-        } catch (error) {
-            console.error('Error loading messages:', error);
-            DOM.conversationArea.innerHTML = `<div class="message received">Error al cargar los mensajes.</div>`;
-        }
-    } else {
-        DOM.chatUserImage.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0xMiAyQzYuNDggMiAyIDYuNDggMiAxMnM0LjQ4IDEwIDEwIDEwIDEwLTQuNDggMTAtMTBTMTcuNTIgMiAxMiAyek05IDEyYy0xLjY2IDAtMy0xLjM0LTMtM3MxLjM0LTMgMy0zIDMgMS4zNCAzIDMtMS4zNCAzLTMgM3ptNyAwYy0xLjY2IDAtMy0xLjM0LTMtM3MxLjM0LTMgMy0zIDMgMS4zNCAzIDMtMS4zNCAzLTMgM3oiLz48L3N2Zz4=";
-        DOM.chatStatus.textContent = `${chat.members.length} miembros`;
-        DOM.conversationArea.innerHTML = chat.messages.length > 0 ? chat.messages.map(msg => `
-            <div class="message ${msg.sender_id === currentUserId ? 'sent' : 'received'}">${msg.text}<div class="message-status">${formatTime(new Date(msg.timestamp))}${msg.sender_id === currentUserId ? getStatusIcon(msg.status) : ''}</div></div>`).join('') : `<div class="message received">¡Este es el inicio del grupo!</div>`;
-        DOM.conversationArea.scrollTop = DOM.conversationArea.scrollHeight;
+            
+            if (data.user_id === currentChat) {
+                chatStatus.textContent = data.is_typing ? 'Escribiendo...' : 'En línea';
+            }
+        });
     }
-    showScreen("screen-conversation");
+}
+
+function updateUnreadCount(data) {
+    const badge = document.querySelector(`.user-item[data-user="${data.recipient_id}"] .notification-badge`);
+    if (badge) {
+        const currentCount = parseInt(badge.textContent) || 0;
+        const newCount = currentCount + data.count;
+        badge.textContent = newCount;
+        badge.style.display = newCount > 0 ? 'flex' : 'none';
+    }
+}
+
+function switchChat(userId) {
+    document.querySelectorAll('.user-item').forEach(item => item.classList.remove('active'));
+    document.querySelector(`.user-item[data-user="${userId}"]`).classList.add('active');
+    
+    currentChat = userId;
+    messagesContainer.innerHTML = '<div class="current-time">Hoy</div>';
+    
+    const userItem = document.querySelector(`.user-item[data-user="${userId}"]`);
+    const userName = userItem.querySelector('.user-name').textContent;
+    const userStatus = userItem.querySelector('.user-status-text')?.textContent || 'Todos los usuarios';
+    
+    chatTitle.textContent = userName;
+    chatStatus.textContent = userStatus;
+    
+    // Resetear notificaciones
+    const badge = userItem.querySelector('.notification-badge');
+    if (badge) {
+        badge.style.display = 'none';
+        badge.textContent = '0';
+    }
+    
+    // Mensaje del sistema
+    addSystemMessage(
+        userId === 'public' 
+            ? 'Este es el chat público. Todos verán tus mensajes.' 
+            : `Conversación privada con ${userName}`
+    );
+}
+
+function addSystemMessage(text) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message-wrapper';
+    messageDiv.innerHTML = `
+        <div class="message received">
+            <div class="message-content">
+                <div class="message-sender">Sistema</div>
+                <div class="message-text">${text}</div>
+                <div class="message-time">${getCurrentTime()}</div>
+            </div>
+        </div>
+    `;
+    messagesContainer.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+function addMessage(sender, text, time, type, isPrivate, replyTo) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message-wrapper';
+    
+    let replyContent = '';
+    if (currentReply) {
+        replyContent = `
+            <div class="reply-container">
+                <span class="reply-sender">Respondiendo a ${currentReply.sender}</span>
+                <div class="reply-text">${currentReply.text}</div>
+            </div>
+        `;
+    } else if (replyTo) {
+        replyContent = `
+            <div class="reply-container">
+                <span class="reply-sender">Respondiendo a ${sender}</span>
+                <div class="reply-text">${text.substring(0, 50)}${text.length > 50 ? '...' : ''}</div>
+            </div>
+        `;
+    }
+    
+    messageDiv.innerHTML = `
+        <div class="message ${type}">
+            <div class="message-content">
+                <div class="message-sender">${sender}</div>
+                ${replyContent}
+                <div class="message-text">${text}</div>
+                <div class="message-time">${time}
+                    ${type === 'sent' ? `
+                        <svg class="status-icon" width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M2 6L4.66667 8.66667L10 3.33333" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M6 6L8.66667 8.66667L14 3.33333" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(-4 0)"/>
+                        </svg>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    messagesContainer.appendChild(messageDiv);
+    scrollToBottom();
+}
+
+// Funciones de utilidad
+function scrollToBottom() {
+    setTimeout(() => {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    }, 50);
+}
+
+function formatTime(timestamp) {
+    const date = new Date(timestamp);
+    let hours = date.getHours();
+    let minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    minutes = minutes < 10 ? '0' + minutes : minutes;
+    return `${hours}:${minutes} ${ampm}`;
+}
+
+function getCurrentTime() {
+    const now = new Date();
+    let hours = now.getHours();
+    let minutes = now.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    minutes = minutes < 10 ? '0' + minutes : minutes;
+    return `${hours}:${minutes} ${ampm}`;
+}
+
+function showMessage(text, type) {
+    authMessage.textContent = text;
+    authMessage.className = `auth-message ${type}`;
+    authMessage.style.display = 'block';
+    
+    setTimeout(() => {
+        authMessage.style.display = 'none';
+    }, 5000);
+}
+
+// Configuración de event listeners
+function setupEventListeners() {
+    // Autenticación
+    loginTab.addEventListener('click', () => {
+        loginTab.classList.add('active');
+        registerTab.classList.remove('active');
+        loginForm.style.display = 'block';
+        registerForm.style.display = 'none';
+    });
+    
+    registerTab.addEventListener('click', () => {
+        registerTab.classList.add('active');
+        loginTab.classList.remove('active');
+        registerForm.style.display = 'block';
+        loginForm.style.display = 'none';
+    });
+    
+    document.getElementById('login-button').addEventListener('click', (e) => {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value;
+        const password = document.getElementById('login-password').value;
+        
+        if (!username || !password) {
+            showMessage('Por favor completa todos los campos', 'error');
+            return;
+        }
+        
+        socket.emit('login', { username, password });
+    });
+    
+    document.getElementById('register-button').addEventListener('click', (e) => {
+        e.preventDefault();
+        const username = document.getElementById('register-username').value;
+        const password = document.getElementById('register-password').value;
+        const confirm = document.getElementById('register-confirm').value;
+        
+        if (!username || !password || !confirm) {
+            showMessage('Por favor completa todos los campos', 'error');
+            return;
+        }
+        
+        if (password !== confirm) {
+            showMessage('Las contraseñas no coinciden', 'error');
+            return;
+        }
+        
+        if (password.length < 6) {
+            showMessage('La contraseña debe tener al menos 6 caracteres', 'error');
+            return;
+        }
+        
+        socket.emit('register', { username, password });
+    });
+    
+    // Chat
+    menuButton.addEventListener('click', () => {
+        usersPanel.classList.add('active');
+    });
+    
+    closePanel.addEventListener('click', () => {
+        usersPanel.classList.remove('active');
+    });
+    
+    logoutButton.addEventListener('click', () => {
+        localStorage.clear();
+        if (socket) socket.disconnect();
+        showAuth();
+    });
+    
+    sendButton.addEventListener('click', sendMessage);
+    
+    chatInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+        
+        // Indicador de "escribiendo"
+        if (socket) {
+            socket.emit('typing_status', {
+                is_typing: true,
+                recipient_id: currentChat === 'public' ? null : currentChat
+            });
+            
+            clearTimeout(typingTimeout);
+            typingTimeout = setTimeout(() => {
+                socket.emit('typing_status', {
+                    is_typing: false,
+                    recipient_id: currentChat === 'public' ? null : currentChat
+                });
+            }, 3000);
+        }
+    });
+    
+    chatInput.addEventListener('input', function() {
+        this.style.height = 'auto';
+        this.style.height = (this.scrollHeight) + 'px';
+    });
+    
+    cancelReply.addEventListener('click', () => {
+        replyIndicator.style.display = 'none';
+        currentReply = null;
+    });
 }
 
 function sendMessage() {
-    const input = DOM.messageInput;
-    const text = sanitizeInput(input.value.trim());
-    if (!text || !currentChat) return;
-
-    const timestamp = new Date().toISOString();
-    const message = {
-        sender_id: currentUserId,
-        receiver_id: currentChat.isGroup ?
-            currentChat.id : currentChat.memberId,
-        text: text,
-        timestamp: timestamp
-    };
-    socket.emit('send_message', message);
-    input.value = '';
-}
-
-function handleKeyPress(event) {
-    if (event.key === 'Enter') sendMessage();
-}
-
-// Inicialización Socket.IO
-function initializeSocketIO() {
-    socket = io({
-        transports: ['websocket'],
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: Infinity
+    const messageText = chatInput.value.trim();
+    if (!messageText || !socket) return;
+    
+    socket.emit('send_message', {
+        content: messageText,
+        recipient_id: currentChat === 'public' ? null : currentChat,
+        reply_to: currentReply?.messageId
     });
-    socket.on('connect', () => {
-        console.log('Conectado al servidor Socket.IO');
-        if (currentUserId) {
-            socket.emit('join', { userId: currentUserId });
-        }
-    });
-    socket.on('disconnect', () => {
-        console.log('Desconectado del servidor Socket.IO');
-    });
-    socket.on('new_message', (msg) => {
-        if (!currentChat) return;
-        const isCurrentChat = (currentChat.isGroup && msg.receiver_id === currentChat.id) ||
-            (!currentChat.isGroup && (msg.sender_id === currentChat.memberId || msg.receiver_id === currentChat.memberId));
-
-        if (isCurrentChat) {
-            const messageDiv = document.createElement("div");
-            messageDiv.className = `message ${msg.sender_id === currentUserId ? 'sent' : 'received'}`;
-            messageDiv.innerHTML = `${msg.text}<div class="message-status">${formatTime(new Date(msg.timestamp))}${msg.sender_id === currentUserId ? getStatusIcon(msg.status) : ''}</div>`;
-            DOM.conversationArea.appendChild(messageDiv);
-            DOM.conversationArea.scrollTop = DOM.conversationArea.scrollHeight;
-        }
-    });
-    socket.on('connect_error', (error) => {
-        console.error('Error de conexión Socket.IO:', error);
-    });
-}
-
-// Inicialización de la aplicación
-document.addEventListener('DOMContentLoaded', async () => {
-    const usernameMeta = document.querySelector('meta[name="username"]');
-    if (!usernameMeta) {
-        console.error('No se encontró el meta tag con el nombre de usuario');
-        return;
+    
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+    
+    if (currentReply) {
+        replyIndicator.style.display = 'none';
+        currentReply = null;
     }
-    const username = usernameMeta.content;
+}
 
-    // Inicializar Socket.IO
-    initializeSocketIO();
-
-    // Cargar usuarios y establecer el ID del usuario actual
-    try {
-        const response = await fetch('/api/users');
-        if (!response.ok) {
-            console.error('Error loading users:', response.status);
-            return;
-        }
-        const data = await response.json();
-        users = data;
-        const currentUser = users.find(u => u.name === username);
-        if (currentUser) {
-            currentUserId = currentUser.id;
-            updateChatList();
-            document.getElementById("openNewChat").addEventListener("click", () => showScreen("screen-new-chat"));
-
-            // Unirse a la sala del usuario
-            socket.emit('join', { userId: currentUserId });
-        } else {
-            console.error('Usuario actual no encontrado');
-        }
-    } catch (error) {
-        console.error('Error loading current user:', error);
-    }
-});
+// Iniciar la aplicación
+document.addEventListener('DOMContentLoaded', init);
