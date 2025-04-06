@@ -91,14 +91,27 @@ def logout():
 def get_users():
     if 'username' not in session:
         return jsonify({"error": "No autenticado"}), 401
-    return jsonify({"users": [{"name": data["name"], "online": data["online"]} for data in connected_users.values()]})
+    
+    # Obtener todos los usuarios registrados
+    conn = sqlite3.connect('chat.db')
+    c = conn.cursor()
+    c.execute("SELECT username FROM users")
+    all_users = [row[0] for row in c.fetchall()]
+    conn.close()
+    
+    # Combinar con estado en línea
+    users_list = []
+    for username in all_users:
+        online = any(user["name"] == username for user in connected_users.values())
+        users_list.append({"name": username, "online": online})
+    
+    return jsonify({"users": users_list})
 
 @app.route('/api/messages/<username>', methods=['GET'])
 def get_messages(username):
     if 'username' not in session:
         return jsonify({"error": "No autenticado"}), 401
     
-    chat_id = f"chat_{min(session['username'], username)}_{max(session['username'], username)}"
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     c.execute("""
@@ -118,14 +131,14 @@ def handle_connect():
         return False  # Desconectar si no está autenticado
     sid = request.sid
     connected_users[sid] = {"name": session['username'], "online": True}
-    emit('users_update', {"users": [{"name": data["name"], "online": data["online"]} for data in connected_users.values()]}, broadcast=True)
+    emit('users_update', {"users": get_users().json["users"]}, broadcast=True)
 
 @socketio.on('disconnect')
 def handle_disconnect():
     sid = request.sid
     if sid in connected_users:
         del connected_users[sid]
-    emit('users_update', {"users": [{"name": data["name"], "online": data["online"]} for data in connected_users.values()]}, broadcast=True)
+    emit('users_update', {"users": get_users().json["users"]}, broadcast=True)
 
 @socketio.on('message')
 def handle_message(data):
