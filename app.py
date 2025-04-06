@@ -5,10 +5,12 @@ import time
 import os
 import uuid
 
-app = Flask(__name__)
+# Configuración inicial
+app = Flask(__name__, template_folder='templates')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'secret!')
 socketio = SocketIO(app)
 
+# Inicialización de la base de datos
 def init_db():
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
@@ -45,9 +47,62 @@ def init_db():
 init_db()
 connected_users = {}
 
-# ... (rutas de autenticación /login /register /logout se mantienen igual) ...
+# Rutas de autenticación
+@app.route('/')
+def auth():
+    return render_template('auth.html', error=request.args.get('error'))
 
-@app.route('/api/users', methods=['GET'])
+@app.route('/login', methods=['POST'])
+def login():
+    username = request.form['username']
+    password = request.form['password']
+
+    conn = sqlite3.connect('chat.db')
+    c = conn.cursor()
+    c.execute("SELECT id, username FROM users WHERE username = ? AND password = ?", (username, password))
+    user = c.fetchone()
+    conn.close()
+
+    if user:
+        session['user_id'] = user[0]
+        session['username'] = user[1]
+        return redirect(url_for('index'))
+    return redirect(url_for('auth', error='Credenciales inválidas'))
+
+@app.route('/register', methods=['POST'])
+def register():
+    username = request.form['username']
+    password = request.form['password']
+    user_id = str(uuid.uuid4())
+
+    conn = sqlite3.connect('chat.db')
+    c = conn.cursor()
+    try:
+        c.execute("INSERT INTO users (id, username, password) VALUES (?, ?, ?)", 
+                 (user_id, username, password))
+        conn.commit()
+        session['user_id'] = user_id
+        session['username'] = username
+        return redirect(url_for('index'))
+    except sqlite3.IntegrityError:
+        return redirect(url_for('auth', error='Usuario ya existe'))
+    finally:
+        conn.close()
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('auth'))
+
+# Ruta principal del chat
+@app.route('/chat')
+def index():
+    if 'user_id' not in session:
+        return redirect(url_for('auth'))
+    return render_template('index.html')
+
+# API Endpoints
+@app.route('/api/users')
 def get_users():
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
@@ -63,19 +118,17 @@ def get_users():
     conn.close()
     return jsonify({"users": users})
 
-@app.route('/api/conversations/<user_id>', methods=['GET'])
+@app.route('/api/conversations/<user_id>')
 def get_conversation_messages(user_id):
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
 
-    # Ordenar IDs para consistencia
     user_ids = sorted([session['user_id'], user_id])
     conversation_id = f"conv_{user_ids[0]}_{user_ids[1]}"
 
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     
-    # Crear conversación si no existe
     c.execute("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
     if not c.fetchone():
         c.execute("""
@@ -84,7 +137,6 @@ def get_conversation_messages(user_id):
         """, (conversation_id, user_ids[0], user_ids[1], time.time()))
         conn.commit()
 
-    # Obtener mensajes
     c.execute("""
         SELECT u.username as sender, m.message, m.timestamp 
         FROM messages m
@@ -101,7 +153,7 @@ def get_conversation_messages(user_id):
     conn.close()
     return jsonify({"messages": messages, "conversation_id": conversation_id})
 
-@app.route('/api/chats', methods=['GET'])
+@app.route('/api/chats')
 def get_chats():
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
@@ -110,10 +162,11 @@ def get_chats():
     c = conn.cursor()
 
     c.execute("""
-        SELECT c.id, 
-               CASE WHEN c.user1_id = ? THEN u2.id ELSE u1.id END as contact_id,
-               CASE WHEN c.user1_id = ? THEN u2.username ELSE u1.username END as contact_name,
-               MAX(m.timestamp) as last_timestamp
+        SELECT 
+            c.id,
+            CASE WHEN c.user1_id = ? THEN u2.id ELSE u1.id END as contact_id,
+            CASE WHEN c.user1_id = ? THEN u2.username ELSE u1.username END as contact_name,
+            MAX(m.timestamp) as last_timestamp
         FROM conversations c
         JOIN users u1 ON c.user1_id = u1.id
         JOIN users u2 ON c.user2_id = u2.id
@@ -139,6 +192,12 @@ def get_chats():
     conn.close()
     return jsonify({"chats": chats})
 
+# Manejo de errores
+@app.errorhandler(404)
+def not_found(e):
+    return redirect(url_for('auth'))
+
+# Eventos de Socket.IO
 @socketio.on('connect')
 def handle_connect():
     if 'user_id' not in session:
@@ -167,14 +226,12 @@ def handle_message(data):
     if not receiver_id or not message:
         return
 
-    # Ordenar IDs para consistencia
     user_ids = sorted([session['user_id'], receiver_id])
     conversation_id = f"conv_{user_ids[0]}_{user_ids[1]}"
     
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     
-    # Verificar/crear conversación
     c.execute("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
     if not c.fetchone():
         c.execute("""
@@ -182,7 +239,6 @@ def handle_message(data):
             VALUES (?, ?, ?, ?)
         """, (conversation_id, user_ids[0], user_ids[1], time.time()))
     
-    # Insertar mensaje
     message_id = f"msg_{uuid.uuid4()}"
     timestamp = time.time()
     c.execute("""
@@ -193,7 +249,6 @@ def handle_message(data):
     conn.commit()
     conn.close()
 
-    # Emitir con conversation_id
     emit('new_message', {
         "sender": session['username'],
         "receiver_id": receiver_id,
@@ -204,4 +259,4 @@ def handle_message(data):
     emit('chats_update', get_chats().json, broadcast=True)
 
 if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)), debug=False)
