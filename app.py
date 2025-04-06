@@ -8,17 +8,15 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'secret!')
 socketio = SocketIO(app)
 
-# Conexión a la base de datos SQLite
+# Inicialización de la base de datos
 def init_db():
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
-    
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL
     )''')
-    
     c.execute('''CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sender TEXT NOT NULL,
@@ -26,18 +24,16 @@ def init_db():
         message TEXT NOT NULL,
         timestamp REAL NOT NULL
     )''')
-    
     conn.commit()
     conn.close()
 
 init_db()
-
 connected_users = {}
 
+# Endpoints
 @app.route('/')
 def auth():
-    error = request.args.get('error')
-    return render_template('auth.html', error=error)
+    return render_template('auth.html', error=request.args.get('error'))
 
 @app.route('/chat')
 def index():
@@ -49,23 +45,17 @@ def index():
 def login():
     username = request.form['username']
     password = request.form['password']
-    
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     c.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
     user = c.fetchone()
     conn.close()
-    
-    if user:
-        session['username'] = username
-        return redirect(url_for('index'))
-    return redirect(url_for('auth', error='Usuario o contraseña incorrectos'))
+    return redirect(url_for('index')) if user else redirect(url_for('auth', error='Credenciales inválidas'))
 
 @app.route('/register', methods=['POST'])
 def register():
     username = request.form['username']
     password = request.form['password']
-    
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     try:
@@ -74,7 +64,7 @@ def register():
         session['username'] = username
         return redirect(url_for('index'))
     except sqlite3.IntegrityError:
-        return redirect(url_for('auth', error='El usuario ya existe'))
+        return redirect(url_for('auth', error='Usuario ya existe'))
     finally:
         conn.close()
 
@@ -87,28 +77,18 @@ def logout():
 def get_users():
     if 'username' not in session:
         return jsonify({"error": "No autenticado"}), 401
-    
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     c.execute("SELECT username FROM users WHERE username != ?", (session['username'],))
-    all_users = [row[0] for row in c.fetchall()]
+    users = [{"name": row[0], "online": any(u["name"] == row[0] for u in connected_users.values())} 
+             for row in c.fetchall()]
     conn.close()
-    
-    users_list = []
-    for username in all_users:
-        online = any(user["name"] == username for user in connected_users.values())
-        users_list.append({
-            "name": username, 
-            "online": online
-        })
-    
-    return jsonify({"users": users_list})
+    return jsonify({"users": users})
 
 @app.route('/api/messages/<username>', methods=['GET'])
 def get_messages(username):
     if 'username' not in session:
         return jsonify({"error": "No autenticado"}), 401
-    
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     c.execute("""
@@ -117,100 +97,85 @@ def get_messages(username):
         WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)
         ORDER BY timestamp ASC
     """, (session['username'], username, username, session['username']))
-    messages_data = [{
-        'sender': row[0], 
-        'receiver': row[1], 
-        'message': row[2], 
-        'timestamp': row[3]
-    } for row in c.fetchall()]
+    messages = [{"sender": row[0], "receiver": row[1], "message": row[2], "timestamp": row[3]} 
+                for row in c.fetchall()]
     conn.close()
-    
-    return jsonify({"messages": messages_data})
+    return jsonify({"messages": messages})
 
 @app.route('/api/chats', methods=['GET'])
 def get_chats():
     if 'username' not in session:
         return jsonify({"error": "No autenticado"}), 401
-    
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
-    
     c.execute("""
-        SELECT 
-            CASE WHEN sender = ? THEN receiver ELSE sender END AS contact,
-            message,
-            timestamp
-        FROM messages 
-        WHERE (sender = ? OR receiver = ?)
-        AND timestamp IN (
-            SELECT MAX(timestamp) 
+        WITH last_messages AS (
+            SELECT 
+                CASE WHEN sender = ? THEN receiver ELSE sender END AS contact,
+                message,
+                timestamp,
+                ROW_NUMBER() OVER (
+                    PARTITION BY CASE WHEN sender = ? THEN receiver ELSE sender END 
+                    ORDER BY timestamp DESC
+                ) as rn
             FROM messages 
             WHERE sender = ? OR receiver = ?
-            GROUP BY CASE WHEN sender = ? THEN receiver ELSE sender END
         )
+        SELECT contact, message, timestamp
+        FROM last_messages
+        WHERE rn = 1
         ORDER BY timestamp DESC
-    """, (session['username'], session['username'], session['username'], 
-          session['username'], session['username'], session['username']))
-    
-    chats = []
-    for row in c.fetchall():
-        contact = row[0]
-        online = any(user["name"] == contact for user in connected_users.values())
-        chats.append({
-            "name": contact,
-            "online": online,
-            "last_message": row[1],
-            "timestamp": row[2]
-        })
-    
+    """, (session['username'], session['username'], session['username'], session['username']))
+    chats = [{
+        "name": row[0],
+        "online": any(u["name"] == row[0] for u in connected_users.values()),
+        "last_message": row[1],
+        "timestamp": row[2]
+    } for row in c.fetchall()]
     conn.close()
     return jsonify({"chats": chats})
 
+# WebSockets
 @socketio.on('connect')
 def handle_connect():
     if 'username' not in session:
         return False
-    sid = request.sid
-    connected_users[sid] = {"name": session['username'], "online": True}
-    emit('users_update', {"users": get_users().json["users"]}, broadcast=True)
-    emit('chats_update', {"chats": get_chats().json["chats"]}, broadcast=True)
+    connected_users[request.sid] = {"name": session['username'], "online": True}
+    emit('users_update', get_users().json, broadcast=True)
+    emit('chats_update', get_chats().json, broadcast=True)
 
 @socketio.on('disconnect')
 def handle_disconnect():
-    sid = request.sid
-    if sid in connected_users:
-        del connected_users[sid]
-    emit('users_update', {"users": get_users().json["users"]}, broadcast=True)
-    emit('chats_update', {"chats": get_chats().json["chats"]}, broadcast=True)
+    if request.sid in connected_users:
+        del connected_users[request.sid]
+    emit('users_update', get_users().json, broadcast=True)
+    emit('chats_update', get_chats().json, broadcast=True)
 
 @socketio.on('message')
 def handle_message(data):
-    sid = request.sid
-    sender = connected_users.get(sid, {"name": "Unknown"})["name"]
+    if 'username' not in session:
+        return
+    sender = session['username']
     receiver = data.get('receiver')
     message = data.get('message')
-    timestamp = time.time()
+    if not all([sender, receiver, message]):
+        return
     
-    if sender and receiver and message:
-        conn = sqlite3.connect('chat.db')
-        c = conn.cursor()
-        c.execute("""
-            INSERT INTO messages (sender, receiver, message, timestamp) 
-            VALUES (?, ?, ?, ?)
-        """, (sender, receiver, message, timestamp))
-        conn.commit()
-        conn.close()
-        
-        message_data = {
-            'sender': sender,
-            'receiver': receiver,
-            'message': message,
-            'timestamp': timestamp
-        }
-        
-        emit('new_message', message_data, broadcast=True)
-        emit('chats_update', {"chats": get_chats().json["chats"]}, broadcast=True)
+    timestamp = time.time()
+    conn = sqlite3.connect('chat.db')
+    c = conn.cursor()
+    c.execute("INSERT INTO messages (sender, receiver, message, timestamp) VALUES (?, ?, ?, ?)",
+             (sender, receiver, message, timestamp))
+    conn.commit()
+    conn.close()
+    
+    emit('new_message', {
+        "sender": sender,
+        "receiver": receiver,
+        "message": message,
+        "timestamp": timestamp
+    }, broadcast=True)
+    emit('chats_update', get_chats().json, broadcast=True)
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
-    socketio.run(app, host='0.0.0.0', port=port)
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)))
