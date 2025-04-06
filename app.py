@@ -12,11 +12,13 @@ socketio = SocketIO(app)
 def init_db():
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
+    
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL
     )''')
+    
     c.execute('''CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sender_id TEXT NOT NULL,
@@ -26,6 +28,7 @@ def init_db():
         FOREIGN KEY (sender_id) REFERENCES users(id),
         FOREIGN KEY (receiver_id) REFERENCES users(id)
     )''')
+    
     conn.commit()
     conn.close()
 
@@ -46,11 +49,13 @@ def index():
 def login():
     username = request.form['username']
     password = request.form['password']
+    
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     c.execute("SELECT id, username FROM users WHERE username = ? AND password = ?", (username, password))
     user = c.fetchone()
     conn.close()
+    
     if user:
         session['user_id'] = user[0]
         session['username'] = user[1]
@@ -62,6 +67,7 @@ def register():
     username = request.form['username']
     password = request.form['password']
     user_id = str(uuid.uuid4())
+    
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     try:
@@ -85,6 +91,7 @@ def logout():
 def get_users():
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
+    
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     c.execute("SELECT id, username FROM users WHERE id != ?", (session['user_id'],))
@@ -100,17 +107,18 @@ def get_users():
 def get_messages(user_id):
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
+    
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     c.execute("""
-        SELECT u1.username as sender, u2.username as receiver, message, timestamp 
+        SELECT u1.username as sender, u2.username as receiver, m.message, m.timestamp 
         FROM messages m
         JOIN users u1 ON m.sender_id = u1.id
         JOIN users u2 ON m.receiver_id = u2.id
-        WHERE (m.sender_id = ? AND m.receiver_id = ?) 
-           OR (m.sender_id = ? AND m.receiver_id = ?)
-        ORDER BY timestamp ASC
+        WHERE (m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?)
+        ORDER BY m.timestamp ASC
     """, (session['user_id'], user_id, user_id, session['user_id']))
+    
     messages = [{
         "sender": row[0],
         "receiver": row[1],
@@ -124,34 +132,44 @@ def get_messages(user_id):
 def get_chats():
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
+    
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
+    
     c.execute("""
-        WITH last_messages AS (
-            SELECT 
-                CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END as contact_id,
-                message,
-                timestamp,
-                ROW_NUMBER() OVER (
-                    PARTITION BY CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END 
-                    ORDER BY timestamp DESC
-                ) as rn
-            FROM messages 
-            WHERE sender_id = ? OR receiver_id = ?
-        )
-        SELECT u.id, u.username, lm.message, lm.timestamp
-        FROM last_messages lm
-        JOIN users u ON lm.contact_id = u.id
-        WHERE lm.rn = 1
-        ORDER BY lm.timestamp DESC
-    """, (session['user_id'], session['user_id'], session['user_id'], session['user_id']))
-    chats = [{
-        "id": row[0],
-        "name": row[1],
-        "online": any(u["id"] == row[0] for u in connected_users.values()),
-        "last_message": row[2],
-        "timestamp": row[3]
-    } for row in c.fetchall()]
+        SELECT 
+            CASE WHEN m.sender_id = ? THEN m.receiver_id ELSE m.sender_id END as contact_id,
+            u.username as contact_name,
+            MAX(m.timestamp) as last_timestamp
+        FROM messages m
+        JOIN users u ON u.id = CASE WHEN m.sender_id = ? THEN m.receiver_id ELSE m.sender_id END
+        WHERE ? IN (m.sender_id, m.receiver_id)
+        GROUP BY contact_id
+        ORDER BY last_timestamp DESC
+    """, (session['user_id'], session['user_id'], session['user_id']))
+    
+    chats = []
+    for row in c.fetchall():
+        online = any(u["id"] == row[0] for u in connected_users.values())
+        
+        # Obtener el último mensaje real
+        c2 = conn.cursor()
+        c2.execute("""
+            SELECT message FROM messages
+            WHERE (? IN (sender_id, receiver_id) AND 
+                  (CASE WHEN sender_id = ? THEN receiver_id ELSE sender_id END = ?))
+            ORDER BY timestamp DESC LIMIT 1
+        """, (session['user_id'], session['user_id'], row[0]))
+        last_message = c2.fetchone()
+        
+        chats.append({
+            "id": row[0],
+            "name": row[1],
+            "online": online,
+            "last_message": last_message[0] if last_message else None,
+            "timestamp": row[2]
+        })
+    
     conn.close()
     return jsonify({"chats": chats})
 
@@ -177,10 +195,12 @@ def handle_disconnect():
 def handle_message(data):
     if 'user_id' not in session:
         return
+    
     receiver_id = data.get('receiver_id')
     message = data.get('message')
     if not receiver_id or not message:
         return
+    
     timestamp = time.time()
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
@@ -190,6 +210,7 @@ def handle_message(data):
     """, (session['user_id'], receiver_id, message, timestamp))
     conn.commit()
     conn.close()
+    
     emit('new_message', {
         "sender": session['username'],
         "receiver_id": receiver_id,
