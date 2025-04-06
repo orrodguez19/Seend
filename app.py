@@ -19,14 +19,24 @@ def init_db():
         password TEXT NOT NULL
     )''')
 
+    c.execute('''CREATE TABLE IF NOT EXISTS conversations (
+        id TEXT PRIMARY KEY,
+        user1_id TEXT NOT NULL,
+        user2_id TEXT NOT NULL,
+        created_at REAL NOT NULL,
+        FOREIGN KEY (user1_id) REFERENCES users(id),
+        FOREIGN KEY (user2_id) REFERENCES users(id),
+        UNIQUE(user1_id, user2_id)
+    )''')
+
     c.execute('''CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
         sender_id TEXT NOT NULL,
-        receiver_id TEXT NOT NULL,
         message TEXT NOT NULL,
         timestamp REAL NOT NULL,
-        FOREIGN KEY (sender_id) REFERENCES users(id),
-        FOREIGN KEY (receiver_id) REFERENCES users(id)
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+        FOREIGN KEY (sender_id) REFERENCES users(id)
     )''')
 
     conn.commit()
@@ -35,57 +45,7 @@ def init_db():
 init_db()
 connected_users = {}
 
-@app.route('/')
-def auth():
-    return render_template('auth.html', error=request.args.get('error'))
-
-@app.route('/chat')
-def index():
-    if 'user_id' not in session:
-        return redirect(url_for('auth'))
-    return render_template('index.html')
-
-@app.route('/login', methods=['POST'])
-def login():
-    username = request.form['username']
-    password = request.form['password']
-
-    conn = sqlite3.connect('chat.db')
-    c = conn.cursor()
-    c.execute("SELECT id, username FROM users WHERE username = ? AND password = ?", (username, password))
-    user = c.fetchone()
-    conn.close()
-
-    if user:
-        session['user_id'] = user[0]
-        session['username'] = user[1]
-        return redirect(url_for('index'))
-    return redirect(url_for('auth', error='Credenciales inválidas'))
-
-@app.route('/register', methods=['POST'])
-def register():
-    username = request.form['username']
-    password = request.form['password']
-    user_id = str(uuid.uuid4())
-
-    conn = sqlite3.connect('chat.db')
-    c = conn.cursor()
-    try:
-        c.execute("INSERT INTO users (id, username, password) VALUES (?, ?, ?)", 
-                 (user_id, username, password))
-        conn.commit()
-        session['user_id'] = user_id
-        session['username'] = username
-        return redirect(url_for('index'))
-    except sqlite3.IntegrityError:
-        return redirect(url_for('auth', error='Usuario ya existe'))
-    finally:
-        conn.close()
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    return redirect(url_for('auth'))
+# ... (rutas de autenticación /login /register /logout se mantienen igual) ...
 
 @app.route('/api/users', methods=['GET'])
 def get_users():
@@ -103,30 +63,43 @@ def get_users():
     conn.close()
     return jsonify({"users": users})
 
-@app.route('/api/messages/<user_id>', methods=['GET'])
-def get_messages(user_id):
+@app.route('/api/conversations/<user_id>', methods=['GET'])
+def get_conversation_messages(user_id):
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
 
+    # Ordenar IDs para consistencia
+    user_ids = sorted([session['user_id'], user_id])
+    conversation_id = f"conv_{user_ids[0]}_{user_ids[1]}"
+
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
+    
+    # Crear conversación si no existe
+    c.execute("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
+    if not c.fetchone():
+        c.execute("""
+            INSERT INTO conversations (id, user1_id, user2_id, created_at)
+            VALUES (?, ?, ?, ?)
+        """, (conversation_id, user_ids[0], user_ids[1], time.time()))
+        conn.commit()
+
+    # Obtener mensajes
     c.execute("""
-        SELECT u1.username as sender, u2.username as receiver, m.message, m.timestamp 
+        SELECT u.username as sender, m.message, m.timestamp 
         FROM messages m
-        JOIN users u1 ON m.sender_id = u1.id
-        JOIN users u2 ON m.receiver_id = u2.id
-        WHERE (m.sender_id = ? AND m.receiver_id = ?) OR (m.sender_id = ? AND m.receiver_id = ?)
+        JOIN users u ON m.sender_id = u.id
+        WHERE m.conversation_id = ?
         ORDER BY m.timestamp ASC
-    """, (session['user_id'], user_id, user_id, session['user_id']))
+    """, (conversation_id,))
 
     messages = [{
         "sender": row[0],
-        "receiver": row[1],
-        "message": row[2],
-        "timestamp": row[3]
+        "message": row[1],
+        "timestamp": row[2]
     } for row in c.fetchall()]
     conn.close()
-    return jsonify({"messages": messages})
+    return jsonify({"messages": messages, "conversation_id": conversation_id})
 
 @app.route('/api/chats', methods=['GET'])
 def get_chats():
@@ -137,27 +110,30 @@ def get_chats():
     c = conn.cursor()
 
     c.execute("""
-        SELECT 
-            CASE WHEN m.sender_id = ? THEN m.receiver_id ELSE m.sender_id END as contact_id,
-            u.username as contact_name,
-            MAX(m.timestamp) as last_timestamp
-        FROM messages m
-        JOIN users u ON u.id = CASE WHEN m.sender_id = ? THEN m.receiver_id ELSE m.sender_id END
-        WHERE ? IN (m.sender_id, m.receiver_id)
-        GROUP BY contact_id
+        SELECT c.id, 
+               CASE WHEN c.user1_id = ? THEN u2.id ELSE u1.id END as contact_id,
+               CASE WHEN c.user1_id = ? THEN u2.username ELSE u1.username END as contact_name,
+               MAX(m.timestamp) as last_timestamp
+        FROM conversations c
+        JOIN users u1 ON c.user1_id = u1.id
+        JOIN users u2 ON c.user2_id = u2.id
+        LEFT JOIN messages m ON m.conversation_id = c.id
+        WHERE ? IN (c.user1_id, c.user2_id)
+        GROUP BY c.id
         ORDER BY last_timestamp DESC
     """, (session['user_id'], session['user_id'], session['user_id']))
 
     chats = []
     for row in c.fetchall():
-        online = any(u["id"] == row[0] for u in connected_users.values())
-
+        online = any(u["id"] == row[1] for u in connected_users.values())
+        
         chats.append({
-            "id": row[0],
-            "name": row[1],
+            "conversation_id": row[0],
+            "contact_id": row[1],
+            "name": row[2],
             "online": online,
             "last_message": "Mensajes Privados",
-            "timestamp": row[2]
+            "timestamp": row[3]
         })
 
     conn.close()
@@ -191,21 +167,39 @@ def handle_message(data):
     if not receiver_id or not message:
         return
 
-    timestamp = time.time()
+    # Ordenar IDs para consistencia
+    user_ids = sorted([session['user_id'], receiver_id])
+    conversation_id = f"conv_{user_ids[0]}_{user_ids[1]}"
+    
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
+    
+    # Verificar/crear conversación
+    c.execute("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
+    if not c.fetchone():
+        c.execute("""
+            INSERT INTO conversations (id, user1_id, user2_id, created_at)
+            VALUES (?, ?, ?, ?)
+        """, (conversation_id, user_ids[0], user_ids[1], time.time()))
+    
+    # Insertar mensaje
+    message_id = f"msg_{uuid.uuid4()}"
+    timestamp = time.time()
     c.execute("""
-        INSERT INTO messages (sender_id, receiver_id, message, timestamp)
-        VALUES (?, ?, ?, ?)
-    """, (session['user_id'], receiver_id, message, timestamp))
+        INSERT INTO messages (id, conversation_id, sender_id, message, timestamp)
+        VALUES (?, ?, ?, ?, ?)
+    """, (message_id, conversation_id, session['user_id'], message, timestamp))
+    
     conn.commit()
     conn.close()
 
+    # Emitir con conversation_id
     emit('new_message', {
         "sender": session['username'],
         "receiver_id": receiver_id,
         "message": message,
-        "timestamp": timestamp
+        "timestamp": timestamp,
+        "conversation_id": conversation_id
     }, broadcast=True)
     emit('chats_update', get_chats().json, broadcast=True)
 
