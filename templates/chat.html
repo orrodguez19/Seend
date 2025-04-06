@@ -2,268 +2,331 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Seend - Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Seend Chat</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.1/socket.io.js"></script>
   <style>
-    body {
-      font-family: 'Poppins', sans-serif;
+    * {
       margin: 0;
       padding: 0;
-      background: #eaf3fc;
+      box-sizing: border-box;
+      font-family: 'Poppins', sans-serif;
+    }
+    body {
+      background: #f0f2f5;
       color: #333;
     }
-    .header {
+    .screen {
+      display: none;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .active {
+      display: flex;
+    }
+    header {
       display: flex;
       align-items: center;
+      gap: 0.5rem;
       background: #1877f2;
       color: white;
-      padding: 10px;
+      padding: 1rem;
     }
-    .menu-btn {
-      background: none;
-      border: none;
+    header svg {
+      width: 24px;
+      height: 24px;
+      fill: white;
       cursor: pointer;
-      margin-right: 10px;
     }
-    .drawer {
-      position: fixed;
-      top: 0;
-      left: -260px;
-      width: 250px;
-      height: 100%;
-      background: #ffffff;
-      border-right: 1px solid #ccc;
+    .chat-list, .user-list {
+      flex: 1;
       overflow-y: auto;
-      transition: left 0.3s ease;
-      z-index: 10;
-      padding: 10px;
+      padding: 1rem;
     }
-    .drawer.open {
-      left: 0;
-    }
-    .drawer h2 {
-      font-size: 18px;
-      margin-bottom: 10px;
-    }
-    .user-item {
+    .chat-item, .user-item {
       display: flex;
       align-items: center;
-      margin: 6px 0;
-      gap: 10px;
+      justify-content: space-between;
+      padding: 0.8rem;
+      background: #fff;
+      border-radius: 10px;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      animation: fadeIn 0.3s ease;
     }
     .avatar {
-      background: #1877f2;
-      color: white;
+      background: #fff;
+      color: #1877f2;
       border-radius: 50%;
-      width: 32px;
-      height: 32px;
+      width: 40px;
+      height: 40px;
       display: flex;
-      align-items: center;
       justify-content: center;
+      align-items: center;
       font-weight: bold;
-      font-size: 14px;
+      position: relative;
     }
-    .status-dot {
+    .status-circle {
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      margin-left: auto;
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      border: 2px solid #fff;
     }
-    .online { background: green; }
-    .offline { background: gray; }
-
-    .container {
+    .online {
+      background: #0f0;
+    }
+    .offline {
+      background: #999;
+    }
+    .user-info {
+      flex: 1;
+      margin-left: 0.8rem;
+    }
+    .user-info span {
+      display: block;
+    }
+    .status-text {
+      font-size: 0.85rem;
+      color: #666;
+    }
+    .last-message {
+      font-size: 0.9rem;
+      color: #555;
+    }
+    .unread-count {
+      background: #1877f2;
+      color: white;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
       display: flex;
-      flex-direction: column;
-      height: 100vh;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
     }
     .chat-box {
       flex: 1;
       overflow-y: auto;
-      padding: 10px;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
     }
     .message {
       max-width: 70%;
-      padding: 8px 12px;
-      border-radius: 15px;
-      margin: 5px 0;
+      padding: 0.5rem 0.8rem;
+      border-radius: 16px;
+      margin-bottom: 0.6rem;
       position: relative;
     }
     .sent {
       align-self: flex-end;
-      background: #d1e7ff;
-      text-align: right;
+      background: #d0e6ff;
     }
     .received {
       align-self: flex-start;
-      background: #ffffff;
+      background: #fff;
     }
-    .msg-name {
-      font-size: 11px;
-      font-weight: bold;
-      color: #666;
-    }
-    .msg-time {
-      font-size: 10px;
-      text-align: right;
-      color: #999;
-    }
-    .typing {
-      font-style: italic;
-      font-size: 12px;
-      color: #fff;
-      margin-left: 10px;
-      animation: blink 1.2s infinite;
-    }
-    @keyframes blink {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-
     .input-area {
       display: flex;
-      padding: 5px;
-      border-top: 1px solid #ccc;
+      align-items: center;
+      padding: 0.5rem;
       background: white;
+      border-top: 1px solid #ccc;
     }
     .input-area input {
       flex: 1;
-      padding: 8px;
-      font-size: 14px;
-      border: 1px solid #ccc;
-      border-radius: 20px;
-      margin-right: 8px;
+      border: none;
+      outline: none;
+      padding: 0.5rem;
+      font-size: 1rem;
     }
     .input-area button {
       background: none;
       border: none;
       cursor: pointer;
     }
-    .offline-banner {
-      background: red;
+    .input-area svg {
+      width: 28px;
+      height: 28px;
+      fill: #1877f2;
+    }
+    .fab {
+      position: absolute;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      background: #1877f2;
       color: white;
-      text-align: center;
-      padding: 5px;
-      font-size: 12px;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 2rem;
+      cursor: pointer;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
     }
   </style>
 </head>
 <body>
-
-<div class="drawer" id="drawer">
-  <h2>Usuarios</h2>
-  <div id="user-list"></div>
-</div>
-
-<div class="container">
-  <div class="header">
-    <button class="menu-btn" onclick="toggleDrawer()">
-      <svg width="24" height="24" fill="#fff"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-    </button>
-    <strong>Seend</strong>
-    <span id="typing" class="typing" style="display: none;"></span>
+  <div class="screen active" id="screen-chats">
+    <header>
+      <h2>Seend Chats</h2>
+      <span style="margin-left: auto; cursor: pointer;" onclick="window.location.href='/logout'">Cerrar Sesión</span>
+    </header>
+    <div class="chat-list" id="chat-list"></div>
+    <div class="fab" onclick="showUsersScreen()">+</div>
   </div>
 
-  <div id="offline" class="offline-banner" style="display: none;">Sin conexión</div>
-
-  <div id="chat" class="chat-box"></div>
-
-  <div class="input-area">
-    <input id="message" type="text" placeholder="Escribe un mensaje..." oninput="notifyTyping()" />
-    <button onclick="sendMessage()">
-      <svg width="24" height="24" fill="#1877f2" viewBox="0 0 24 24">
-        <path d="M2 21l21-9L2 3v7l15 2-15 2z"/>
-      </svg>
-    </button>
+  <div class="screen" id="screen-users">
+    <header>
+      <svg onclick="showChatsScreen()" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
+      <h2>Usuarios</h2>
+    </header>
+    <div class="user-list" id="user-list"></div>
   </div>
-</div>
 
-<script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
-<script>
-  const socket = io();
-  const username = "{{ username }}";
-  const chat = document.getElementById("chat");
-  const typing = document.getElementById("typing");
-  const offline = document.getElementById("offline");
-  const userList = document.getElementById("user-list");
+  <div class="screen" id="screen-chat">
+    <header>
+      <svg onclick="showChatsScreen()" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
+      <div class="avatar" id="chat-avatar"></div>
+      <div>
+        <div id="chat-username"></div>
+        <div class="status-text" id="chat-status"></div>
+      </div>
+    </header>
+    <div class="chat-box" id="chat-box"></div>
+    <form class="input-area" onsubmit="sendMessage(event)">
+      <input id="message-input" placeholder="Escribe un mensaje..." />
+      <button type="submit">
+        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+      </button>
+    </form>
+  </div>
 
-  function toggleDrawer() {
-    document.getElementById("drawer").classList.toggle("open");
-  }
+  <script>
+    const socket = io();
+    const chatsScreen = document.getElementById("screen-chats");
+    const usersScreen = document.getElementById("screen-users");
+    const chatScreen = document.getElementById("screen-chat");
+    let currentUser = "{{ session['username'] }}";
+    let currentChat = null;
 
-  socket.on('connect', () => {
-    offline.style.display = 'none';
-    socket.emit("user_connected", username);
-  });
+    function showChatsScreen() {
+      chatsScreen.classList.add("active");
+      usersScreen.classList.remove("active");
+      chatScreen.classList.remove("active");
+    }
 
-  socket.on('disconnect', () => {
-    offline.style.display = 'block';
-  });
+    function showUsersScreen() {
+      chatsScreen.classList.remove("active");
+      usersScreen.classList.add("active");
+    }
 
-  socket.on('load_messages', messages => {
-    chat.innerHTML = "";
-    messages.forEach(msg => addMessage(msg));
-    chat.scrollTop = chat.scrollHeight;
-  });
+    function openChat(username, online) {
+      currentChat = username;
+      document.getElementById("chat-username").innerText = username;
+      document.getElementById("chat-status").innerText = online ? "En línea" : "Desconectado";
+      document.getElementById("chat-avatar").innerText = username[0];
+      chatsScreen.classList.remove("active");
+      usersScreen.classList.remove("active");
+      chatScreen.classList.add("active");
+      loadMessages(username);
+    }
 
-  socket.on('receive_message', msg => {
-    addMessage(msg);
-    chat.scrollTop = chat.scrollHeight;
-  });
-
-  function addMessage({ username: name, message, timestamp }) {
-    const bubble = document.createElement("div");
-    bubble.classList.add("message", name === username ? "sent" : "received");
-    bubble.innerHTML = `
-      <div class="msg-name">${name}</div>
-      <div>${message}</div>
-      <div class="msg-time">${timestamp}</div>
-    `;
-    chat.appendChild(bubble);
-  }
-
-  function sendMessage() {
-    const input = document.getElementById("message");
-    const msg = input.value.trim();
-    if (msg) {
-      const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      socket.emit("send_message", {
-        username: username,
-        message: msg,
-        timestamp: time
+    function sendMessage(e) {
+      e.preventDefault();
+      const input = document.getElementById("message-input");
+      const text = input.value.trim();
+      if (!text || !currentChat) return;
+      
+      socket.emit('message', {
+        sender: currentUser,
+        receiver: currentChat,
+        message: text
       });
       input.value = "";
     }
-  }
 
-  let typingTimeout;
-  function notifyTyping() {
-    socket.emit("typing", { username });
-    clearTimeout(typingTimeout);
-    typingTimeout = setTimeout(() => {
-      socket.emit("typing", { username: "" });
-    }, 2000);
-  }
+    function loadMessages(username) {
+      fetch(`/api/messages/${username}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            window.location.href = '/auth';
+            return;
+          }
+          const chatBox = document.getElementById("chat-box");
+          chatBox.innerHTML = "";
+          data.messages.forEach(msg => {
+            addMessage(msg);
+          });
+        });
+    }
 
-  socket.on("user_typing", data => {
-    typing.style.display = data.username ? 'inline' : 'none';
-    typing.textContent = data.username ? `${data.username} está escribiendo...` : "";
-  });
+    function addMessage(msg) {
+      const chatBox = document.getElementById("chat-box");
+      const msgDiv = document.createElement("div");
+      const isSent = msg.sender === currentUser;
+      msgDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+      msgDiv.innerHTML = `${msg.message}`; // Sin check azul
+      chatBox.appendChild(msgDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
 
-  socket.on("update_user_list", users => {
-    userList.innerHTML = "";
-    users.forEach(u => {
-      const div = document.createElement("div");
-      div.className = "user-item";
-      div.innerHTML = `
-        <div class="avatar">${u.username.charAt(0).toUpperCase()}</div>
-        <div>${u.username}</div>
-        <div class="status-dot ${u.online ? 'online' : 'offline'}"></div>
-      `;
-      userList.appendChild(div);
+    function updateUserList(users) {
+      const userList = document.getElementById("user-list");
+      const chatList = document.getElementById("chat-list");
+      userList.innerHTML = "";
+      chatList.innerHTML = ""; // Pantalla de chats vacía al inicio
+
+      users.forEach(user => {
+        if (user.name === currentUser) return; // No mostrar el usuario actual
+
+        const userItem = document.createElement("div");
+        userItem.className = "user-item";
+        userItem.onclick = () => openChat(user.name, user.online);
+        userItem.innerHTML = `
+          <div class="avatar">
+            ${user.name[0]}
+            <div class="status-circle ${user.online ? 'online' : 'offline'}"></div>
+          </div>
+          <div class="user-info">
+            <span>${user.name}</span>
+            <span class="status-text">${user.online ? 'En línea' : 'Desconectado'}</span>
+          </div>`;
+        userList.appendChild(userItem);
+      });
+    }
+
+    socket.on('users_update', data => {
+      updateUserList(data.users);
     });
-  });
-</script>
 
+    socket.on('new_message', msg => {
+      if ((msg.sender === currentUser && msg.receiver === currentChat) || 
+          (msg.sender === currentChat && msg.receiver === currentUser)) {
+        addMessage(msg);
+      }
+    });
+
+    // Cargar usuarios iniciales
+    fetch('/api/users')
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          window.location.href = '/auth';
+        } else {
+          updateUserList(data.users);
+        }
+      });
+  </script>
 </body>
 </html>
