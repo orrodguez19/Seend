@@ -39,15 +39,15 @@ init_db()
 connected_users = {}  # {sid: {"name": username, "online": True}}
 
 @app.route('/')
+def auth():
+    error = request.args.get('error')
+    return render_template('auth.html', error=error)
+
+@app.route('/chat')
 def index():
     if 'username' not in session:
         return redirect(url_for('auth'))
     return render_template('index.html')
-
-@app.route('/auth')
-def auth():
-    error = request.args.get('error')
-    return render_template('auth.html', error=error)
 
 @app.route('/login', methods=['POST'])
 def login():
@@ -189,8 +189,8 @@ def handle_message(data):
         }
         
         emit('new_message', message_data, broadcast=True)
-        emit('chats_update', {"chats": get_chats().json["chats"]}, broadcast=True)
+        emit('chats_update', {"chats": get_chats().jsovand["chats"]}, broadcast=True)
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get('PORT', 10000))
     socketio.run(app, host='0.0.0.0', port=port)
