@@ -139,34 +139,32 @@ def get_chats():
         SELECT 
             CASE WHEN sender = ? THEN receiver ELSE sender END AS contact,
             message,
-            timestamp,
-            MAX(timestamp) OVER (PARTITION BY CASE WHEN sender = ? THEN receiver ELSE sender END) as last_timestamp
+            timestamp
         FROM messages 
-        WHERE sender = ? OR receiver = ?
-        GROUP BY contact
-        ORDER BY last_timestamp DESC
-    """, (session['username'], session['username'], session['username'], session['username']))
+        WHERE (sender = ? OR receiver = ?)
+        AND timestamp IN (
+            SELECT MAX(timestamp) 
+            FROM messages 
+            WHERE sender = ? OR receiver = ?
+            GROUP BY CASE WHEN sender = ? THEN receiver ELSE sender END
+        )
+        ORDER BY timestamp DESC
+    """, (session['username'], session['username'], session['username'], 
+          session['username'], session['username'], session['username']))
     
-    chats = {}
+    chats = []
     for row in c.fetchall():
         contact = row[0]
-        if contact not in chats:
-            chats[contact] = {
-                "last_message": row[1],
-                "last_timestamp": row[2],
-                "online": any(user["name"] == contact for user in connected_users.values())
-            }
+        online = any(user["name"] == contact for user in connected_users.values())
+        chats.append({
+            "name": contact,
+            "online": online,
+            "last_message": row[1],
+            "timestamp": row[2]
+        })
     
     conn.close()
-    
-    chats_list = [{
-        "name": contact,
-        "online": data["online"],
-        "last_message": data["last_message"],
-        "timestamp": data["last_timestamp"]
-    } for contact, data in chats.items()]
-    
-    return jsonify({"chats": chats_list})
+    return jsonify({"chats": chats})
 
 @socketio.on('connect')
 def handle_connect():
