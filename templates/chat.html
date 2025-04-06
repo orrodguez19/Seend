@@ -1,91 +1,221 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seend Messenger</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="/static/chat.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Seend - Chat</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins&display=swap');
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Poppins', sans-serif;
+    }
+
+    body {
+      background: #f0f2f5;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+
+    .chat-header {
+      background: #1877f2;
+      color: white;
+      padding: 1rem;
+      font-size: 1.2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .chat-box {
+      flex: 1;
+      padding: 1rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .message {
+      max-width: 70%;
+      padding: 0.75rem;
+      margin-bottom: 10px;
+      border-radius: 12px;
+      position: relative;
+      word-wrap: break-word;
+    }
+
+    .message.sent {
+      align-self: flex-end;
+      background: #1877f2;
+      color: white;
+      border-bottom-right-radius: 0;
+    }
+
+    .message.received {
+      align-self: flex-start;
+      background: #e4e6eb;
+      color: black;
+      border-bottom-left-radius: 0;
+    }
+
+    .message .meta {
+      font-size: 0.7rem;
+      opacity: 0.8;
+      margin-bottom: 4px;
+    }
+
+    .typing-indicator {
+      font-size: 0.9rem;
+      color: #555;
+      padding: 0 1rem;
+      margin-bottom: 0.5rem;
+      display: none;
+      animation: blink 1s infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 0.2; }
+      50% { opacity: 1; }
+    }
+
+    .input-area {
+      display: flex;
+      padding: 0.75rem;
+      background: white;
+      border-top: 1px solid #ccc;
+      position: sticky;
+      bottom: 0;
+      width: 100%;
+      gap: 0.5rem;
+    }
+
+    .input-area input {
+      flex: 1;
+      padding: 0.75rem;
+      border: 1px solid #ccc;
+      border-radius: 20px;
+      outline: none;
+      font-size: 1rem;
+    }
+
+    .input-area button {
+      background: #1877f2;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      transition: background 0.3s;
+      white-space: nowrap;
+    }
+
+    .input-area button:hover {
+      background: #155dc0;
+    }
+
+    .offline-banner {
+      background: #e53935;
+      color: white;
+      padding: 0.5rem;
+      text-align: center;
+      font-size: 0.9rem;
+      display: none;
+    }
+  </style>
 </head>
 <body>
-    <div id="chat-container" class="container">
-        <div class="users-panel" id="usersPanel">
-            <button class="close-panel" id="closePanel">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </button>
-            <h2>Usuarios</h2>
-            <ul class="user-list" id="userList">
-                <li class="user-item active" data-user="public">
-                    <div class="user-avatar">GP</div>
-                    <div class="user-info">
-                        <div class="user-name">Chat Público</div>
-                        <div class="user-status-text">Todos los usuarios</div>
-                    </div>
-                </li>
-            </ul>
-        </div>
-        
-        <div class="chat-area">
-            <div class="chat-header">
-                <button class="menu-button" id="menuButton">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M3 12H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M3 6H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        <path d="M3 18H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                    </svg>
-                </button>
-                <div>
-                    <div class="chat-title" id="chatTitle">Chat Público</div>
-                    <div class="chat-status" id="chatStatus">Todos los usuarios</div>
-                </div>
-            </div>
-            
-            <div class="messages-container" id="messagesContainer">
-                <div class="current-time">Hoy</div>
-                <div class="message-wrapper">
-                    <div class="message received">
-                        <div class="message-content">
-                            <div class="message-sender">Sistema</div>
-                            <div class="message-text">Bienvenido a Seend Messenger</div>
-                            <div class="message-time">10:00 AM</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="chat-input-container">
-                <div id="replyIndicator" class="reply-indicator-container">
-                    <div class="reply-info">
-                        <div>
-                            <span class="reply-sender">Respondiendo a <span id="replyingTo"></span></span>
-                            <div id="replyPreview" class="reply-text"></div>
-                        </div>
-                        <button id="cancelReply" class="cancel-reply">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M18 6L6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                                <path d="M6 6L18 18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="chat-input-area">
-                    <textarea class="chat-input" placeholder="Escribe un mensaje..." id="chatInput" rows="1"></textarea>
-                    <button class="send-button" id="sendButton">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
+  <div class="chat-header">
+    <span>Seend - Chat Global</span>
+    <a href="/logout" style="color:white; text-decoration:none;">Salir</a>
+  </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.4.1/socket.io.js"></script>
-    <script src="/static/chat.js" defer></script>
+  <div id="offline-banner" class="offline-banner">
+    Sin conexión. Reintentando...
+  </div>
+
+  <div class="chat-box" id="chat-box">
+    <!-- Mensajes aparecerán aquí -->
+  </div>
+
+  <div class="typing-indicator" id="typing-indicator"></div>
+
+  <div class="input-area">
+    <input type="text" id="message-input" placeholder="Escribe un mensaje..." autocomplete="off" />
+    <button type="button" onclick="sendMessage()">Enviar</button>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script>
+    const socket = io();
+    const username = "{{ username }}";
+    const chatBox = document.getElementById('chat-box');
+    const input = document.getElementById('message-input');
+    const typingIndicator = document.getElementById('typing-indicator');
+    const offlineBanner = document.getElementById('offline-banner');
+
+    function scrollToBottom() {
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function sendMessage() {
+      const message = input.value.trim();
+      if (message !== '') {
+        socket.emit('send_message', { username, message });
+        input.value = '';
+      }
+    }
+
+    input.addEventListener('input', () => {
+      socket.emit('typing', { username });
+    });
+
+    socket.on('connect', () => {
+      offlineBanner.style.display = 'none';
+    });
+
+    socket.on('disconnect', () => {
+      offlineBanner.style.display = 'block';
+    });
+
+    socket.on('load_messages', (messages) => {
+      messages.forEach(addMessage);
+      scrollToBottom();
+    });
+
+    socket.on('receive_message', (data) => {
+      addMessage(data);
+      scrollToBottom();
+    });
+
+    socket.on('user_typing', (data) => {
+      if (data.username !== username) {
+        typingIndicator.innerText = `${data.username} está escribiendo...`;
+        typingIndicator.style.display = 'block';
+        clearTimeout(window.typingTimeout);
+        window.typingTimeout = setTimeout(() => {
+          typingIndicator.style.display = 'none';
+        }, 2000);
+      }
+    });
+
+    function addMessage(data) {
+      const msg = document.createElement('div');
+      msg.classList.add('message');
+      msg.classList.add(data.username === username ? 'sent' : 'received');
+      msg.innerHTML = `
+        <div class="meta">${data.username} • ${data.timestamp}</div>
+        <div>${data.message}</div>
+      `;
+      chatBox.appendChild(msg);
+    }
+
+    input.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+  </script>
 </body>
 </html>
