@@ -129,13 +129,9 @@ def get_conversation_messages(user_id):
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     
-    c.execute("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
-    if not c.fetchone():
-        c.execute("""
-            INSERT INTO conversations (id, user1_id, user2_id, created_at)
-            VALUES (?, ?, ?, ?)
-        """, (conversation_id, user_ids[0], user_ids[1], time.time()))
-        conn.commit()
+    c.execute("INSERT OR IGNORE INTO conversations (id, user1_id, user2_id, created_at) VALUES (?, ?, ?, ?)",
+              (conversation_id, user_ids[0], user_ids[1], time.time()))
+    conn.commit()
 
     c.execute("""
         SELECT u.username as sender, m.message, m.timestamp 
@@ -232,12 +228,8 @@ def handle_message(data):
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     
-    c.execute("SELECT id FROM conversations WHERE id = ?", (conversation_id,))
-    if not c.fetchone():
-        c.execute("""
-            INSERT INTO conversations (id, user1_id, user2_id, created_at)
-            VALUES (?, ?, ?, ?)
-        """, (conversation_id, user_ids[0], user_ids[1], time.time()))
+    c.execute("INSERT OR IGNORE INTO conversations (id, user1_id, user2_id, created_at) VALUES (?, ?, ?, ?)",
+              (conversation_id, user_ids[0], user_ids[1], time.time()))
     
     message_id = f"msg_{uuid.uuid4()}"
     timestamp = time.time()
