@@ -253,7 +253,7 @@
         message: text
       });
       input.value = "";
-      addMessage({ sender: currentUser, message: text }); // Añadir mensaje localmente
+      addMessage({ sender: currentUser, message: text });
     }
 
     function loadMessages(username) {
@@ -261,7 +261,7 @@
         .then(res => res.json())
         .then(data => {
           if (data.error) {
-            window.location.href = '/auth';
+            window.location.href = '/';
             return;
           }
           const chatBox = document.getElementById("chat-box");
@@ -346,7 +346,7 @@
       .then(res => res.json())
       .then(data => {
         if (data.error) {
-          window.location.href = '/auth';
+          window.location.href = '/';
         } else {
           updateUserList(data.users);
         }
@@ -356,7 +356,7 @@
       .then(res => res.json())
       .then(data => {
         if (data.error) {
-          window.location.href = '/auth';
+          window.location.href = '/';
         } else {
           updateChatList(data.chats);
         }
