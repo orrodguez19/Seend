@@ -130,18 +130,6 @@
       align-self: flex-start;
       background: #fff;
     }
-    .message-status {
-      font-size: 0.7rem;
-      display: flex;
-      align-items: center;
-      gap: 3px;
-      margin-top: 2px;
-    }
-    .message-status svg {
-      width: 14px;
-      height: 14px;
-      fill: #1877f2;
-    }
     .input-area {
       display: flex;
       align-items: center;
@@ -228,7 +216,7 @@
     const chatsScreen = document.getElementById("screen-chats");
     const usersScreen = document.getElementById("screen-users");
     const chatScreen = document.getElementById("screen-chat");
-    let currentUser = "{{ session['username'] }}"; // Obtenido del servidor
+    let currentUser = "{{ session['username'] }}";
     let currentChat = null;
 
     function showChatsScreen() {
@@ -288,7 +276,7 @@
       const msgDiv = document.createElement("div");
       const isSent = msg.sender === currentUser;
       msgDiv.className = `message ${isSent ? 'sent' : 'received'}`;
-      msgDiv.innerHTML = `${msg.message}<div class='message-status'><svg viewBox="0 0 24 24"><path d="M1 12l2-2 4 4L20 3l2 2-14 14z"/></svg></div>`;
+      msgDiv.innerHTML = `${msg.message}`; // Sin check azul
       chatBox.appendChild(msgDiv);
       chatBox.scrollTop = chatBox.scrollHeight;
     }
@@ -297,7 +285,7 @@
       const userList = document.getElementById("user-list");
       const chatList = document.getElementById("chat-list");
       userList.innerHTML = "";
-      chatList.innerHTML = "";
+      chatList.innerHTML = ""; // Pantalla de chats vacía al inicio
 
       users.forEach(user => {
         if (user.name === currentUser) return; // No mostrar el usuario actual
@@ -315,20 +303,6 @@
             <span class="status-text">${user.online ? 'En línea' : 'Desconectado'}</span>
           </div>`;
         userList.appendChild(userItem);
-
-        const chatItem = document.createElement("div");
-        chatItem.className = "chat-item";
-        chatItem.onclick = () => openChat(user.name, user.online);
-        chatItem.innerHTML = `
-          <div class="avatar">
-            ${user.name[0]}
-            <div class="status-circle ${user.online ? 'online' : 'offline'}"></div>
-          </div>
-          <div class="user-info">
-            <span>${user.name}</span>
-            <span class="last-message">Inicia una conversación</span>
-          </div>`;
-        chatList.appendChild(chatItem);
       });
     }
 
