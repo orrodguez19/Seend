@@ -5,217 +5,265 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Seend - Chat</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins&display=swap');
-
-    * {
-      box-sizing: border-box;
+    body {
+      font-family: 'Poppins', sans-serif;
       margin: 0;
       padding: 0;
-      font-family: 'Poppins', sans-serif;
+      background: #eaf3fc;
+      color: #333;
     }
+    .header {
+      display: flex;
+      align-items: center;
+      background: #1877f2;
+      color: white;
+      padding: 10px;
+    }
+    .menu-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    .drawer {
+      position: fixed;
+      top: 0;
+      left: -260px;
+      width: 250px;
+      height: 100%;
+      background: #ffffff;
+      border-right: 1px solid #ccc;
+      overflow-y: auto;
+      transition: left 0.3s ease;
+      z-index: 10;
+      padding: 10px;
+    }
+    .drawer.open {
+      left: 0;
+    }
+    .drawer h2 {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    .user-item {
+      display: flex;
+      align-items: center;
+      margin: 6px 0;
+      gap: 10px;
+    }
+    .avatar {
+      background: #1877f2;
+      color: white;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      margin-left: auto;
+    }
+    .online { background: green; }
+    .offline { background: gray; }
 
-    body {
-      background: #f0f2f5;
+    .container {
       display: flex;
       flex-direction: column;
       height: 100vh;
     }
-
-    .chat-header {
-      background: #1877f2;
-      color: white;
-      padding: 1rem;
-      font-size: 1.2rem;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
     .chat-box {
       flex: 1;
-      padding: 1rem;
       overflow-y: auto;
-      display: flex;
-      flex-direction: column;
+      padding: 10px;
     }
-
     .message {
       max-width: 70%;
-      padding: 0.75rem;
-      margin-bottom: 10px;
-      border-radius: 12px;
+      padding: 8px 12px;
+      border-radius: 15px;
+      margin: 5px 0;
       position: relative;
-      word-wrap: break-word;
     }
-
-    .message.sent {
+    .sent {
       align-self: flex-end;
-      background: #1877f2;
-      color: white;
-      border-bottom-right-radius: 0;
+      background: #d1e7ff;
+      text-align: right;
     }
-
-    .message.received {
+    .received {
       align-self: flex-start;
-      background: #e4e6eb;
-      color: black;
-      border-bottom-left-radius: 0;
+      background: #ffffff;
     }
-
-    .message .meta {
-      font-size: 0.7rem;
-      opacity: 0.8;
-      margin-bottom: 4px;
+    .msg-name {
+      font-size: 11px;
+      font-weight: bold;
+      color: #666;
     }
-
-    .typing-indicator {
-      font-size: 0.9rem;
-      color: #555;
-      padding: 0 1rem;
-      margin-bottom: 0.5rem;
-      display: none;
-      animation: blink 1s infinite;
+    .msg-time {
+      font-size: 10px;
+      text-align: right;
+      color: #999;
     }
-
+    .typing {
+      font-style: italic;
+      font-size: 12px;
+      color: #fff;
+      margin-left: 10px;
+      animation: blink 1.2s infinite;
+    }
     @keyframes blink {
-      0%, 100% { opacity: 0.2; }
-      50% { opacity: 1; }
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
     }
 
     .input-area {
       display: flex;
-      padding: 0.75rem;
-      background: white;
+      padding: 5px;
       border-top: 1px solid #ccc;
-      position: sticky;
-      bottom: 0;
-      width: 100%;
-      gap: 0.5rem;
+      background: white;
     }
-
     .input-area input {
       flex: 1;
-      padding: 0.75rem;
+      padding: 8px;
+      font-size: 14px;
       border: 1px solid #ccc;
       border-radius: 20px;
-      outline: none;
-      font-size: 1rem;
+      margin-right: 8px;
     }
-
     .input-area button {
-      background: #1877f2;
-      color: white;
+      background: none;
       border: none;
-      border-radius: 20px;
-      padding: 0.75rem 1rem;
       cursor: pointer;
-      transition: background 0.3s;
-      white-space: nowrap;
     }
-
-    .input-area button:hover {
-      background: #155dc0;
-    }
-
     .offline-banner {
-      background: #e53935;
+      background: red;
       color: white;
-      padding: 0.5rem;
       text-align: center;
-      font-size: 0.9rem;
-      display: none;
+      padding: 5px;
+      font-size: 12px;
     }
   </style>
 </head>
 <body>
-  <div class="chat-header">
-    <span>Seend - Chat Global</span>
-    <a href="/logout" style="color:white; text-decoration:none;">Salir</a>
+
+<div class="drawer" id="drawer">
+  <h2>Usuarios</h2>
+  <div id="user-list"></div>
+</div>
+
+<div class="container">
+  <div class="header">
+    <button class="menu-btn" onclick="toggleDrawer()">
+      <svg width="24" height="24" fill="#fff"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+    </button>
+    <strong>Seend</strong>
+    <span id="typing" class="typing" style="display: none;"></span>
   </div>
 
-  <div id="offline-banner" class="offline-banner">
-    Sin conexión. Reintentando...
-  </div>
+  <div id="offline" class="offline-banner" style="display: none;">Sin conexión</div>
 
-  <div class="chat-box" id="chat-box">
-    <!-- Mensajes aparecerán aquí -->
-  </div>
-
-  <div class="typing-indicator" id="typing-indicator"></div>
+  <div id="chat" class="chat-box"></div>
 
   <div class="input-area">
-    <input type="text" id="message-input" placeholder="Escribe un mensaje..." autocomplete="off" />
-    <button type="button" onclick="sendMessage()">Enviar</button>
+    <input id="message" type="text" placeholder="Escribe un mensaje..." oninput="notifyTyping()" />
+    <button onclick="sendMessage()">
+      <svg width="24" height="24" fill="#1877f2" viewBox="0 0 24 24">
+        <path d="M2 21l21-9L2 3v7l15 2-15 2z"/>
+      </svg>
+    </button>
   </div>
+</div>
 
-  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-  <script>
-    const socket = io();
-    const username = "{{ username }}";
-    const chatBox = document.getElementById('chat-box');
-    const input = document.getElementById('message-input');
-    const typingIndicator = document.getElementById('typing-indicator');
-    const offlineBanner = document.getElementById('offline-banner');
+<script src="https://cdn.socket.io/4.3.2/socket.io.min.js"></script>
+<script>
+  const socket = io();
+  const username = "{{ username }}";
+  const chat = document.getElementById("chat");
+  const typing = document.getElementById("typing");
+  const offline = document.getElementById("offline");
+  const userList = document.getElementById("user-list");
 
-    function scrollToBottom() {
-      chatBox.scrollTop = chatBox.scrollHeight;
+  function toggleDrawer() {
+    document.getElementById("drawer").classList.toggle("open");
+  }
+
+  socket.on('connect', () => {
+    offline.style.display = 'none';
+    socket.emit("user_connected", username);
+  });
+
+  socket.on('disconnect', () => {
+    offline.style.display = 'block';
+  });
+
+  socket.on('load_messages', messages => {
+    chat.innerHTML = "";
+    messages.forEach(msg => addMessage(msg));
+    chat.scrollTop = chat.scrollHeight;
+  });
+
+  socket.on('receive_message', msg => {
+    addMessage(msg);
+    chat.scrollTop = chat.scrollHeight;
+  });
+
+  function addMessage({ username: name, message, timestamp }) {
+    const bubble = document.createElement("div");
+    bubble.classList.add("message", name === username ? "sent" : "received");
+    bubble.innerHTML = `
+      <div class="msg-name">${name}</div>
+      <div>${message}</div>
+      <div class="msg-time">${timestamp}</div>
+    `;
+    chat.appendChild(bubble);
+  }
+
+  function sendMessage() {
+    const input = document.getElementById("message");
+    const msg = input.value.trim();
+    if (msg) {
+      const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      socket.emit("send_message", {
+        username: username,
+        message: msg,
+        timestamp: time
+      });
+      input.value = "";
     }
+  }
 
-    function sendMessage() {
-      const message = input.value.trim();
-      if (message !== '') {
-        socket.emit('send_message', { username, message });
-        input.value = '';
-      }
-    }
+  let typingTimeout;
+  function notifyTyping() {
+    socket.emit("typing", { username });
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => {
+      socket.emit("typing", { username: "" });
+    }, 2000);
+  }
 
-    input.addEventListener('input', () => {
-      socket.emit('typing', { username });
-    });
+  socket.on("user_typing", data => {
+    typing.style.display = data.username ? 'inline' : 'none';
+    typing.textContent = data.username ? `${data.username} está escribiendo...` : "";
+  });
 
-    socket.on('connect', () => {
-      offlineBanner.style.display = 'none';
-    });
-
-    socket.on('disconnect', () => {
-      offlineBanner.style.display = 'block';
-    });
-
-    socket.on('load_messages', (messages) => {
-      messages.forEach(addMessage);
-      scrollToBottom();
-    });
-
-    socket.on('receive_message', (data) => {
-      addMessage(data);
-      scrollToBottom();
-    });
-
-    socket.on('user_typing', (data) => {
-      if (data.username !== username) {
-        typingIndicator.innerText = `${data.username} está escribiendo...`;
-        typingIndicator.style.display = 'block';
-        clearTimeout(window.typingTimeout);
-        window.typingTimeout = setTimeout(() => {
-          typingIndicator.style.display = 'none';
-        }, 2000);
-      }
-    });
-
-    function addMessage(data) {
-      const msg = document.createElement('div');
-      msg.classList.add('message');
-      msg.classList.add(data.username === username ? 'sent' : 'received');
-      msg.innerHTML = `
-        <div class="meta">${data.username} • ${data.timestamp}</div>
-        <div>${data.message}</div>
+  socket.on("update_user_list", users => {
+    userList.innerHTML = "";
+    users.forEach(u => {
+      const div = document.createElement("div");
+      div.className = "user-item";
+      div.innerHTML = `
+        <div class="avatar">${u.username.charAt(0).toUpperCase()}</div>
+        <div>${u.username}</div>
+        <div class="status-dot ${u.online ? 'online' : 'offline'}"></div>
       `;
-      chatBox.appendChild(msg);
-    }
-
-    input.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') sendMessage();
+      userList.appendChild(div);
     });
-  </script>
+  });
+</script>
+
 </body>
 </html>
