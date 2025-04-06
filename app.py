@@ -1,9 +1,10 @@
+import eventlet
+eventlet.monkey_patch()  # <-- ¡Debe ir absolutamente primero!
+
 from flask import Flask, render_template, request, redirect, session, url_for
 from flask_socketio import SocketIO, emit
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
-import eventlet
-eventlet.monkey_patch()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secreto_seend'
@@ -25,9 +26,8 @@ class Message(db.Model):
     message = db.Column(db.Text, nullable=False)
     timestamp = db.Column(db.String(64), nullable=False)
 
-# CREAR BASE DE DATOS AL INICIAR
-@app.before_first_request
-def crear_tablas():
+# CREAR BASE DE DATOS UNA VEZ
+with app.app_context():
     db.create_all()
 
 # RUTAS
@@ -110,6 +110,6 @@ def handle_message(data):
 def handle_typing(data):
     emit('user_typing', data, broadcast=True, include_self=False)
 
-# MAIN
+# INICIO
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=10000)
