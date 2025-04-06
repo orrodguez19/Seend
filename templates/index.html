@@ -6,58 +6,64 @@
   <title>Seend Chat</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.1/socket.io.js"></script>
   <style>
-    * { 
-      margin: 0; 
-      padding: 0; 
-      box-sizing: border-box; 
-      font-family: 'Poppins', sans-serif; 
-    }
-    body { 
-      background: #f0f2f5; 
-      color: #333; 
-    }
-    .screen { 
-      display: none; 
-      flex-direction: column; 
-      height: 100vh; 
-      overflow: hidden; 
-    }
-    .active { 
-      display: flex; 
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
+    body { background: #f0f2f5; color: #333; }
+    
+    /* Pantallas */
+    .screen { display: none; flex-direction: column; height: 100vh; overflow: hidden; }
+    .active { display: flex; }
+    
+    /* Headers */
     header { 
       display: flex; 
       align-items: center; 
       background: #1877f2; 
       color: white; 
-      padding: 1rem; 
+      padding: 12px; 
       position: sticky; 
       top: 0; 
       z-index: 10; 
     }
-    header svg {
-      width: 20px;
-      height: 20px;
-      margin-right: 8px;
+    .header-title { flex-grow: 1; text-align: center; margin-right: 20px; }
+    
+    /* Flecha de retroceso */
+    .back-arrow {
+      width: 24px;
+      height: 24px;
       cursor: pointer;
       flex-shrink: 0;
     }
+    .back-arrow svg {
+      width: 100%;
+      height: 100%;
+      fill: white;
+    }
+    
+    /* Listas */
     .chat-list, .user-list { 
       flex: 1; 
       overflow-y: auto; 
-      padding: 1rem; 
+      padding: 12px; 
       background: #f0f2f5; 
     }
+    
+    /* Items */
     .chat-item, .user-item { 
       display: flex; 
       align-items: center; 
-      padding: 0.8rem; 
+      padding: 12px; 
       background: #fff; 
-      border-radius: 10px; 
-      margin-bottom: 0.5rem; 
-      cursor: pointer; 
-      box-shadow: 0 1px 2px rgba(0,0,0,0.1); 
+      border-radius: 8px; 
+      margin-bottom: 8px; 
+      cursor: pointer;
+      transition: transform 0.2s;
     }
+    .chat-item:hover, .user-item:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    
+    /* Avatar y estado */
     .avatar { 
       background: #1877f2; 
       color: white; 
@@ -79,52 +85,34 @@
       right: 0; 
       border: 2px solid #fff; 
     }
-    .online { 
-      background: #0f0; 
-    }
-    .offline { 
-      background: #999; 
-    }
-    .user-info { 
-      flex: 1; 
-      margin-left: 0.8rem; 
-      overflow: hidden; 
-    }
-    .user-info span { 
-      display: block; 
-      white-space: nowrap; 
-      overflow: hidden; 
-      text-overflow: ellipsis; 
-    }
-    .status-text { 
-      font-size: 0.75rem; 
-      color: #666; 
-    }
-    .last-message { 
-      font-size: 0.8rem; 
-      color: #555; 
-      white-space: nowrap; 
-      overflow: hidden; 
-      text-overflow: ellipsis; 
-    }
-    .last-message small { 
-      color: #999; 
-    }
+    .online { background: #0f0; }
+    .offline { background: #999; }
+    
+    /* Área de chat */
     .chat-box { 
       flex: 1; 
       overflow-y: auto; 
-      padding: 1rem; 
+      padding: 12px; 
       display: flex; 
       flex-direction: column; 
       background: #e5ddd5; 
+      background-image: url('https://web.whatsapp.com/img/bg-chat-tile-light_a4be512e7195b6b733d9110b408f075d.png');
+      background-repeat: repeat;
     }
+    
+    /* Mensajes */
     .message { 
-      max-width: 70%; 
-      padding: 0.5rem 0.8rem; 
+      max-width: 75%; 
+      padding: 8px 12px; 
       border-radius: 8px; 
-      margin-bottom: 0.6rem; 
+      margin-bottom: 8px; 
       position: relative; 
-      word-wrap: break-word; 
+      word-wrap: break-word;
+      animation: fadeIn 0.3s ease;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
     .sent { 
       align-self: flex-end; 
@@ -137,16 +125,19 @@
       border-top-left-radius: 0; 
     }
     .message-time { 
-      font-size: 0.65rem; 
+      font-size: 11px; 
       color: #666; 
       text-align: right; 
+      margin-top: 4px;
     }
+    
+    /* Input */
     .input-area { 
       display: flex; 
       align-items: center; 
-      padding: 0.5rem; 
+      padding: 8px; 
       background: white; 
-      border-top: 1px solid #ccc; 
+      border-top: 1px solid #ddd; 
       position: sticky; 
       bottom: 0; 
     }
@@ -154,49 +145,40 @@
       flex: 1; 
       border: none; 
       outline: none; 
-      padding: 0.8rem; 
-      font-size: 1rem; 
+      padding: 10px 15px; 
+      font-size: 16px; 
       border-radius: 20px; 
       background: #f0f2f5; 
-      margin: 0 0.5rem; 
+      margin: 0 8px; 
     }
+    .send-button {
+      background: transparent;
+      border: none;
+      cursor: pointer;
+      padding: 8px;
+    }
+    
+    /* Botón flotante */
     .fab { 
       position: fixed; 
-      bottom: 1.5rem; 
-      right: 1.5rem; 
+      bottom: 20px; 
+      right: 20px; 
       background: #1877f2; 
       color: white; 
       border-radius: 50%; 
-      width: 50px; 
-      height: 50px; 
+      width: 56px; 
+      height: 56px; 
       display: flex; 
       justify-content: center; 
       align-items: center; 
-      font-size: 1.5rem; 
+      font-size: 24px; 
       cursor: pointer; 
-      box-shadow: 0 2px 5px rgba(0,0,0,0.2); 
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
       z-index: 5; 
+      transition: transform 0.2s;
     }
-    .day-separator { 
-      text-align: center; 
-      margin: 1rem 0; 
-      color: #666; 
-      font-size: 0.75rem; 
-      position: relative; 
-    }
-    .day-separator::before, 
-    .day-separator::after { 
-      content: ""; 
-      border-bottom: 1px solid #ddd; 
-      position: absolute; 
-      top: 50%; 
-      width: 30%; 
-    }
-    .day-separator::before { 
-      left: 0; 
-    }
-    .day-separator::after { 
-      right: 0; 
+    .fab:hover {
+      transform: scale(1.1);
     }
   </style>
 </head>
@@ -204,8 +186,8 @@
   <!-- Pantalla de Chats -->
   <div class="screen active" id="screen-chats">
     <header>
-      <h2>Seend Chats</h2>
-      <span style="margin-left: auto; cursor: pointer;" onclick="window.location.href='/logout'">Cerrar Sesión</span>
+      <h2 class="header-title">Seend Chats</h2>
+      <span class="logout-btn" onclick="window.location.href='/logout'">Cerrar Sesión</span>
     </header>
     <div class="chat-list" id="chat-list"></div>
     <div class="fab" onclick="showUsersScreen()">+</div>
@@ -214,10 +196,12 @@
   <!-- Pantalla de Usuarios -->
   <div class="screen" id="screen-users">
     <header>
-      <svg onclick="showChatsScreen()" viewBox="0 0 24 24" width="20" height="20">
-        <path d="M15 18l-6-6 6-6" stroke="white" stroke-width="2" fill="none"/>
-      </svg>
-      <h2>Usuarios</h2>
+      <div class="back-arrow" onclick="showChatsScreen()">
+        <svg viewBox="0 0 24 24">
+          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+        </svg>
+      </div>
+      <h2 class="header-title">Usuarios</h2>
     </header>
     <div class="user-list" id="user-list"></div>
   </div>
@@ -225,9 +209,11 @@
   <!-- Pantalla de Chat Individual -->
   <div class="screen" id="screen-chat">
     <header>
-      <svg onclick="showChatsScreen()" viewBox="0 0 24 24" width="20" height="20">
-        <path d="M15 18l-6-6 6-6" stroke="white" stroke-width="2" fill="none"/>
-      </svg>
+      <div class="back-arrow" onclick="showChatsScreen()">
+        <svg viewBox="0 0 24 24">
+          <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+        </svg>
+      </div>
       <div class="avatar" id="chat-avatar"></div>
       <div class="user-info">
         <span id="chat-username"></span>
@@ -237,9 +223,9 @@
     <div class="chat-box" id="chat-box"></div>
     <form class="input-area" onsubmit="sendMessage(event)">
       <input id="message-input" placeholder="Escribe un mensaje..." autocomplete="off">
-      <button type="submit">
+      <button type="submit" class="send-button">
         <svg viewBox="0 0 24 24" width="28" height="28">
-          <path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill="#1877f2"/>
+          <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="#1877f2"/>
         </svg>
       </button>
     </form>
@@ -251,7 +237,7 @@
     let currentChat = null;
     const messagesCache = {};
 
-    // Funciones básicas de navegación
+    // Navegación entre pantallas
     function showChatsScreen() {
       document.getElementById("screen-chats").classList.add("active");
       document.getElementById("screen-users").classList.remove("active");
@@ -265,18 +251,21 @@
       fetchUsers();
     }
 
-    // Funciones de chat
     function openChat(username, online) {
       currentChat = username;
       document.getElementById("chat-username").textContent = username;
       document.getElementById("chat-status").textContent = online ? "En línea" : "Desconectado";
       document.getElementById("chat-avatar").textContent = username[0].toUpperCase();
       
-      showChatsScreen();
+      document.getElementById("screen-chats").classList.remove("active");
+      document.getElementById("screen-users").classList.remove("active");
       document.getElementById("screen-chat").classList.add("active");
+      
       loadMessages(username);
+      document.getElementById("message-input").focus();
     }
 
+    // Funciones de chat
     function sendMessage(e) {
       e.preventDefault();
       const input = document.getElementById("message-input");
@@ -290,7 +279,7 @@
       input.value = "";
     }
 
-    // Funciones de carga de datos
+    // Carga de datos
     function loadMessages(username) {
       if (messagesCache[username]) {
         renderMessages(messagesCache[username]);
@@ -310,45 +299,22 @@
       const chatBox = document.getElementById("chat-box");
       chatBox.innerHTML = "";
       
-      const groupedMessages = groupMessagesByDay(messages);
-      Object.entries(groupedMessages).forEach(([day, msgs]) => {
-        const dayHeader = document.createElement('div');
-        dayHeader.className = 'day-separator';
-        dayHeader.textContent = day;
-        chatBox.appendChild(dayHeader);
+      messages.forEach(msg => {
+        const msgElement = document.createElement('div');
+        msgElement.className = `message ${msg.sender === currentUser ? 'sent' : 'received'}`;
         
-        msgs.forEach(msg => renderMessage(msg));
+        const time = new Date(msg.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        
+        msgElement.innerHTML = `
+          <div>${msg.message}</div>
+          <div class="message-time">${time}</div>
+        `;
+        chatBox.appendChild(msgElement);
       });
       
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    function renderMessage(msg) {
-      const chatBox = document.getElementById("chat-box");
-      const isSent = msg.sender === currentUser;
-      const time = new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      
-      const msgElement = document.createElement('div');
-      msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
-      msgElement.innerHTML = `
-        <div>${msg.message}</div>
-        <div class="message-time">${time}</div>
-      `;
-      chatBox.appendChild(msgElement);
-    }
-
-    function groupMessagesByDay(messages) {
-      return messages.reduce((acc, msg) => {
-        const date = new Date(msg.timestamp * 1000).toLocaleDateString('es-ES', { 
-          weekday: 'long', day: 'numeric', month: 'long' 
-        });
-        if (!acc[date]) acc[date] = [];
-        acc[date].push(msg);
-        return acc;
-      }, {});
-    }
-
-    // Funciones de listados
     function fetchUsers() {
       fetch('/api/users')
         .then(res => res.json())
@@ -358,6 +324,7 @@
         });
     }
 
+    // Actualización de listas
     function updateUserList(users) {
       const userList = document.getElementById("user-list");
       userList.innerHTML = users
@@ -373,39 +340,25 @@
               <span class="status-text">${user.online ? 'En línea' : 'Desconectado'}</span>
             </div>
           </div>
-        `).join('') || '<p style="text-align: center; color: #666;">No hay otros usuarios</p>';
+        `).join('') || '<p style="text-align: center; color: #666; padding: 20px;">No hay otros usuarios</p>';
     }
 
     function updateChatList(chats) {
       const chatList = document.getElementById("chat-list");
-      const uniqueChats = [];
-      const seen = new Set();
-      
-      chats.forEach(chat => {
-        if (!seen.has(chat.name)) {
-          seen.add(chat.name);
-          uniqueChats.push(chat);
-        }
-      });
-
-      chatList.innerHTML = uniqueChats.map(chat => {
-        const time = chat.timestamp ? new Date(chat.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
-        return `
-          <div class="chat-item" onclick="openChat('${chat.name}', ${chat.online})">
-            <div class="avatar">
-              ${chat.name[0].toUpperCase()}
-              <div class="status-circle ${chat.online ? 'online' : 'offline'}"></div>
-            </div>
-            <div class="user-info">
-              <span>${chat.name}</span>
-              <span class="last-message">
-                ${chat.last_message?.substring(0, 20) || "Inicia una conversación"}
-                ${time ? `<small> · ${time}</small>` : ''}
-              </span>
-            </div>
+      chatList.innerHTML = chats.map(chat => `
+        <div class="chat-item" onclick="openChat('${chat.name}', ${chat.online})">
+          <div class="avatar">
+            ${chat.name[0].toUpperCase()}
+            <div class="status-circle ${chat.online ? 'online' : 'offline'}"></div>
           </div>
-        `;
-      }).join('') || '<p style="text-align: center; color: #666;">No hay chats aún</p>';
+          <div class="user-info">
+            <span>${chat.name}</span>
+            <span class="last-message">
+              ${chat.last_message?.substring(0, 30) || "Inicia una conversación"}
+            </span>
+          </div>
+        </div>
+      `).join('') || '<p style="text-align: center; color: #666; padding: 20px;">No hay chats aún</p>';
     }
 
     // WebSocket handlers
@@ -416,7 +369,7 @@
           (msg.sender === currentChat && msg.receiver === currentUser)) {
         if (!messagesCache[currentChat]) messagesCache[currentChat] = [];
         messagesCache[currentChat].push(msg);
-        renderMessage(msg);
+        renderMessages(messagesCache[currentChat]);
       }
     });
 
