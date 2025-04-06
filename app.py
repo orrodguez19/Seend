@@ -90,14 +90,17 @@ def get_users():
     
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
-    c.execute("SELECT username FROM users")
+    c.execute("SELECT username FROM users WHERE username != ?", (session['username'],))
     all_users = [row[0] for row in c.fetchall()]
     conn.close()
     
     users_list = []
     for username in all_users:
         online = any(user["name"] == username for user in connected_users.values())
-        users_list.append({"name": username, "online": online})
+        users_list.append({
+            "name": username, 
+            "online": online
+        })
     
     return jsonify({"users": users_list})
 
@@ -114,7 +117,12 @@ def get_messages(username):
         WHERE (sender = ? AND receiver = ?) OR (sender = ? AND receiver = ?)
         ORDER BY timestamp ASC
     """, (session['username'], username, username, session['username']))
-    messages_data = [{'sender': row[0], 'receiver': row[1], 'message': row[2], 'timestamp': row[3]} for row in c.fetchall()]
+    messages_data = [{
+        'sender': row[0], 
+        'receiver': row[1], 
+        'message': row[2], 
+        'timestamp': row[3]
+    } for row in c.fetchall()]
     conn.close()
     
     return jsonify({"messages": messages_data})
@@ -126,21 +134,37 @@ def get_chats():
     
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
+    
     c.execute("""
-        SELECT DISTINCT CASE 
-            WHEN sender = ? THEN receiver 
-            ELSE sender 
-        END AS contact
+        SELECT 
+            CASE WHEN sender = ? THEN receiver ELSE sender END AS contact,
+            message,
+            timestamp,
+            MAX(timestamp) OVER (PARTITION BY CASE WHEN sender = ? THEN receiver ELSE sender END) as last_timestamp
         FROM messages 
         WHERE sender = ? OR receiver = ?
-    """, (session['username'], session['username'], session['username']))
-    chats = [row[0] for row in c.fetchall()]
+        GROUP BY contact
+        ORDER BY last_timestamp DESC
+    """, (session['username'], session['username'], session['username'], session['username']))
+    
+    chats = {}
+    for row in c.fetchall():
+        contact = row[0]
+        if contact not in chats:
+            chats[contact] = {
+                "last_message": row[1],
+                "last_timestamp": row[2],
+                "online": any(user["name"] == contact for user in connected_users.values())
+            }
+    
     conn.close()
     
-    chats_list = []
-    for contact in chats:
-        online = any(user["name"] == contact for user in connected_users.values())
-        chats_list.append({"name": contact, "online": online})
+    chats_list = [{
+        "name": contact,
+        "online": data["online"],
+        "last_message": data["last_message"],
+        "timestamp": data["last_timestamp"]
+    } for contact, data in chats.items()]
     
     return jsonify({"chats": chats_list})
 
@@ -172,8 +196,10 @@ def handle_message(data):
     if sender and receiver and message:
         conn = sqlite3.connect('chat.db')
         c = conn.cursor()
-        c.execute("INSERT INTO messages (sender, receiver, message, timestamp) VALUES (?, ?, ?, ?)",
-                 (sender, receiver, message, timestamp))
+        c.execute("""
+            INSERT INTO messages (sender, receiver, message, timestamp) 
+            VALUES (?, ?, ?, ?)
+        """, (sender, receiver, message, timestamp))
         conn.commit()
         conn.close()
         
