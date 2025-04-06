@@ -42,7 +42,7 @@ connected_users = {}  # {sid: {"name": username, "online": True}}
 def index():
     if 'username' not in session:
         return redirect(url_for('auth'))
-    return render_template('index.html')
+    return render_template('auth.html')
 
 @app.route('/auth')
 def auth():
@@ -92,14 +92,12 @@ def get_users():
     if 'username' not in session:
         return jsonify({"error": "No autenticado"}), 401
     
-    # Obtener todos los usuarios registrados
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     c.execute("SELECT username FROM users")
     all_users = [row[0] for row in c.fetchall()]
     conn.close()
     
-    # Combinar con estado en línea
     users_list = []
     for username in all_users:
         online = any(user["name"] == username for user in connected_users.values())
@@ -125,13 +123,39 @@ def get_messages(username):
     
     return jsonify({"messages": messages_data})
 
+@app.route('/api/chats', methods=['GET'])
+def get_chats():
+    if 'username' not in session:
+        return jsonify({"error": "No autenticado"}), 401
+    
+    conn = sqlite3.connect('chat.db')
+    c = conn.cursor()
+    c.execute("""
+        SELECT DISTINCT CASE 
+            WHEN sender = ? THEN receiver 
+            ELSE sender 
+        END AS contact
+        FROM messages 
+        WHERE sender = ? OR receiver = ?
+    """, (session['username'], session['username'], session['username']))
+    chats = [row[0] for row in c.fetchall()]
+    conn.close()
+    
+    chats_list = []
+    for contact in chats:
+        online = any(user["name"] == contact for user in connected_users.values())
+        chats_list.append({"name": contact, "online": online})
+    
+    return jsonify({"chats": chats_list})
+
 @socketio.on('connect')
 def handle_connect():
     if 'username' not in session:
-        return False  # Desconectar si no está autenticado
+        return False
     sid = request.sid
     connected_users[sid] = {"name": session['username'], "online": True}
     emit('users_update', {"users": get_users().json["users"]}, broadcast=True)
+    emit('chats_update', {"chats": get_chats().json["chats"]}, broadcast=True)
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -139,6 +163,7 @@ def handle_disconnect():
     if sid in connected_users:
         del connected_users[sid]
     emit('users_update', {"users": get_users().json["users"]}, broadcast=True)
+    emit('chats_update', {"chats": get_chats().json["chats"]}, broadcast=True)
 
 @socketio.on('message')
 def handle_message(data):
@@ -158,12 +183,14 @@ def handle_message(data):
         
         message_data = {
             'sender': sender,
+            'receiver': receiver,
             'message': message,
             'timestamp': timestamp
         }
         
         emit('new_message', message_data, broadcast=True)
+        emit('chats_update', {"chats": get_chats().json["chats"]}, broadcast=True)
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
+    port = int(os.environ.get('PORT', 5000))
     socketio.run(app, host='0.0.0.0', port=port)
