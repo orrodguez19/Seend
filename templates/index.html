@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Seend Chat</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.1/socket.io.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Poppins', sans-serif;
+    }
+    body {
+      background: #f0f2f5;
+      color: #333;
+    }
+    .screen {
+      display: none;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .active {
+      display: flex;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #1877f2;
+      color: white;
+      padding: 1rem;
+    }
+    header svg {
+      width: 24px;
+      height: 24px;
+      fill: white;
+      cursor: pointer;
+    }
+    .chat-list, .user-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+    }
+    .chat-item, .user-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.8rem;
+      background: #fff;
+      border-radius: 10px;
+      margin-bottom: 0.5rem;
+      cursor: pointer;
+      animation: fadeIn 0.3s ease;
+    }
+    .avatar {
+      background: #fff;
+      color: #1877f2;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: bold;
+      position: relative;
+    }
+    .status-circle {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      border: 2px solid #fff;
+    }
+    .online {
+      background: #0f0;
+    }
+    .offline {
+      background: #999;
+    }
+    .user-info {
+      flex: 1;
+      margin-left: 0.8rem;
+    }
+    .user-info span {
+      display: block;
+    }
+    .status-text {
+      font-size: 0.85rem;
+      color: #666;
+    }
+    .last-message {
+      font-size: 0.9rem;
+      color: #555;
+    }
+    .unread-count {
+      background: #1877f2;
+      color: white;
+      border-radius: 50%;
+      width: 20px;
+      height: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+    }
+    .chat-box {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+    }
+    .message {
+      max-width: 70%;
+      padding: 0.5rem 0.8rem;
+      border-radius: 16px;
+      margin-bottom: 0.6rem;
+      position: relative;
+    }
+    .sent {
+      align-self: flex-end;
+      background: #d0e6ff;
+    }
+    .received {
+      align-self: flex-start;
+      background: #fff;
+    }
+    .message-status {
+      font-size: 0.7rem;
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      margin-top: 2px;
+    }
+    .message-status svg {
+      width: 14px;
+      height: 14px;
+      fill: #1877f2;
+    }
+    .input-area {
+      display: flex;
+      align-items: center;
+      padding: 0.5rem;
+      background: white;
+      border-top: 1px solid #ccc;
+    }
+    .input-area input {
+      flex: 1;
+      border: none;
+      outline: none;
+      padding: 0.5rem;
+      font-size: 1rem;
+    }
+    .input-area button {
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+    .input-area svg {
+      width: 28px;
+      height: 28px;
+      fill: #1877f2;
+    }
+    .fab {
+      position: absolute;
+      bottom: 1.5rem;
+      right: 1.5rem;
+      background: #1877f2;
+      color: white;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-size: 2rem;
+      cursor: pointer;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(5px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="screen active" id="screen-chats">
+    <header>
+      <h2>Seend Chats</h2>
+      <span style="margin-left: auto; cursor: pointer;" onclick="window.location.href='/logout'">Cerrar Sesión</span>
+    </header>
+    <div class="chat-list" id="chat-list"></div>
+    <div class="fab" onclick="showUsersScreen()">+</div>
+  </div>
+
+  <div class="screen" id="screen-users">
+    <header>
+      <svg onclick="showChatsScreen()" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
+      <h2>Usuarios</h2>
+    </header>
+    <div class="user-list" id="user-list"></div>
+  </div>
+
+  <div class="screen" id="screen-chat">
+    <header>
+      <svg onclick="showChatsScreen()" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
+      <div class="avatar" id="chat-avatar"></div>
+      <div>
+        <div id="chat-username"></div>
+        <div class="status-text" id="chat-status"></div>
+      </div>
+    </header>
+    <div class="chat-box" id="chat-box"></div>
+    <form class="input-area" onsubmit="sendMessage(event)">
+      <input id="message-input" placeholder="Escribe un mensaje..." />
+      <button type="submit">
+        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+      </button>
+    </form>
+  </div>
+
+  <script>
+    const socket = io();
+    const chatsScreen = document.getElementById("screen-chats");
+    const usersScreen = document.getElementById("screen-users");
+    const chatScreen = document.getElementById("screen-chat");
+    let currentUser = "{{ session['username'] }}"; // Obtenido del servidor
+    let currentChat = null;
+
+    function showChatsScreen() {
+      chatsScreen.classList.add("active");
+      usersScreen.classList.remove("active");
+      chatScreen.classList.remove("active");
+    }
+
+    function showUsersScreen() {
+      chatsScreen.classList.remove("active");
+      usersScreen.classList.add("active");
+    }
+
+    function openChat(username, online) {
+      currentChat = username;
+      document.getElementById("chat-username").innerText = username;
+      document.getElementById("chat-status").innerText = online ? "En línea" : "Desconectado";
+      document.getElementById("chat-avatar").innerText = username[0];
+      chatsScreen.classList.remove("active");
+      usersScreen.classList.remove("active");
+      chatScreen.classList.add("active");
+      loadMessages(username);
+    }
+
+    function sendMessage(e) {
+      e.preventDefault();
+      const input = document.getElementById("message-input");
+      const text = input.value.trim();
+      if (!text || !currentChat) return;
+      
+      socket.emit('message', {
+        sender: currentUser,
+        receiver: currentChat,
+        message: text
+      });
+      input.value = "";
+    }
+
+    function loadMessages(username) {
+      fetch(`/api/messages/${username}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            window.location.href = '/auth';
+            return;
+          }
+          const chatBox = document.getElementById("chat-box");
+          chatBox.innerHTML = "";
+          data.messages.forEach(msg => {
+            addMessage(msg);
+          });
+        });
+    }
+
+    function addMessage(msg) {
+      const chatBox = document.getElementById("chat-box");
+      const msgDiv = document.createElement("div");
+      const isSent = msg.sender === currentUser;
+      msgDiv.className = `message ${isSent ? 'sent' : 'received'}`;
+      msgDiv.innerHTML = `${msg.message}<div class='message-status'><svg viewBox="0 0 24 24"><path d="M1 12l2-2 4 4L20 3l2 2-14 14z"/></svg></div>`;
+      chatBox.appendChild(msgDiv);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function updateUserList(users) {
+      const userList = document.getElementById("user-list");
+      const chatList = document.getElementById("chat-list");
+      userList.innerHTML = "";
+      chatList.innerHTML = "";
+
+      users.forEach(user => {
+        if (user.name === currentUser) return; // No mostrar el usuario actual
+
+        const userItem = document.createElement("div");
+        userItem.className = "user-item";
+        userItem.onclick = () => openChat(user.name, user.online);
+        userItem.innerHTML = `
+          <div class="avatar">
+            ${user.name[0]}
+            <div class="status-circle ${user.online ? 'online' : 'offline'}"></div>
+          </div>
+          <div class="user-info">
+            <span>${user.name}</span>
+            <span class="status-text">${user.online ? 'En línea' : 'Desconectado'}</span>
+          </div>`;
+        userList.appendChild(userItem);
+
+        const chatItem = document.createElement("div");
+        chatItem.className = "chat-item";
+        chatItem.onclick = () => openChat(user.name, user.online);
+        chatItem.innerHTML = `
+          <div class="avatar">
+            ${user.name[0]}
+            <div class="status-circle ${user.online ? 'online' : 'offline'}"></div>
+          </div>
+          <div class="user-info">
+            <span>${user.name}</span>
+            <span class="last-message">Inicia una conversación</span>
+          </div>`;
+        chatList.appendChild(chatItem);
+      });
+    }
+
+    socket.on('users_update', data => {
+      updateUserList(data.users);
+    });
+
+    socket.on('new_message', msg => {
+      if ((msg.sender === currentUser && msg.receiver === currentChat) || 
+          (msg.sender === currentChat && msg.receiver === currentUser)) {
+        addMessage(msg);
+      }
+    });
+
+    // Cargar usuarios iniciales
+    fetch('/api/users')
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          window.location.href = '/auth';
+        } else {
+          updateUserList(data.users);
+        }
+      });
+  </script>
+</body>
+</html>
