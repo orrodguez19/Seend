@@ -253,6 +253,7 @@
         message: text
       });
       input.value = "";
+      addMessage({ sender: currentUser, message: text }); // Añadir mensaje localmente
     }
 
     function loadMessages(username) {
@@ -276,19 +277,17 @@
       const msgDiv = document.createElement("div");
       const isSent = msg.sender === currentUser;
       msgDiv.className = `message ${isSent ? 'sent' : 'received'}`;
-      msgDiv.innerHTML = `${msg.message}`; // Sin check azul
+      msgDiv.innerHTML = `${msg.message}`;
       chatBox.appendChild(msgDiv);
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
     function updateUserList(users) {
       const userList = document.getElementById("user-list");
-      const chatList = document.getElementById("chat-list");
       userList.innerHTML = "";
-      chatList.innerHTML = ""; // Pantalla de chats vacía al inicio
 
       users.forEach(user => {
-        if (user.name === currentUser) return; // No mostrar el usuario actual
+        if (user.name === currentUser) return;
 
         const userItem = document.createElement("div");
         userItem.className = "user-item";
@@ -306,8 +305,33 @@
       });
     }
 
+    function updateChatList(chats) {
+      const chatList = document.getElementById("chat-list");
+      chatList.innerHTML = "";
+
+      chats.forEach(chat => {
+        const chatItem = document.createElement("div");
+        chatItem.className = "chat-item";
+        chatItem.onclick = () => openChat(chat.name, chat.online);
+        chatItem.innerHTML = `
+          <div class="avatar">
+            ${chat.name[0]}
+            <div class="status-circle ${chat.online ? 'online' : 'offline'}"></div>
+          </div>
+          <div class="user-info">
+            <span>${chat.name}</span>
+            <span class="last-message">Inicia una conversación</span>
+          </div>`;
+        chatList.appendChild(chatItem);
+      });
+    }
+
     socket.on('users_update', data => {
       updateUserList(data.users);
+    });
+
+    socket.on('chats_update', data => {
+      updateChatList(data.chats);
     });
 
     socket.on('new_message', msg => {
@@ -317,7 +341,7 @@
       }
     });
 
-    // Cargar usuarios iniciales
+    // Cargar datos iniciales
     fetch('/api/users')
       .then(res => res.json())
       .then(data => {
@@ -325,6 +349,16 @@
           window.location.href = '/auth';
         } else {
           updateUserList(data.users);
+        }
+      });
+
+    fetch('/api/chats')
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          window.location.href = '/auth';
+        } else {
+          updateChatList(data.chats);
         }
       });
   </script>
