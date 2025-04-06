@@ -13,14 +13,12 @@ def init_db():
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     
-    # Crear tabla de usuarios
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL
     )''')
     
-    # Crear tabla de mensajes
     c.execute('''CREATE TABLE IF NOT EXISTS messages (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sender TEXT NOT NULL,
@@ -32,11 +30,9 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Inicializar la base de datos al arrancar
 init_db()
 
-# Almacenamiento en memoria para usuarios conectados
-connected_users = {}  # {sid: {"name": username, "online": True}}
+connected_users = {}
 
 @app.route('/')
 def auth():
@@ -189,8 +185,8 @@ def handle_message(data):
         }
         
         emit('new_message', message_data, broadcast=True)
-        emit('chats_update', {"chats": get_chats().jsovand["chats"]}, broadcast=True)
+        emit('chats_update', {"chats": get_chats().json["chats"]}, broadcast=True)
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
+    port = int(os.environ.get('PORT', 5000))
     socketio.run(app, host='0.0.0.0', port=port)
