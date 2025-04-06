@@ -32,6 +32,9 @@
       background: #1877f2;
       color: white;
       padding: 1rem;
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
     header svg {
       width: 24px;
@@ -43,21 +46,22 @@
       flex: 1;
       overflow-y: auto;
       padding: 1rem;
+      background: #f0f2f5;
     }
     .chat-item, .user-item {
       display: flex;
       align-items: center;
-      justify-content: space-between;
       padding: 0.8rem;
       background: #fff;
       border-radius: 10px;
       margin-bottom: 0.5rem;
       cursor: pointer;
       animation: fadeIn 0.3s ease;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
     .avatar {
-      background: #fff;
-      color: #1877f2;
+      background: #1877f2;
+      color: white;
       border-radius: 50%;
       width: 40px;
       height: 40px;
@@ -85,17 +89,27 @@
     .user-info {
       flex: 1;
       margin-left: 0.8rem;
+      overflow: hidden;
     }
     .user-info span {
       display: block;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .status-text {
-      font-size: 0.85rem;
+      font-size: 0.75rem;
       color: #666;
     }
     .last-message {
-      font-size: 0.9rem;
+      font-size: 0.8rem;
       color: #555;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .last-message small {
+      color: #999;
     }
     .chat-box {
       flex: 1;
@@ -103,21 +117,35 @@
       padding: 1rem;
       display: flex;
       flex-direction: column;
+      background: #e5ddd5;
+      background-image: url('https://web.whatsapp.com/img/bg-chat-tile-light_a4be512e7195b6b733d9110b408f075d.png');
+      background-repeat: repeat;
     }
     .message {
       max-width: 70%;
       padding: 0.5rem 0.8rem;
-      border-radius: 16px;
+      border-radius: 8px;
       margin-bottom: 0.6rem;
       position: relative;
+      word-wrap: break-word;
     }
     .sent {
       align-self: flex-end;
-      background: #d0e6ff;
+      background: #dcf8c6;
+      border-top-right-radius: 0;
     }
     .received {
       align-self: flex-start;
       background: #fff;
+      border-top-left-radius: 0;
+    }
+    .message-text {
+      margin-bottom: 0.2rem;
+    }
+    .message-time {
+      font-size: 0.65rem;
+      color: #666;
+      text-align: right;
     }
     .input-area {
       display: flex;
@@ -125,13 +153,18 @@
       padding: 0.5rem;
       background: white;
       border-top: 1px solid #ccc;
+      position: sticky;
+      bottom: 0;
     }
     .input-area input {
       flex: 1;
       border: none;
       outline: none;
-      padding: 0.5rem;
+      padding: 0.8rem;
       font-size: 1rem;
+      border-radius: 20px;
+      background: #f0f2f5;
+      margin: 0 0.5rem;
     }
     .input-area button {
       background: none;
@@ -144,7 +177,7 @@
       fill: #1877f2;
     }
     .fab {
-      position: absolute;
+      position: fixed;
       bottom: 1.5rem;
       right: 1.5rem;
       background: #1877f2;
@@ -155,12 +188,42 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      font-size: 2rem;
+      font-size: 1.5rem;
       cursor: pointer;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      z-index: 5;
+    }
+    .day-separator {
+      text-align: center;
+      margin: 1rem 0;
+      color: #666;
+      font-size: 0.75rem;
+      position: relative;
+    }
+    .day-separator::before,
+    .day-separator::after {
+      content: "";
+      flex: 1;
+      border-bottom: 1px solid #ddd;
+      margin: auto 0.5rem;
+      position: absolute;
+      top: 50%;
+      width: 30%;
+    }
+    .day-separator::before {
+      left: 0;
+    }
+    .day-separator::after {
+      right: 0;
     }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(5px); }
       to { opacity: 1; transform: translateY(0); }
+    }
+    .logout-btn {
+      margin-left: auto;
+      cursor: pointer;
+      font-size: 0.9rem;
     }
   </style>
 </head>
@@ -168,7 +231,7 @@
   <div class="screen active" id="screen-chats">
     <header>
       <h2>Seend Chats</h2>
-      <span style="margin-left: auto; cursor: pointer;" onclick="window.location.href='/logout'">Cerrar Sesión</span>
+      <span class="logout-btn" onclick="window.location.href='/logout'">Cerrar Sesión</span>
     </header>
     <div class="chat-list" id="chat-list"></div>
     <div class="fab" onclick="showUsersScreen()">+</div>
@@ -186,14 +249,14 @@
     <header>
       <svg onclick="showChatsScreen()" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" /></svg>
       <div class="avatar" id="chat-avatar"></div>
-      <div>
-        <div id="chat-username"></div>
-        <div class="status-text" id="chat-status"></div>
+      <div class="user-info">
+        <span id="chat-username"></span>
+        <span class="status-text" id="chat-status"></span>
       </div>
     </header>
     <div class="chat-box" id="chat-box"></div>
     <form class="input-area" onsubmit="sendMessage(event)">
-      <input id="message-input" placeholder="Escribe un mensaje..." />
+      <input id="message-input" placeholder="Escribe un mensaje..." autocomplete="off" />
       <button type="submit">
         <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
       </button>
@@ -207,29 +270,43 @@
     const chatScreen = document.getElementById("screen-chat");
     let currentUser = "{{ session['username'] }}";
     let currentChat = null;
+    let messagesCache = {};
 
+    // Mostrar pantalla de chats
     function showChatsScreen() {
       chatsScreen.classList.add("active");
       usersScreen.classList.remove("active");
       chatScreen.classList.remove("active");
     }
 
+    // Mostrar pantalla de usuarios
     function showUsersScreen() {
       chatsScreen.classList.remove("active");
       usersScreen.classList.add("active");
+      chatScreen.classList.remove("active");
+      fetchUsers();
     }
 
+    // Abrir chat con un usuario
     function openChat(username, online) {
       currentChat = username;
       document.getElementById("chat-username").innerText = username;
       document.getElementById("chat-status").innerText = online ? "En línea" : "Desconectado";
-      document.getElementById("chat-avatar").innerText = username[0];
+      document.getElementById("chat-avatar").innerText = username[0].toUpperCase();
+      
       chatsScreen.classList.remove("active");
       usersScreen.classList.remove("active");
       chatScreen.classList.add("active");
+      
       loadMessages(username);
+      
+      // Poner foco en el input de mensaje
+      setTimeout(() => {
+        document.getElementById("message-input").focus();
+      }, 100);
     }
 
+    // Enviar mensaje
     function sendMessage(e) {
       e.preventDefault();
       const input = document.getElementById("message-input");
@@ -240,13 +317,25 @@
         sender: currentUser,
         receiver: currentChat,
         message: text,
-        timestamp: Date.now() / 1000 // Aproximación del timestamp
+        timestamp: Date.now() / 1000
       };
+      
+      // Añadir mensaje localmente inmediatamente
+      addMessageToUI(messageData);
+      
+      // Enviar mensaje al servidor
       socket.emit('message', messageData);
       input.value = "";
     }
 
+    // Cargar mensajes de un chat
     function loadMessages(username) {
+      // Verificar si tenemos los mensajes en caché
+      if (messagesCache[username]) {
+        displayMessages(messagesCache[username]);
+        return;
+      }
+      
       fetch(`/api/messages/${username}`)
         .then(res => res.json())
         .then(data => {
@@ -254,27 +343,96 @@
             window.location.href = '/';
             return;
           }
-          const chatBox = document.getElementById("chat-box");
-          chatBox.innerHTML = "";
-          data.messages.forEach(msg => {
-            addMessage(msg);
-          });
+          
+          // Guardar en caché
+          messagesCache[username] = data.messages;
+          displayMessages(data.messages);
+        })
+        .catch(err => {
+          console.error("Error al cargar mensajes:", err);
         });
     }
 
-    function addMessage(msg) {
+    // Mostrar mensajes en la UI
+    function displayMessages(messages) {
+      const chatBox = document.getElementById("chat-box");
+      chatBox.innerHTML = "";
+      
+      // Agrupar mensajes por día
+      const messagesByDay = {};
+      messages.forEach(msg => {
+        const date = new Date(msg.timestamp * 1000);
+        const dayKey = date.toLocaleDateString('es-ES', { 
+          weekday: 'long', 
+          day: 'numeric', 
+          month: 'long' 
+        });
+        
+        if (!messagesByDay[dayKey]) {
+          messagesByDay[dayKey] = [];
+        }
+        messagesByDay[dayKey].push(msg);
+      });
+      
+      // Mostrar mensajes agrupados
+      Object.entries(messagesByDay).forEach(([day, messages]) => {
+        // Añadir separador de día
+        const dayHeader = document.createElement('div');
+        dayHeader.className = 'day-separator';
+        dayHeader.textContent = day.charAt(0).toUpperCase() + day.slice(1);
+        chatBox.appendChild(dayHeader);
+        
+        // Añadir mensajes del día
+        messages.forEach(msg => {
+          addMessageToUI(msg);
+        });
+      });
+      
+      // Desplazar al final
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // Añadir mensaje a la UI
+    function addMessageToUI(msg) {
       const chatBox = document.getElementById("chat-box");
       const msgDiv = document.createElement("div");
       const isSent = msg.sender === currentUser;
+      
+      const date = new Date(msg.timestamp * 1000);
+      const timeString = `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+      
       msgDiv.className = `message ${isSent ? 'sent' : 'received'}`;
-      msgDiv.innerHTML = `${msg.message}`;
+      msgDiv.innerHTML = `
+        <div class="message-text">${msg.message}</div>
+        <div class="message-time">${timeString}</div>
+      `;
+      
       chatBox.appendChild(msgDiv);
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
+    // Actualizar lista de usuarios
+    function fetchUsers() {
+      fetch('/api/users')
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            window.location.href = '/';
+          } else {
+            updateUserList(data.users);
+          }
+        });
+    }
+
+    // Actualizar UI de lista de usuarios
     function updateUserList(users) {
       const userList = document.getElementById("user-list");
       userList.innerHTML = "";
+
+      if (users.length === 0) {
+        userList.innerHTML = "<p style='text-align: center; color: #666;'>No hay otros usuarios</p>";
+        return;
+      }
 
       users.forEach(user => {
         if (user.name === currentUser) return;
@@ -284,7 +442,7 @@
         userItem.onclick = () => openChat(user.name, user.online);
         userItem.innerHTML = `
           <div class="avatar">
-            ${user.name[0]}
+            ${user.name[0].toUpperCase()}
             <div class="status-circle ${user.online ? 'online' : 'offline'}"></div>
           </div>
           <div class="user-info">
@@ -295,6 +453,7 @@
       });
     }
 
+    // Actualizar UI de lista de chats
     function updateChatList(chats) {
       const chatList = document.getElementById("chat-list");
       chatList.innerHTML = "";
@@ -308,19 +467,51 @@
         const chatItem = document.createElement("div");
         chatItem.className = "chat-item";
         chatItem.onclick = () => openChat(chat.name, chat.online);
+        
+        // Formatear la fecha del último mensaje
+        const lastMsgDate = chat.timestamp ? new Date(chat.timestamp * 1000) : null;
+        const timeString = lastMsgDate ? 
+          `${lastMsgDate.getHours()}:${lastMsgDate.getMinutes().toString().padStart(2, '0')}` : '';
+        
         chatItem.innerHTML = `
           <div class="avatar">
-            ${chat.name[0]}
+            ${chat.name[0].toUpperCase()}
             <div class="status-circle ${chat.online ? 'online' : 'offline'}"></div>
           </div>
           <div class="user-info">
             <span>${chat.name}</span>
-            <span class="last-message">Inicia una conversación</span>
+            <span class="last-message">
+              ${chat.last_message || "Inicia una conversación"}
+              ${timeString ? `<small> · ${timeString}</small>` : ''}
+            </span>
           </div>`;
         chatList.appendChild(chatItem);
       });
     }
 
+    // Mostrar notificación
+    function showNotification(message) {
+      // Verificar si el navegador soporta notificaciones
+      if (!("Notification" in window)) {
+        console.log("Este navegador no soporta notificaciones");
+        return;
+      }
+      
+      // Verificar si ya tenemos permiso
+      if (Notification.permission === "granted") {
+        new Notification(message);
+      } 
+      // Si no, pedir permiso
+      else if (Notification.permission !== "denied") {
+        Notification.requestPermission().then(permission => {
+          if (permission === "granted") {
+            new Notification(message);
+          }
+        });
+      }
+    }
+
+    // Eventos de Socket.IO
     socket.on('users_update', data => {
       updateUserList(data.users);
     });
@@ -330,32 +521,50 @@
     });
 
     socket.on('new_message', msg => {
+      // 1. Si el mensaje es para el chat actual, mostrarlo
       if ((msg.sender === currentUser && msg.receiver === currentChat) || 
           (msg.sender === currentChat && msg.receiver === currentUser)) {
-        addMessage(msg);
+        addMessageToUI(msg);
+      }
+      
+      // 2. Actualizar caché de mensajes si es relevante
+      if (msg.sender === currentUser || msg.receiver === currentUser) {
+        const otherUser = msg.sender === currentUser ? msg.receiver : msg.sender;
+        
+        if (messagesCache[otherUser]) {
+          messagesCache[otherUser].push(msg);
+        } else {
+          messagesCache[otherUser] = [msg];
+        }
+      }
+      
+      // 3. Si el mensaje es relevante pero no estamos en ese chat, mostrar notificación
+      if ((msg.sender === currentUser || msg.receiver === currentUser) && 
+          msg.sender !== currentChat && msg.receiver !== currentChat) {
+        const senderName = msg.sender === currentUser ? "Tú" : msg.sender;
+        const receiverName = msg.receiver === currentUser ? "ti" : msg.receiver;
+        showNotification(`Nuevo mensaje de ${msg.sender === currentUser ? msg.receiver : msg.sender}: ${msg.message}`);
       }
     });
 
-    // Cargar datos iniciales
-    fetch('/api/users')
-      .then(res => res.json())
-      .then(data => {
-        if (data.error) {
-          window.location.href = '/';
-        } else {
-          updateUserList(data.users);
-        }
-      });
-
-    fetch('/api/chats')
-      .then(res => res.json())
-      .then(data => {
-        if (data.error) {
-          window.location.href = '/';
-        } else {
-          updateChatList(data.chats);
-        }
-      });
+    // Cargar datos iniciales al cargar la página
+    document.addEventListener('DOMContentLoaded', () => {
+      // Pedir permiso para notificaciones
+      if ("Notification" in window) {
+        Notification.requestPermission();
+      }
+      
+      // Cargar chats iniciales
+      fetch('/api/chats')
+        .then(res => res.json())
+        .then(data => {
+          if (data.error) {
+            window.location.href = '/';
+          } else {
+            updateChatList(data.chats);
+          }
+        });
+    });
   </script>
 </body>
 </html>
