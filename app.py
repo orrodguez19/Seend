@@ -42,7 +42,7 @@ connected_users = {}  # {sid: {"name": username, "online": True}}
 def index():
     if 'username' not in session:
         return redirect(url_for('auth'))
-    return render_template('auth.html')
+    return render_template('index.html')
 
 @app.route('/auth')
 def auth():
