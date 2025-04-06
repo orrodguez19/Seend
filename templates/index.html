@@ -6,6 +6,7 @@
   <title>Seend Chat</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.5.1/socket.io.js"></script>
   <style>
+    /* Estilos se mantienen igual */
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
     body { background: #f0f2f5; color: #333; }
     .screen { display: none; flex-direction: column; height: 100vh; overflow: hidden; position: relative; }
@@ -34,6 +35,7 @@
   </style>
 </head>
 <body>
+  <!-- HTML se mantiene igual -->
   <div class="screen active" id="screen-chats">
     <header>
       <h2>Seend Chats</h2>
@@ -96,8 +98,13 @@
       fetchUsers();
     }
 
-    function openChat(userId, userName, isOnline) {
-      currentChat = { id: userId, name: userName };
+    function openChat(userId, userName, isOnline, conversationId) {
+      currentChat = { 
+        id: userId, 
+        name: userName,
+        conversation_id: conversationId
+      };
+      
       document.getElementById("chat-username").textContent = userName;
       document.getElementById("chat-status").textContent = isOnline ? "En línea" : "Desconectado";
       document.getElementById("chat-status-icon").className = `status ${isOnline ? 'online' : 'offline'}`;
@@ -125,11 +132,15 @@
     }
 
     function loadMessages(userId) {
-      fetch(`/api/messages/${userId}`)
+      fetch(`/api/conversations/${userId}`)
         .then(res => res.json())
         .then(data => {
           if (data.error) return window.location.href = '/';
           renderMessages(data.messages);
+          // Actualizar conversation_id en currentChat por si es nuevo
+          if (data.conversation_id) {
+            currentChat.conversation_id = data.conversation_id;
+          }
         });
     }
 
@@ -165,7 +176,7 @@
     function updateUserList(users) {
       const container = document.getElementById("user-list");
       container.innerHTML = users.map(user => `
-        <div class="user-item" onclick="openChat('${user.id}', '${user.name}', ${user.online})">
+        <div class="user-item" onclick="openChat('${user.id}', '${user.name}', ${user.online}, 'conv_${[currentUser.id, user.id].sort().join('_')}')">
           <div class="avatar">${user.name[0].toUpperCase()}</div>
           <div class="user-info">
             <span>${user.name}</span>
@@ -178,20 +189,10 @@
 
     function updateChatList(chats) {
       const container = document.getElementById("chat-list");
-      const uniqueChats = [];
-      const seenIds = new Set();
-
-      chats.forEach(chat => {
-        if (!seenIds.has(chat.id)) {
-          seenIds.add(chat.id);
-          uniqueChats.push(chat);
-        }
-      });
-
-      container.innerHTML = uniqueChats.map(chat => {
+      container.innerHTML = chats.map(chat => {
         const time = chat.timestamp ? new Date(chat.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '';
         return `
-          <div class="chat-item" onclick="openChat('${chat.id}', '${chat.name}', ${chat.online})">
+          <div class="chat-item" onclick="openChat('${chat.contact_id}', '${chat.name}', ${chat.online}, '${chat.conversation_id}')">
             <div class="avatar">${chat.name[0].toUpperCase()}</div>
             <div class="user-info">
               <span>${chat.name}</span>
@@ -209,20 +210,18 @@
     socket.on('users_update', data => updateUserList(data.users));
     socket.on('chats_update', data => updateChatList(data.chats));
     socket.on('new_message', msg => {
-      if (msg.receiver_id === currentUser.id || msg.sender === currentUser.name) {
-        if (currentChat && (msg.receiver_id === currentChat.id || msg.sender === currentChat.name)) {
-          const chatBox = document.getElementById("chat-box");
-          const msgElement = document.createElement('div');
-          msgElement.className = `message ${msg.sender === currentUser.name ? 'sent' : 'received'}`;
-          msgElement.innerHTML = `
-            <div>${msg.message}</div>
-            <div class="message-time">
-              ${new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-            </div>
-          `;
-          chatBox.appendChild(msgElement);
-          chatBox.scrollTop = chatBox.scrollHeight;
-        }
+      if (currentChat && msg.conversation_id === currentChat.conversation_id) {
+        const chatBox = document.getElementById("chat-box");
+        const msgElement = document.createElement('div');
+        msgElement.className = `message ${msg.sender === currentUser.name ? 'sent' : 'received'}`;
+        msgElement.innerHTML = `
+          <div>${msg.message}</div>
+          <div class="message-time">
+            ${new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+          </div>
+        `;
+        chatBox.appendChild(msgElement);
+        chatBox.scrollTop = chatBox.scrollHeight;
       }
     });
 
