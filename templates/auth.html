@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Seend - Autenticación</title>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
 
     * {
       box-sizing: border-box;
@@ -20,6 +20,7 @@
       justify-content: center;
       align-items: center;
       height: 100vh;
+      overflow: hidden;
     }
 
     .container {
@@ -29,12 +30,52 @@
       box-shadow: 0 4px 20px rgba(0,0,0,0.1);
       width: 100%;
       max-width: 400px;
+      position: relative;
+      animation: fadeIn 0.5s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .welcome {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .avatar {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: #1877f2;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2rem;
+      font-weight: 600;
+      margin: 0 auto 0.5rem;
+      box-shadow: 0 2px 10px rgba(24, 119, 242, 0.3);
+    }
+
+    .welcome-text {
+      color: #333;
+      font-size: 1.2rem;
+      font-weight: 600;
+    }
+
+    .welcome-subtext {
+      color: #666;
+      font-size: 0.9rem;
+      margin-top: 0.3rem;
     }
 
     h2 {
       text-align: center;
       color: #1877f2;
       margin-bottom: 1rem;
+      font-weight: 600;
     }
 
     form {
@@ -45,9 +86,17 @@
     input {
       margin-bottom: 1rem;
       padding: 0.75rem;
-      border: 1px solid #ccc;
+      border: 1px solid #ddd;
       border-radius: 10px;
       font-size: 1rem;
+      background: #f9fafb;
+      transition: border-color 0.3s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #1877f2;
+      box-shadow: 0 0 5px rgba(24, 119, 242, 0.3);
     }
 
     button {
@@ -57,12 +106,14 @@
       background: #1877f2;
       color: white;
       font-size: 1rem;
+      font-weight: 600;
       cursor: pointer;
-      transition: background 0.3s;
+      transition: background 0.3s, transform 0.2s;
     }
 
     button:hover {
       background: #155dc0;
+      transform: scale(1.02);
     }
 
     .toggle-link {
@@ -70,22 +121,34 @@
       margin-top: 1rem;
       color: #1877f2;
       cursor: pointer;
+      font-size: 0.9rem;
+      transition: color 0.3s;
     }
 
     .toggle-link:hover {
+      color: #155dc0;
       text-decoration: underline;
     }
 
     .error {
-      color: red;
+      color: #e63946;
       font-size: 0.9rem;
       text-align: center;
       margin-bottom: 1rem;
+      background: #fee2e2;
+      padding: 0.5rem;
+      border-radius: 5px;
     }
   </style>
 </head>
 <body>
   <div class="container">
+    <div class="welcome">
+      <div class="avatar">S</div>
+      <div class="welcome-text">¡Bienvenido a Seend Messenger!</div>
+      <div class="welcome-subtext">Conéctate y chatea con tus amigos</div>
+    </div>
+
     <h2 id="form-title">Iniciar Sesión</h2>
 
     {% if error %}
