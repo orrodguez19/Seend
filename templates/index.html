@@ -97,17 +97,6 @@
       font-size: 0.9rem;
       color: #555;
     }
-    .unread-count {
-      background: #1877f2;
-      color: white;
-      border-radius: 50%;
-      width: 20px;
-      height: 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.8rem;
-    }
     .chat-box {
       flex: 1;
       overflow-y: auto;
@@ -247,13 +236,14 @@
       const text = input.value.trim();
       if (!text || !currentChat) return;
       
-      socket.emit('message', {
+      const messageData = {
         sender: currentUser,
         receiver: currentChat,
-        message: text
-      });
+        message: text,
+        timestamp: Date.now() / 1000 // Aproximación del timestamp
+      };
+      socket.emit('message', messageData);
       input.value = "";
-      addMessage({ sender: currentUser, message: text });
     }
 
     function loadMessages(username) {
@@ -308,6 +298,11 @@
     function updateChatList(chats) {
       const chatList = document.getElementById("chat-list");
       chatList.innerHTML = "";
+
+      if (chats.length === 0) {
+        chatList.innerHTML = "<p style='text-align: center; color: #666;'>No hay chats aún</p>";
+        return;
+      }
 
       chats.forEach(chat => {
         const chatItem = document.createElement("div");
