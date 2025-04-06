@@ -102,12 +102,12 @@
       document.getElementById("chat-status").textContent = isOnline ? "En línea" : "Desconectado";
       document.getElementById("chat-status-icon").className = `status ${isOnline ? 'online' : 'offline'}`;
       document.getElementById("chat-avatar").textContent = userName[0].toUpperCase();
-      
+
       document.getElementById("screen-chats").classList.remove("active");
       document.getElementById("screen-users").classList.remove("active");
       document.getElementById("screen-chat").classList.add("active");
       fabButton.classList.remove('visible');
-      
+
       loadMessages(userId);
     }
 
@@ -116,7 +116,7 @@
       const input = document.getElementById("message-input");
       const message = input.value.trim();
       if (!message || !currentChat?.id) return;
-      
+
       socket.emit('message', {
         receiver_id: currentChat.id,
         message: message
@@ -136,7 +136,7 @@
     function renderMessages(messages) {
       const chatBox = document.getElementById("chat-box");
       chatBox.innerHTML = "";
-      
+
       messages.forEach(msg => {
         const isSent = msg.sender === currentUser.name;
         const msgElement = document.createElement('div');
@@ -149,7 +149,7 @@
         `;
         chatBox.appendChild(msgElement);
       });
-      
+
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
@@ -180,7 +180,7 @@
       const container = document.getElementById("chat-list");
       const uniqueChats = [];
       const seenIds = new Set();
-      
+
       chats.forEach(chat => {
         if (!seenIds.has(chat.id)) {
           seenIds.add(chat.id);
@@ -196,7 +196,7 @@
             <div class="user-info">
               <span>${chat.name}</span>
               <span class="last-message">
-                ${chat.last_message?.substring(0, 20) || "Nuevo chat"}
+                Mensajes Privados
                 ${time ? `<small> · ${time}</small>` : ''}
               </span>
             </div>
