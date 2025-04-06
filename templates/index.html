@@ -272,14 +272,12 @@
     let currentChat = null;
     let messagesCache = {};
 
-    // Mostrar pantalla de chats
     function showChatsScreen() {
       chatsScreen.classList.add("active");
       usersScreen.classList.remove("active");
       chatScreen.classList.remove("active");
     }
 
-    // Mostrar pantalla de usuarios
     function showUsersScreen() {
       chatsScreen.classList.remove("active");
       usersScreen.classList.add("active");
@@ -287,7 +285,6 @@
       fetchUsers();
     }
 
-    // Abrir chat con un usuario
     function openChat(username, online) {
       currentChat = username;
       document.getElementById("chat-username").innerText = username;
@@ -300,13 +297,11 @@
       
       loadMessages(username);
       
-      // Poner foco en el input de mensaje
       setTimeout(() => {
         document.getElementById("message-input").focus();
       }, 100);
     }
 
-    // Enviar mensaje
     function sendMessage(e) {
       e.preventDefault();
       const input = document.getElementById("message-input");
@@ -320,17 +315,12 @@
         timestamp: Date.now() / 1000
       };
       
-      // Añadir mensaje localmente inmediatamente
       addMessageToUI(messageData);
-      
-      // Enviar mensaje al servidor
       socket.emit('message', messageData);
       input.value = "";
     }
 
-    // Cargar mensajes de un chat
     function loadMessages(username) {
-      // Verificar si tenemos los mensajes en caché
       if (messagesCache[username]) {
         displayMessages(messagesCache[username]);
         return;
@@ -344,7 +334,6 @@
             return;
           }
           
-          // Guardar en caché
           messagesCache[username] = data.messages;
           displayMessages(data.messages);
         })
@@ -353,12 +342,10 @@
         });
     }
 
-    // Mostrar mensajes en la UI
     function displayMessages(messages) {
       const chatBox = document.getElementById("chat-box");
       chatBox.innerHTML = "";
       
-      // Agrupar mensajes por día
       const messagesByDay = {};
       messages.forEach(msg => {
         const date = new Date(msg.timestamp * 1000);
@@ -374,25 +361,20 @@
         messagesByDay[dayKey].push(msg);
       });
       
-      // Mostrar mensajes agrupados
       Object.entries(messagesByDay).forEach(([day, messages]) => {
-        // Añadir separador de día
         const dayHeader = document.createElement('div');
         dayHeader.className = 'day-separator';
         dayHeader.textContent = day.charAt(0).toUpperCase() + day.slice(1);
         chatBox.appendChild(dayHeader);
         
-        // Añadir mensajes del día
         messages.forEach(msg => {
           addMessageToUI(msg);
         });
       });
       
-      // Desplazar al final
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    // Añadir mensaje a la UI
     function addMessageToUI(msg) {
       const chatBox = document.getElementById("chat-box");
       const msgDiv = document.createElement("div");
@@ -411,7 +393,6 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    // Actualizar lista de usuarios
     function fetchUsers() {
       fetch('/api/users')
         .then(res => res.json())
@@ -424,7 +405,6 @@
         });
     }
 
-    // Actualizar UI de lista de usuarios
     function updateUserList(users) {
       const userList = document.getElementById("user-list");
       userList.innerHTML = "";
@@ -453,7 +433,6 @@
       });
     }
 
-    // Actualizar UI de lista de chats
     function updateChatList(chats) {
       const chatList = document.getElementById("chat-list");
       chatList.innerHTML = "";
@@ -463,12 +442,21 @@
         return;
       }
 
+      // Filtra chats duplicados (por si acaso)
+      const uniqueChats = [];
+      const seen = new Set();
       chats.forEach(chat => {
+        if (!seen.has(chat.name)) {
+          seen.add(chat.name);
+          uniqueChats.push(chat);
+        }
+      });
+
+      uniqueChats.forEach(chat => {
         const chatItem = document.createElement("div");
         chatItem.className = "chat-item";
         chatItem.onclick = () => openChat(chat.name, chat.online);
         
-        // Formatear la fecha del último mensaje
         const lastMsgDate = chat.timestamp ? new Date(chat.timestamp * 1000) : null;
         const timeString = lastMsgDate ? 
           `${lastMsgDate.getHours()}:${lastMsgDate.getMinutes().toString().padStart(2, '0')}` : '';
@@ -489,19 +477,15 @@
       });
     }
 
-    // Mostrar notificación
     function showNotification(message) {
-      // Verificar si el navegador soporta notificaciones
       if (!("Notification" in window)) {
         console.log("Este navegador no soporta notificaciones");
         return;
       }
       
-      // Verificar si ya tenemos permiso
       if (Notification.permission === "granted") {
         new Notification(message);
       } 
-      // Si no, pedir permiso
       else if (Notification.permission !== "denied") {
         Notification.requestPermission().then(permission => {
           if (permission === "granted") {
@@ -511,7 +495,6 @@
       }
     }
 
-    // Eventos de Socket.IO
     socket.on('users_update', data => {
       updateUserList(data.users);
     });
@@ -521,13 +504,11 @@
     });
 
     socket.on('new_message', msg => {
-      // 1. Si el mensaje es para el chat actual, mostrarlo
       if ((msg.sender === currentUser && msg.receiver === currentChat) || 
           (msg.sender === currentChat && msg.receiver === currentUser)) {
         addMessageToUI(msg);
       }
       
-      // 2. Actualizar caché de mensajes si es relevante
       if (msg.sender === currentUser || msg.receiver === currentUser) {
         const otherUser = msg.sender === currentUser ? msg.receiver : msg.sender;
         
@@ -538,23 +519,17 @@
         }
       }
       
-      // 3. Si el mensaje es relevante pero no estamos en ese chat, mostrar notificación
       if ((msg.sender === currentUser || msg.receiver === currentUser) && 
           msg.sender !== currentChat && msg.receiver !== currentChat) {
-        const senderName = msg.sender === currentUser ? "Tú" : msg.sender;
-        const receiverName = msg.receiver === currentUser ? "ti" : msg.receiver;
         showNotification(`Nuevo mensaje de ${msg.sender === currentUser ? msg.receiver : msg.sender}: ${msg.message}`);
       }
     });
 
-    // Cargar datos iniciales al cargar la página
     document.addEventListener('DOMContentLoaded', () => {
-      // Pedir permiso para notificaciones
       if ("Notification" in window) {
         Notification.requestPermission();
       }
       
-      // Cargar chats iniciales
       fetch('/api/chats')
         .then(res => res.json())
         .then(data => {
