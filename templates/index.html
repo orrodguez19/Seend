@@ -16,7 +16,7 @@
     header { display: flex; align-items: center; background: #1877f2; color: white; padding: 1rem; position: sticky; top: 0; z-index: 10; }
     header svg { width: 20px; height: 20px; margin-right: 10px; cursor: pointer; }
     .chat-list { padding: 1rem; }
-    .chat-item, .user-item { display: flex; align-items: center; padding: 12px; background: white; border-radius: 8px; margin-bottom: 8px; cursor: pointer; }
+    .chat-item, .user-item { display: flex; align-items: center; padding: 12px; background: white; border-radius: 8px; margin-bottom: 8px; cursor: pointer; position: relative; }
     .chat-item.fixed { background: #e7f3ff; position: sticky; top: 0; z-index: 5; }
     .avatar { width: 40px; height: 40px; border-radius: 50%; background: #1877f2; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-right: 10px; }
     .status { width: 10px; height: 10px; border-radius: 50%; margin-left: auto; }
@@ -27,28 +27,26 @@
       flex: 1; 
       overflow-y: auto; 
       padding: 1rem; 
-      background: url('u2.username') no-repeat center center fixed; 
+      background: url('lol') no-repeat center center fixed; 
       background-size: cover; 
+      display: flex; 
+      flex-direction: column; 
     }
     .message { 
       max-width: 70%; 
       padding: 8px 12px; 
       margin-bottom: 10px; 
       border-radius: 10px; 
-      position: relative; 
-      display: inline-block; 
-      word-wrap: break-word; 
+      display: block; 
     }
     .sent { 
       background: #DCF8C6; 
       align-self: flex-end; 
-      margin-left: auto; 
       border-bottom-right-radius: 2px; 
     }
     .received { 
       background: #FFFFFF; 
       align-self: flex-start; 
-      margin-right: auto; 
       border-bottom-left-radius: 2px; 
     }
     .message-content { margin-bottom: 4px; }
@@ -59,6 +57,7 @@
     .sent-icon { fill: #999; }
     .delivered-icon { fill: #999; }
     .seen-icon { fill: #34B7F1; }
+    .public-sender { font-size: 0.7rem; color: #555; margin-bottom: 2px; }
     .input-area { display: flex; align-items: center; padding: 8px 16px; background: white; border-top: 1px solid #ddd; box-shadow: 0 -2px 5px rgba(0,0,0,0.05); }
     .input-area input { flex: 1; padding: 10px 15px; border: 1px solid #ddd; border-radius: 25px; margin: 0 10px; outline: none; transition: border-color 0.3s; }
     .input-area input:focus { border-color: #1877f2; }
@@ -67,8 +66,10 @@
     .menu-button { position: absolute; top: 0.5rem; left: 0.5rem; width: 40px; height: 40px; background: transparent; color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.3s; z-index: 1000; font-size: 24px; }
     .menu-button:hover { background: rgba(255, 255, 255, 0.2); }
     .menu-button .badge { position: absolute; top: -5px; right: -5px; background: #ff4444; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
-    .header-title { font-size: 1.2rem; margin-left: 80px; }
+    .header-title { font-size: 1.2rem; }
+    .header-container { display: flex; flex-direction: column; margin-left: 80px; flex: 1; }
     .status-text { font-size: 0.8rem; color: #555; }
+    .user-unread { position: absolute; right: 30px; background: #ff4444; color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; }
   </style>
 </head>
 <body>
@@ -89,7 +90,7 @@
           ☰
           <span class="badge" id="unread-count" style="display: none;">0</span>
         </div>
-        <div style="flex: 1;">
+        <div class="header-container">
           <h2 class="header-title" id="header-title">Chat Público</h2>
           <div id="public-chat-status" style="font-size: 0.8rem;">Grupo</div>
         </div>
@@ -112,7 +113,7 @@
         </div>
         <svg onclick="showPublicChat()" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="white"/></svg>
         <div class="avatar" id="chat-avatar"></div>
-        <div style="flex: 1;">
+        <div class="header-container">
           <div id="chat-username" class="header-title"></div>
           <div id="chat-status" style="font-size: 0.8rem;"></div>
         </div>
@@ -136,7 +137,7 @@
     };
     let currentChat = null;
     const typingUsers = new Set();
-    let unreadChats = new Set();
+    let unreadMessages = new Map(); // Mapa para contar mensajes sin leer por usuario
 
     function toggleSidebar() {
       const sidebar = document.getElementById("sidebar");
@@ -172,7 +173,7 @@
       document.getElementById("screen-private-chat").classList.add("active");
       loadPrivateMessages(userId);
       hideSidebar();
-      unreadChats.delete(userId);
+      unreadMessages.delete(userId); // Resetear mensajes sin leer al abrir el chat
       updateUnreadCount();
     }
 
@@ -227,7 +228,8 @@
         const msgElement = document.createElement('div');
         msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
         msgElement.innerHTML = `
-          <div class="message-content">${isSent ? msg.message : `${msg.sender}: ${msg.message}`}</div>
+          ${containerId === "public-chat-box" && !isSent ? `<div class="public-sender">${msg.sender}</div>` : ''}
+          <div class="message-content">${msg.message}</div>
           <div class="message-meta">
             <span class="message-time">${new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
             ${isSent && containerId === "private-chat-box" ? `
@@ -253,6 +255,7 @@
             <span>${user.name}</span>
             <span class="status-text">${user.status}</span>
           </div>
+          ${unreadMessages.has(user.id) ? `<span class="user-unread">${unreadMessages.get(user.id)}</span>` : ''}
           <div class="status ${user.status === 'En línea' ? 'online' : user.status === 'Escribiendo' ? 'typing' : 'offline'}"></div>
         </div>
       `).join("");
@@ -261,10 +264,11 @@
     function updateUnreadCount() {
       const unreadCountPublic = document.getElementById("unread-count");
       const unreadCountPrivate = document.getElementById("unread-count-private");
-      unreadCountPublic.textContent = unreadChats.size;
-      unreadCountPrivate.textContent = unreadChats.size;
-      unreadCountPublic.style.display = unreadChats.size > 0 ? 'flex' : 'none';
-      unreadCountPrivate.style.display = unreadChats.size > 0 ? 'flex' : 'none';
+      const totalUnread = Array.from(unreadMessages.values()).reduce((a, b) => a + b, 0);
+      unreadCountPublic.textContent = totalUnread;
+      unreadCountPrivate.textContent = totalUnread;
+      unreadCountPublic.style.display = totalUnread > 0 ? 'flex' : 'none';
+      unreadCountPrivate.style.display = totalUnread > 0 ? 'flex' : 'none';
     }
 
     socket.on('users_update', data => {
@@ -280,7 +284,8 @@
         const msgElement = document.createElement('div');
         msgElement.className = `message ${msg.sender === currentUser.name ? 'sent' : 'received'}`;
         msgElement.innerHTML = `
-          <div class="message-content">${msg.sender}: ${msg.message}</div>
+          ${msg.sender !== currentUser.name ? `<div class="public-sender">${msg.sender}</div>` : ''}
+          <div class="message-content">${msg.message}</div>
           <div class="message-meta">
             <span class="message-time">${new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
           </div>
@@ -292,36 +297,36 @@
 
     socket.on('private_message', msg => {
       if (currentChat && msg.conversation_id === currentChat.conversation_id) {
-        const chatBox = document.getElementById("private-chat-box");
-        const msgElement = document.createElement('div');
-        msgElement.className = `message ${msg.sender === currentUser.name ? 'sent' : 'received'}`;
-        msgElement.innerHTML = `
-          <div class="message-content">${msg.message}</div>
-          <div class="message-meta">
-            <span class="message-time">${new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-            ${msg.sender === currentUser.name ? `
-              <span class="message-status">
-                ${msg.status === 'sent' ? '<svg class="status-icon sent-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>' : 
-                  msg.status === 'delivered' ? '<svg class="status-icon delivered-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/><path d="M5 7l1.4 1.4L15 17"/></svg>' : 
-                  '<svg class="status-icon seen-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/><path d="M5 7l1.4 1.4L15 17"/></svg>'}
-              </span>
-            ` : ''}
-          </div>
-        `;
-        chatBox.appendChild(msgElement);
-        chatBox.scrollTop = chatBox.scrollHeight;
+        renderMessages([msg], "private-chat-box");
         if (msg.sender !== currentUser.name) {
           socket.emit('message_status', { conversation_id: currentChat.conversation_id, status: 'seen' });
         }
       } else if (msg.sender !== currentUser.name) {
-        unreadChats.add(msg.sender_id || msg.sender);
+        const count = unreadMessages.get(msg.sender) || 0;
+        unreadMessages.set(msg.sender, count + 1);
         updateUnreadCount();
+        fetch('/api/users')
+          .then(res => res.json())
+          .then(data => updateUserList(data.users.map(user => ({
+            ...user,
+            status: typingUsers.has(user.id) ? 'Escribiendo' : user.online ? 'En línea' : 'Desconectado'
+          }))));
       }
     });
 
     socket.on('message_status_update', data => {
       if (currentChat && data.conversation_id === currentChat.conversation_id) {
         loadPrivateMessages(currentChat.id);
+      }
+    });
+
+    socket.on('public_typing', data => {
+      if (document.getElementById("screen-public-chat").classList.contains("active")) {
+        const publicStatus = document.getElementById("public-chat-status");
+        publicStatus.textContent = `${data.sender} está escribiendo...`;
+        setTimeout(() => {
+          publicStatus.textContent = "Grupo";
+        }, 2000);
       }
     });
 
@@ -334,16 +339,6 @@
           typingUsers.delete(data.user_id);
           document.getElementById("chat-status").textContent = "En línea";
           document.getElementById("chat-status-icon").className = "status online";
-        }, 2000);
-      }
-    });
-
-    socket.on('public_typing', data => {
-      if (document.getElementById("screen-public-chat").classList.contains("active")) {
-        const publicStatus = document.getElementById("public-chat-status");
-        publicStatus.textContent = `${data.sender} está escribiendo...`;
-        setTimeout(() => {
-          publicStatus.textContent = "Grupo";
         }, 2000);
       }
     });
