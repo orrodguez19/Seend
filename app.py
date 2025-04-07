@@ -233,13 +233,13 @@ def handle_private_message(data):
     message = data.get('message')
     sender = data.get('sender')
     conversation_id = data.get('conversation_id')
-    if not receiver_id or not message or not conversation_id:
+    timestamp = data.get('timestamp')  # Usar el timestamp del cliente
+    if not receiver_id or not message or not conversation_id or not timestamp:
         return
 
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     message_id = f"msg_{uuid.uuid4()}"
-    timestamp = time.time()
     receiver_sid = next((sid for sid, user in connected_users.items() if user['id'] == receiver_id), None)
     initial_status = 'delivered' if receiver_sid else 'sent'
     c.execute("""
@@ -260,6 +260,12 @@ def handle_private_message(data):
     emit('private_message', message_data, room=sender_sid)
     if receiver_sid:
         emit('private_message', message_data, room=receiver_sid)
+        # Emitir actualización de estado al remitente si es 'delivered'
+        emit('message_status_update', {
+            "conversation_id": conversation_id,
+            "status": initial_status,
+            "timestamp": timestamp
+        }, room=sender_sid)
 
 @socketio.on('message_status')
 def handle_message_status(data):
@@ -268,23 +274,34 @@ def handle_message_status(data):
 
     conversation_id = data.get('conversation_id')
     status = data.get('status')
+    timestamp = data.get('timestamp')  # Recibir timestamp del cliente
 
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     c.execute("""
         UPDATE messages 
         SET status = ? 
-        WHERE conversation_id = ? AND sender_id != ? AND status != 'seen'
-    """, (status, conversation_id, session['user_id']))
+        WHERE conversation_id = ? AND sender_id != ? AND timestamp = ? AND status != 'seen'
+    """, (status, conversation_id, session['user_id'], timestamp))
     conn.commit()
+
+    # Obtener el mensaje actualizado para verificar
+    c.execute("""
+        SELECT timestamp, status 
+        FROM messages 
+        WHERE conversation_id = ? AND timestamp = ?
+    """, (conversation_id, timestamp))
+    updated_message = c.fetchone()
     conn.close()
 
-    sender_sid = next((sid for sid, user in connected_users.items() if user['id'] != session['user_id'] and conversation_id.startswith(f"conv_{min(user['id'], session['user_id'])}_{max(user['id'], session['user_id'])}")), None)
-    if sender_sid:
-        emit('message_status_update', {
-            "conversation_id": conversation_id,
-            "status": status
-        }, room=sender_sid)
+    if updated_message:
+        sender_sid = next((sid for sid, user in connected_users.items() if user['id'] != session['user_id'] and conversation_id.startswith(f"conv_{min(user['id'], session['user_id'])}_{max(user['id'], session['user_id'])}")), None)
+        if sender_sid:
+            emit('message_status_update', {
+                "conversation_id": conversation_id,
+                "status": updated_message[1],
+                "timestamp": updated_message[0]
+            }, room=sender_sid)
 
 @socketio.on('public_typing')
 def handle_public_typing(data):
