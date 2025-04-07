@@ -65,7 +65,11 @@
     .menu-button .badge { position: absolute; top: -5px; right: -5px; background: #ff4444; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
     .header-title { font-size: 1.2rem; }
     .header-container { display: flex; flex-direction: column; margin-left: 80px; flex: 1; }
-    .status-text { font-size: 0.8rem; color: #555; }
+    .status-text { font-size: 0.8rem; }
+    /* Nuevos estilos para colores de estado */
+    .status-text.online { color: green; }
+    .status-text.typing { color: yellow; }
+    .status-text.offline { color: red; }
     .user-unread { position: absolute; right: 30px; background: #ff4444; color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; }
     @media (max-width: 600px) {
       .sidebar.open { width: 100%; }
@@ -202,6 +206,7 @@
       input.value = "";
     }
 
+    // Modificado: No renderiza localmente, espera al socket
     function sendPrivateMessage(e) {
       e.preventDefault();
       const input = document.getElementById("private-message-input");
@@ -212,7 +217,8 @@
         message: message,
         sender: currentUser.name,
         conversation_id: currentChat.conversation_id,
-        status: 'sent'
+        status: 'sent',
+        timestamp: Date.now() / 1000 // Agregado para unicidad
       });
       input.value = "";
     }
@@ -241,45 +247,53 @@
         .catch(err => console.error(err));
     }
 
+    // Modificado: Evita duplicados verificando timestamp
     function renderMessages(messages, containerId, replace = false) {
       const chatBox = document.getElementById(containerId);
       if (replace) chatBox.innerHTML = "";
       messages.forEach(msg => {
-        const isSent = msg.sender === currentUser.name;
-        const msgElement = document.createElement('div');
-        msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
-        msgElement.setAttribute('data-timestamp', msg.timestamp);
-        msgElement.innerHTML = `
-          ${containerId === "public-chat-box" && !isSent ? `<div class="public-sender">${sanitizeHTML(msg.sender)}</div>` : ''}
-          <div class="message-content">${sanitizeHTML(msg.message)}</div>
-          <div class="message-meta">
-            <span class="message-time">${new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-            ${isSent && containerId === "private-chat-box" ? `
-              <span class="message-status">
-                ${msg.status === 'sent' ? '<svg class="status-icon sent-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>' : 
-                  msg.status === 'delivered' ? '<svg class="status-icon delivered-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/><path d="M5 7l1.4 1.4L15 17"/></svg>' : 
-                  '<svg class="status-icon seen-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/><path d="M5 7l1.4 1.4L15 17"/></svg>'}
-              </span>
-            ` : ''}
-          </div>
-        `;
-        chatBox.appendChild(msgElement);
+        if (!chatBox.querySelector(`[data-timestamp="${msg.timestamp}"]`)) {
+          const isSent = msg.sender === currentUser.name;
+          const msgElement = document.createElement('div');
+          msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
+          msgElement.setAttribute('data-timestamp', msg.timestamp);
+          msgElement.innerHTML = `
+            ${containerId === "public-chat-box" && !isSent ? `<div class="public-sender">${sanitizeHTML(msg.sender)}</div>` : ''}
+            <div class="message-content">${sanitizeHTML(msg.message)}</div>
+            <div class="message-meta">
+              <span class="message-time">${new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+              ${isSent && containerId === "private-chat-box" ? `
+                <span class="message-status">
+                  ${msg.status === 'sent' ? '<svg class="status-icon sent-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>' : 
+                    msg.status === 'delivered' ? '<svg class="status-icon delivered-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/><path d="M5 7l1.4 1.4L15 17"/></svg>' : 
+                    '<svg class="status-icon seen-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/><path d="M5 7l1.4 1.4L15 17"/></svg>'}
+                </span>
+              ` : ''}
+            </div>
+          `;
+          chatBox.appendChild(msgElement);
+        }
       });
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
+    // Modificado: Agrega colores al estado
     function updateUserList(users) {
       const container = document.getElementById("user-list");
-      container.innerHTML = users.map(user => `
-        <div class="user-item" data-user-id="${user.id}" onclick="openPrivateChat('${user.id}', '${user.name}', '${user.status}', 'conv_${[currentUser.id, user.id].sort().join('_')}')">
-          <div class="avatar">${user.name[0].toUpperCase()}</div>
-          <div style="flex: 1;">
-            <span>${sanitizeHTML(user.name)}</span>
-            <span class="status-text">${user.status}</span>
+      container.innerHTML = users.map(user => {
+        const statusClass = user.status === 'En línea' ? 'online' : 
+                           user.status === 'Escribiendo' ? 'typing' : 'offline';
+        return `
+          <div class="user-item" data-user-id="${user.id}" onclick="openPrivateChat('${user.id}', '${user.name}', '${user.status}', 'conv_${[currentUser.id, user.id].sort().join('_')}')">
+            <div class="avatar">${user.name[0].toUpperCase()}</div>
+            <div style="flex: 1;">
+              <span>${sanitizeHTML(user.name)}</span>
+              <span class="status-text ${statusClass}">${user.status}</span>
+            </div>
+            ${unreadMessages.has(user.id) ? `<span class="user-unread">${unreadMessages.get(user.id)}</span>` : ''}
           </div>
-          ${unreadMessages.has(user.id) ? `<span class="user-unread">${unreadMessages.get(user.id)}</span>` : ''}
-        </div>
-      `).join("");
+        `;
+      }).join("");
     }
 
     function updateUnreadCount() {
@@ -293,13 +307,21 @@
     }
 
     let debounceTimeout;
+    // Modificado: Actualiza estado en pantalla de conversación
     socket.on('users_update', data => {
       clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(() => {
-        updateUserList(data.users.map(user => ({
+        const updatedUsers = data.users.map(user => ({
           ...user,
           status: typingUsers.has(user.id) ? 'Escribiendo' : user.online ? 'En línea' : 'Desconectado'
-        })));
+        }));
+        updateUserList(updatedUsers);
+        if (currentChat) {
+          const currentUserData = updatedUsers.find(u => u.id === currentChat.id);
+          if (currentUserData) {
+            document.getElementById("chat-status").textContent = currentUserData.status;
+          }
+        }
       }, 100);
     });
 
@@ -313,7 +335,7 @@
       if (currentChat && msg.conversation_id === currentChat.conversation_id) {
         renderMessages([msg], "private-chat-box");
         if (msg.sender !== currentUser.name) {
-          socket.emit('message_status', { conversation_id: currentChat.conversation_id, status: 'seen' });
+          socket.emit('message_status', { conversation_id: currentChat.conversation_id, status: 'seen', timestamp: msg.timestamp });
         }
       } else if (msg.sender !== currentUser.name) {
         const senderId = data.users.find(u => u.name === msg.sender)?.id;
@@ -331,16 +353,22 @@
       }
     });
 
+    // Modificado: Usa timestamp para identificar mensajes
     socket.on('message_status_update', data => {
-      if (currentChat && data.conversation_id === currentChat.conversation_id) {
-        const messages = document.querySelectorAll(`#private-chat-box .message.sent`);
-        messages.forEach(msg => {
+      const messages = document.querySelectorAll(`#private-chat-box .message.sent`);
+      messages.forEach(msg => {
+        const timestamp = msg.getAttribute('data-timestamp');
+        if (timestamp === String(data.timestamp)) {
           const statusSpan = msg.querySelector('.message-status');
-          if (statusSpan && data.status === 'seen') {
-            statusSpan.innerHTML = '<svg class="status-icon seen-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/><path d="M5 7l1.4 1.4L15 17"/></svg>';
+          if (statusSpan) {
+            statusSpan.innerHTML = data.status === 'seen' ? 
+              '<svg class="status-icon seen-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/><path d="M5 7l1.4 1.4L15 17"/></svg>' :
+              data.status === 'delivered' ? 
+              '<svg class="status-icon delivered-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/><path d="M5 7l1.4 1.4L15 17"/></svg>' :
+              '<svg class="status-icon sent-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>';
           }
-        });
-      }
+        }
+      });
     });
 
     socket.on('public_typing', data => {
