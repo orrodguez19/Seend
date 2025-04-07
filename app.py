@@ -88,7 +88,7 @@ def register():
     c = conn.cursor()
     try:
         c.execute("INSERT INTO users (id, username, password) VALUES (?, ?, ?)", 
-                 (user_id, username, password))
+                  (user_id, username, password))
         conn.commit()
         session['user_id'] = user_id
         session['username'] = username
@@ -108,7 +108,7 @@ def logout():
 def index():
     if 'user_id' not in session:
         return redirect(url_for('auth'))
-    return render_template('index.html')
+    return render_template('index.html', user_id=session['user_id'], username=session['username'])
 
 # API Endpoints
 @app.route('/api/users')
@@ -137,7 +137,7 @@ def get_conversation_messages(user_id):
 
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
-    
+
     c.execute("INSERT OR IGNORE INTO conversations (id, user1_id, user2_id, created_at) VALUES (?, ?, ?, ?)",
               (conversation_id, user_ids[0], user_ids[1], time.time()))
     conn.commit()
@@ -233,7 +233,6 @@ def handle_private_message(data):
     message = data.get('message')
     sender = data.get('sender')
     conversation_id = data.get('conversation_id')
-    status = data.get('status', 'sent')
     if not receiver_id or not message or not conversation_id:
         return
 
@@ -241,7 +240,6 @@ def handle_private_message(data):
     c = conn.cursor()
     message_id = f"msg_{uuid.uuid4()}"
     timestamp = time.time()
-    # Si el receptor está conectado, el estado inicial es "delivered"
     receiver_sid = next((sid for sid, user in connected_users.items() if user['id'] == receiver_id), None)
     initial_status = 'delivered' if receiver_sid else 'sent'
     c.execute("""
