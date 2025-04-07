@@ -18,16 +18,13 @@
     .chat-list { padding: 1rem; }
     .chat-item, .user-item { display: flex; align-items: center; padding: 12px; background: white; border-radius: 8px; margin-bottom: 8px; cursor: pointer; position: relative; }
     .chat-item.fixed { background: #e7f3ff; position: sticky; top: 0; z-index: 5; }
+    .active-chat { background: #e7f3ff; border: 2px solid #1877f2; }
     .avatar { width: 40px; height: 40px; border-radius: 50%; background: #1877f2; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-right: 10px; }
-    .status { width: 10px; height: 10px; border-radius: 50%; margin-left: auto; }
-    .online { background: #4CAF50; }
-    .offline { background: #9E9E9E; }
-    .typing { background: #FF9800; }
     .chat-box { 
       flex: 1; 
       overflow-y: auto; 
       padding: 1rem; 
-      background: url('lol') no-repeat center center fixed; 
+      background: url('https://i.imgur.com/8vX8X8X.jpeg') no-repeat center center fixed; 
       background-size: cover; 
       display: flex; 
       flex-direction: column; 
@@ -76,7 +73,7 @@
   <div class="container">
     <div class="sidebar" id="sidebar">
       <div class="chat-list" id="chat-list">
-        <div class="chat-item fixed" onclick="showPublicChat()">
+        <div class="chat-item fixed" id="public-chat-item" onclick="showPublicChat()">
           <div class="avatar">CP</div>
           <div>Chat Público</div>
         </div>
@@ -112,12 +109,10 @@
           <span class="badge" id="unread-count-private" style="display: none;">0</span>
         </div>
         <svg onclick="showPublicChat()" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="white"/></svg>
-        <div class="avatar" id="chat-avatar"></div>
         <div class="header-container">
           <div id="chat-username" class="header-title"></div>
           <div id="chat-status" style="font-size: 0.8rem;"></div>
         </div>
-        <div class="status" id="chat-status-icon"></div>
       </header>
       <div class="chat-box" id="private-chat-box"></div>
       <form class="input-area" onsubmit="sendPrivateMessage(event)">
@@ -137,7 +132,7 @@
     };
     let currentChat = null;
     const typingUsers = new Set();
-    let unreadMessages = new Map(); // Mapa para contar mensajes sin leer por usuario
+    let unreadMessages = new Map();
 
     function toggleSidebar() {
       const sidebar = document.getElementById("sidebar");
@@ -155,6 +150,8 @@
       document.getElementById("screen-private-chat").classList.remove("active");
       document.getElementById("header-title").textContent = "Chat Público";
       document.getElementById("public-chat-status").textContent = "Grupo";
+      document.getElementById("public-chat-item").classList.add("active-chat");
+      document.querySelectorAll(".user-item").forEach(item => item.classList.remove("active-chat"));
       loadPublicMessages();
       hideSidebar();
     }
@@ -166,14 +163,20 @@
         conversation_id: conversationId
       };
       document.getElementById("chat-username").textContent = userName;
-      document.getElementById("chat-status").textContent = status === "En línea" ? "En línea" : status === "Escribiendo" ? "Escribiendo" : "Desconectado";
-      document.getElementById("chat-status-icon").className = `status ${status === 'En línea' ? 'online' : status === 'Escribiendo' ? 'typing' : 'offline'}`;
-      document.getElementById("chat-avatar").textContent = userName[0].toUpperCase();
+      document.getElementById("chat-status").textContent = status === "En línea" || status === "Escribiendo" ? status : "Desconectado";
       document.getElementById("screen-public-chat").classList.remove("active");
       document.getElementById("screen-private-chat").classList.add("active");
+      document.getElementById("public-chat-item").classList.remove("active-chat");
+      document.querySelectorAll(".user-item").forEach(item => {
+        if (item.getAttribute("data-user-id") === userId) {
+          item.classList.add("active-chat");
+        } else {
+          item.classList.remove("active-chat");
+        }
+      });
       loadPrivateMessages(userId);
       hideSidebar();
-      unreadMessages.delete(userId); // Resetear mensajes sin leer al abrir el chat
+      unreadMessages.delete(userId);
       updateUnreadCount();
     }
 
@@ -207,7 +210,7 @@
     function loadPublicMessages() {
       fetch('/api/public_messages')
         .then(res => res.json())
-        .then(data => renderMessages(data.messages, "public-chat-box"));
+        .then(data => renderMessages(data.messages, "public-chat-box", true));
     }
 
     function loadPrivateMessages(userId) {
@@ -215,18 +218,19 @@
         .then(res => res.json())
         .then(data => {
           if (data.error) return window.location.href = '/';
-          renderMessages(data.messages, "private-chat-box");
+          renderMessages(data.messages, "private-chat-box", true);
           if (data.conversation_id) currentChat.conversation_id = data.conversation_id;
         });
     }
 
-    function renderMessages(messages, containerId) {
+    function renderMessages(messages, containerId, replace = false) {
       const chatBox = document.getElementById(containerId);
-      chatBox.innerHTML = "";
+      if (replace) chatBox.innerHTML = "";
       messages.forEach(msg => {
         const isSent = msg.sender === currentUser.name;
         const msgElement = document.createElement('div');
         msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
+        msgElement.setAttribute('data-timestamp', msg.timestamp);
         msgElement.innerHTML = `
           ${containerId === "public-chat-box" && !isSent ? `<div class="public-sender">${msg.sender}</div>` : ''}
           <div class="message-content">${msg.message}</div>
@@ -249,14 +253,13 @@
     function updateUserList(users) {
       const container = document.getElementById("user-list");
       container.innerHTML = users.map(user => `
-        <div class="user-item" onclick="openPrivateChat('${user.id}', '${user.name}', '${user.status}', 'conv_${[currentUser.id, user.id].sort().join('_')}')">
+        <div class="user-item" data-user-id="${user.id}" onclick="openPrivateChat('${user.id}', '${user.name}', '${user.status}', 'conv_${[currentUser.id, user.id].sort().join('_')}')">
           <div class="avatar">${user.name[0].toUpperCase()}</div>
           <div style="flex: 1;">
             <span>${user.name}</span>
             <span class="status-text">${user.status}</span>
           </div>
           ${unreadMessages.has(user.id) ? `<span class="user-unread">${unreadMessages.get(user.id)}</span>` : ''}
-          <div class="status ${user.status === 'En línea' ? 'online' : user.status === 'Escribiendo' ? 'typing' : 'offline'}"></div>
         </div>
       `).join("");
     }
@@ -280,18 +283,7 @@
 
     socket.on('public_message', msg => {
       if (document.getElementById("screen-public-chat").classList.contains("active")) {
-        const chatBox = document.getElementById("public-chat-box");
-        const msgElement = document.createElement('div');
-        msgElement.className = `message ${msg.sender === currentUser.name ? 'sent' : 'received'}`;
-        msgElement.innerHTML = `
-          ${msg.sender !== currentUser.name ? `<div class="public-sender">${msg.sender}</div>` : ''}
-          <div class="message-content">${msg.message}</div>
-          <div class="message-meta">
-            <span class="message-time">${new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-          </div>
-        `;
-        chatBox.appendChild(msgElement);
-        chatBox.scrollTop = chatBox.scrollHeight;
+        renderMessages([msg], "public-chat-box");
       }
     });
 
@@ -316,7 +308,13 @@
 
     socket.on('message_status_update', data => {
       if (currentChat && data.conversation_id === currentChat.conversation_id) {
-        loadPrivateMessages(currentChat.id);
+        const messages = document.querySelectorAll(`#private-chat-box .message.sent`);
+        messages.forEach(msg => {
+          const statusSpan = msg.querySelector('.message-status');
+          if (statusSpan && data.status === 'seen') {
+            statusSpan.innerHTML = '<svg class="status-icon seen-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/><path d="M5 7l1.4 1.4L15 17"/></svg>';
+          }
+        });
       }
     });
 
@@ -334,11 +332,10 @@
       if (data.conversation_id === currentChat?.conversation_id) {
         typingUsers.add(data.user_id);
         document.getElementById("chat-status").textContent = "Escribiendo";
-        document.getElementById("chat-status-icon").className = "status typing";
         setTimeout(() => {
           typingUsers.delete(data.user_id);
-          document.getElementById("chat-status").textContent = "En línea";
-          document.getElementById("chat-status-icon").className = "status online";
+          const userOnline = Object.values(connected_users).some(u => u.id === currentChat.id);
+          document.getElementById("chat-status").textContent = userOnline ? "En línea" : "Desconectado";
         }, 2000);
       }
     });
