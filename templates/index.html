@@ -8,7 +8,7 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
     body { background: #f0f2f5; color: #333; overflow: hidden; }
-    .container { display: flex; height: 100vh; }
+    .container { display: flex; height: 100vh; position: relative; }
     .sidebar { 
       width: 0; 
       background: white; 
@@ -32,7 +32,31 @@
     .chat-item, .user-item { display: flex; align-items: center; padding: 12px; background: white; border-radius: 8px; margin-bottom: 8px; cursor: pointer; position: relative; }
     .chat-item.fixed { background: #e7f3ff; position: sticky; top: 0; z-index: 5; }
     .active-chat { background: #e7f3ff; border: 2px solid #1877f2; }
-    .avatar { width: 40px; height: 40px; border-radius: 50%; background: #1877f2; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; margin-right: 10px; }
+    .avatar { 
+      width: 40px; 
+      height: 40px; 
+      border-radius: 50%; 
+      background: #1877f2; 
+      color: white; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-weight: bold; 
+      margin-right: 10px; 
+      cursor: pointer;
+    }
+    .profile-avatar { 
+      width: 40px; 
+      height: 40px; 
+      border-radius: 50%; 
+      background: #1877f2; 
+      color: white; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-weight: bold; 
+      cursor: pointer; 
+    }
     .chat-box { 
       flex: 1; 
       overflow-y: auto; 
@@ -50,20 +74,10 @@
       border-radius: 10px; 
       display: block; 
       position: relative;
-      user-select: none; /* Evitar selección accidental */
+      user-select: none;
     }
-    .sent { 
-      background: #FFFFFF; 
-      color: #333; 
-      align-self: flex-end; 
-      border-bottom-right-radius: 2px; 
-    }
-    .received { 
-      background: #1877f2; 
-      color: #FFFFFF; 
-      align-self: flex-start; 
-      border-bottom-left-radius: 2px; 
-    }
+    .sent { background: #FFFFFF; color: #333; align-self: flex-end; border-bottom-right-radius: 2px; }
+    .received { background: #1877f2; color: #FFFFFF; align-self: flex-start; border-bottom-left-radius: 2px; }
     .message-content { margin-bottom: 4px; }
     .message-meta { display: flex; justify-content: flex-end; align-items: center; font-size: 0.7rem; color: #666; }
     .message-time { margin-right: 5px; }
@@ -73,14 +87,7 @@
     .delivered-icon { fill: #999; }
     .seen-icon { fill: #34B7F1; }
     .public-sender { font-size: 0.7rem; color: #FFFFFF; margin-bottom: 2px; }
-    .reply-reference { 
-      font-size: 0.8rem; 
-      color: #ccc; 
-      background: rgba(255,255,255,0.1); 
-      padding: 4px; 
-      border-radius: 5px; 
-      margin-bottom: 4px; 
-    }
+    .reply-reference { font-size: 0.8rem; color: #ccc; background: rgba(255,255,255,0.1); padding: 4px; border-radius: 5px; margin-bottom: 4px; }
     .context-menu { 
       position: absolute; 
       background: white; 
@@ -90,15 +97,7 @@
       z-index: 1000; 
       display: none; 
     }
-    .context-menu button { 
-      display: block; 
-      width: 100%; 
-      padding: 8px 12px; 
-      border: none; 
-      background: none; 
-      text-align: left; 
-      cursor: pointer; 
-    }
+    .context-menu button { display: block; width: 100%; padding: 8px 12px; border: none; background: none; text-align: left; cursor: pointer; }
     .context-menu button:hover { background: #f0f0f0; }
     .confirm-dialog { 
       position: fixed; 
@@ -114,13 +113,7 @@
       display: none; 
     }
     .confirm-dialog p { margin-bottom: 15px; }
-    .confirm-dialog button { 
-      padding: 8px 16px; 
-      margin: 0 5px; 
-      border: none; 
-      border-radius: 5px; 
-      cursor: pointer; 
-    }
+    .confirm-dialog button { padding: 8px 16px; margin: 0 5px; border: none; border-radius: 5px; cursor: pointer; }
     .confirm-dialog .cancel { background: #ccc; }
     .confirm-dialog .delete-mine { background: #1877f2; color: white; }
     .confirm-dialog .delete-all { background: #ff4444; color: white; }
@@ -186,14 +179,161 @@
     .status-text.typing { color: yellow; }
     .status-text.offline { color: red; }
     .user-unread { position: absolute; right: 30px; background: #ff4444; color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; }
-    .user-info { 
-      display: flex;
-      flex-direction: column;
-      flex: 1;
+    .user-info { display: flex; flex-direction: column; flex: 1; }
+
+    /* Panel de perfil propio */
+    .profile-panel { 
+      position: fixed; 
+      top: 0; 
+      right: -400px; 
+      width: 400px; 
+      height: 100%; 
+      background: white; 
+      box-shadow: -2px 0 10px rgba(0,0,0,0.2); 
+      padding: 20px; 
+      transition: right 0.3s ease; 
+      z-index: 3000; 
     }
+    .profile-panel.open { right: 0; }
+    .close-btn { 
+      position: absolute; 
+      top: 10px; 
+      right: 10px; 
+      width: 30px; 
+      height: 30px; 
+      background: #ff4444; 
+      color: white; 
+      border: none; 
+      border-radius: 50%; 
+      cursor: pointer; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 1rem; 
+    }
+    .close-btn:hover { background: #cc0000; }
+    .profile-header { display: flex; align-items: center; padding-bottom: 20px; border-bottom: 1px solid #ddd; }
+    .large-profile-avatar { 
+      width: 80px; 
+      height: 80px; 
+      border-radius: 50%; 
+      background: #1877f2; 
+      color: white; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 2rem; 
+      font-weight: bold; 
+      margin-right: 15px; 
+      cursor: pointer; 
+    }
+    .profile-info { flex: 1; }
+    .profile-name { font-size: 1.5rem; font-weight: 600; margin-bottom: 5px; }
+    .profile-status { font-size: 0.9rem; }
+    .status-online { color: green; }
+    .status-offline { color: red; }
+    .profile-details { padding: 20px 0; }
+    .detail-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+    .detail-label { font-weight: 500; }
+    .detail-value { color: #666; }
+    .edit-btn, .logout-btn { 
+      width: 100%; 
+      padding: 12px; 
+      margin: 10px 0; 
+      border: none; 
+      border-radius: 25px; 
+      font-size: 1rem; 
+      cursor: pointer; 
+      transition: background 0.3s; 
+    }
+    .edit-btn { background: #1877f2; color: white; }
+    .edit-btn:hover { background: #1565c0; }
+    .logout-btn { background: #ff4444; color: white; }
+    .logout-btn:hover { background: #cc0000; }
+    .edit-form { display: none; padding-top: 20px; }
+    .edit-form.active { display: block; }
+    .edit-form input { 
+      width: 100%; 
+      padding: 10px; 
+      margin: 10px 0; 
+      border: 1px solid #ddd; 
+      border-radius: 5px; 
+      outline: none; 
+    }
+    .edit-form input:focus { border-color: #1877f2; }
+    .edit-form button { 
+      width: 100%; 
+      padding: 12px; 
+      margin: 10px 0; 
+      border: none; 
+      border-radius: 25px; 
+      background: #1877f2; 
+      color: white; 
+      cursor: pointer; 
+    }
+    .edit-form button:hover { background: #1565c0; }
+    .edit-form .cancel-edit { background: #ccc; }
+    .edit-form .cancel-edit:hover { background: #999; }
+    .avatar-options { 
+      position: absolute; 
+      top: 90px; 
+      left: 10px; 
+      background: white; 
+      border: 1px solid #ddd; 
+      border-radius: 5px; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2); 
+      display: none; 
+      z-index: 4000; 
+    }
+    .avatar-options button { 
+      display: block; 
+      width: 100%; 
+      padding: 8px 12px; 
+      border: none; 
+      background: none; 
+      text-align: left; 
+      cursor: pointer; 
+    }
+    .avatar-options button:hover { background: #f0f0f0; }
+
+    /* Modal de perfil de otros usuarios */
+    .user-profile-modal { 
+      position: fixed; 
+      top: 50%; 
+      left: 50%; 
+      transform: translate(-50%, -50%); 
+      width: 300px; 
+      background: white; 
+      border-radius: 10px; 
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3); 
+      padding: 20px; 
+      z-index: 5000; 
+      display: none; 
+    }
+    .user-profile-modal.open { display: block; }
+    .modal-close-btn { 
+      position: absolute; 
+      top: 10px; 
+      right: 10px; 
+      width: 25px; 
+      height: 25px; 
+      background: #ff4444; 
+      color: white; 
+      border: none; 
+      border-radius: 50%; 
+      cursor: pointer; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 0.9rem; 
+    }
+    .modal-close-btn:hover { background: #cc0000; }
+
     @media (max-width: 600px) {
       .sidebar.open { width: 100%; }
       .chat-box { padding: 0.5rem; }
+      .profile-panel { width: 100%; right: -100%; }
+      .user-profile-modal { width: 90%; }
     }
   </style>
 </head>
@@ -219,7 +359,7 @@
           <h2 class="header-title" id="header-title">Chat Público</h2>
           <div id="public-chat-status" style="font-size: 0.8rem;">Grupo</div>
         </div>
-        <span style="margin-left: 10px; cursor: pointer;" onclick="window.location.href='/logout'">Salir</span>
+        <div class="profile-avatar" id="header-avatar" onclick="toggleProfilePanel()">U</div>
       </header>
       <div class="chat-box" id="public-chat-box"></div>
       <form class="input-area" onsubmit="sendPublicMessage(event)">
@@ -241,6 +381,7 @@
           <div id="chat-username" class="header-title"></div>
           <div id="chat-status" style="font-size: 0.8rem;"></div>
         </div>
+        <div class="profile-avatar" id="header-avatar-private" onclick="toggleProfilePanel()">U</div>
       </header>
       <div class="chat-box" id="private-chat-box"></div>
       <form class="input-area" onsubmit="sendPrivateMessage(event)">
@@ -249,6 +390,69 @@
           <svg viewBox="0 0 24 24" width="24" height="24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill="white"/></svg>
         </button>
       </form>
+    </div>
+
+    <!-- Panel de perfil propio -->
+    <div class="profile-panel" id="profile-panel">
+      <button class="close-btn" onclick="toggleProfilePanel()">X</button>
+      <div class="profile-header">
+        <div class="large-profile-avatar" id="profile-avatar" onclick="toggleAvatarOptions()">U</div>
+        <div class="profile-info">
+          <div class="profile-name" id="profile-name">Usuario</div>
+          <div class="profile-status" id="profile-status">Desconectado</div>
+        </div>
+      </div>
+      <div class="profile-details">
+        <div class="detail-item">
+          <span class="detail-label">Nombre de usuario</span>
+          <span class="detail-value" id="profile-username">usuario123</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">ID de usuario</span>
+          <span class="detail-value" id="profile-id">abc123xyz</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Fecha de registro</span>
+          <span class="detail-value" id="profile-joined">01/01/2025</span>
+        </div>
+      </div>
+      <button class="edit-btn" id="edit-btn" onclick="toggleEditForm()">Editar perfil</button>
+      <button class="logout-btn" id="logout-btn" onclick="window.location.href='/logout'">Cerrar sesión</button>
+      <form class="edit-form" id="edit-form">
+        <input type="text" id="edit-username" placeholder="Nuevo nombre de usuario" required>
+        <input type="password" id="edit-password" placeholder="Nueva contraseña" required>
+        <button type="submit" onclick="saveProfile(event)">Guardar cambios</button>
+        <button type="button" class="cancel-edit" onclick="toggleEditForm()">Cancelar</button>
+      </form>
+      <div class="avatar-options" id="avatar-options">
+        <button onclick="chooseAvatar()">Escoger foto de la galería</button>
+      </div>
+    </div>
+
+    <!-- Modal de perfil de otros usuarios -->
+    <div class="user-profile-modal" id="user-profile-modal">
+      <button class="modal-close-btn" onclick="closeUserProfileModal()">X</button>
+      <div class="profile-header">
+        <div class="large-profile-avatar" id="modal-profile-avatar">U</div>
+        <div class="profile-info">
+          <div class="profile-name" id="modal-profile-name">Usuario</div>
+          <div class="profile-status" id="modal-profile-status">Desconectado</div>
+        </div>
+      </div>
+      <div class="profile-details">
+        <div class="detail-item">
+          <span class="detail-label">Nombre de usuario</span>
+          <span class="detail-value" id="modal-profile-username">usuario123</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">ID de usuario</span>
+          <span class="detail-value" id="modal-profile-id">abc123xyz</span>
+        </div>
+        <div class="detail-item">
+          <span class="detail-label">Fecha de registro</span>
+          <span class="detail-value" id="modal-profile-joined">01/01/2025</span>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -331,6 +535,128 @@
       unreadMessages.delete(userId);
       updateUnreadCount();
       socket.emit('mark_all_as_seen', { conversation_id: currentChat.conversation_id, receiver_id: currentUser.id });
+    }
+
+    function toggleProfilePanel() {
+      const panel = document.getElementById("profile-panel");
+      panel.classList.toggle("open");
+      if (panel.classList.contains("open")) {
+        loadProfileData(currentUser.id, true);
+      }
+    }
+
+    function showUserProfile(userId) {
+      loadProfileData(userId, false);
+      document.getElementById("user-profile-modal").classList.add("open");
+    }
+
+    function closeUserProfileModal() {
+      document.getElementById("user-profile-modal").classList.remove("open");
+    }
+
+    function loadProfileData(userId, isOwnProfile) {
+      fetch(`/api/profile/${userId}`)
+        .then(res => res.json())
+        .then(data => {
+          const prefix = isOwnProfile ? "profile" : "modal-profile";
+          const avatarElement = document.getElementById(`${prefix}-avatar`);
+          if (data.avatar) {
+            avatarElement.innerHTML = `<img src="data:image/jpeg;base64,${data.avatar}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+          } else {
+            avatarElement.textContent = data.username[0].toUpperCase();
+            avatarElement.innerHTML = data.username[0].toUpperCase(); // Limpiar cualquier imagen previa
+          }
+          document.getElementById(`${prefix}-name`).textContent = data.username;
+          document.getElementById(`${prefix}-username`).textContent = data.username;
+          document.getElementById(`${prefix}-id`).textContent = data.id;
+          document.getElementById(`${prefix}-joined`).textContent = data.joined;
+          document.getElementById(`${prefix}-status`).textContent = data.isOnline ? "En línea" : "Desconectado";
+          document.getElementById(`${prefix}-status`).className = `profile-status ${data.isOnline ? 'status-online' : 'status-offline'}`;
+          if (isOwnProfile) {
+            const headerAvatars = [document.getElementById("header-avatar"), document.getElementById("header-avatar-private")];
+            headerAvatars.forEach(el => {
+              if (data.avatar) {
+                el.innerHTML = `<img src="data:image/jpeg;base64,${data.avatar}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+              } else {
+                el.textContent = data.username[0].toUpperCase();
+              }
+            });
+          }
+        })
+        .catch(err => console.error("Error al cargar perfil:", err));
+    }
+
+    function toggleAvatarOptions() {
+      const options = document.getElementById("avatar-options");
+      options.style.display = options.style.display === "block" ? "none" : "block";
+    }
+
+    function chooseAvatar() {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "image/*";
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const formData = new FormData();
+          formData.append("avatar", file);
+          fetch('/api/profile/update', {
+            method: 'POST',
+            body: formData
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                loadProfileData(currentUser.id, true);
+                alert("Avatar actualizado con éxito");
+              } else {
+                alert(data.error || "Error al actualizar el avatar");
+              }
+            })
+            .catch(err => console.error("Error al subir avatar:", err));
+        }
+      };
+      input.click();
+      toggleAvatarOptions();
+    }
+
+    function toggleEditForm() {
+      const form = document.getElementById("edit-form");
+      form.classList.toggle("active");
+      if (form.classList.contains("active")) {
+        document.getElementById("edit-username").value = currentUser.name;
+        document.getElementById("edit-password").value = "";
+      }
+    }
+
+    function saveProfile(event) {
+      event.preventDefault();
+      const newUsername = document.getElementById("edit-username").value.trim();
+      const newPassword = document.getElementById("edit-password").value.trim();
+
+      if (newUsername || newPassword) {
+        const formData = new FormData();
+        if (newUsername) formData.append("username", newUsername);
+        if (newPassword) formData.append("password", newPassword);
+        fetch('/api/profile/update', {
+          method: 'POST',
+          body: formData
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              if (newUsername) currentUser.name = newUsername;
+              loadProfileData(currentUser.id, true);
+              toggleEditForm();
+              alert("Perfil actualizado con éxito");
+            } else {
+              alert(data.error || "Error al actualizar el perfil");
+            }
+          })
+          .catch(err => console.error("Error al guardar perfil:", err));
+      } else {
+        alert("Por favor, completa al menos un campo para actualizar.");
+      }
     }
 
     function sendPublicMessage(e) {
@@ -442,11 +768,18 @@
         contextMenu.style.top = `${rect.bottom + window.scrollY}px`;
         contextMenu.style.left = `${rect.left + window.scrollX}px`;
         contextMenu.style.display = 'block';
-      }, 500); // 500ms para considerar "presión prolongada"
+      }, 500);
     }
 
-    document.addEventListener('click', () => {
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.profile-panel') && !e.target.closest('.profile-avatar')) {
+        document.getElementById("profile-panel").classList.remove("open");
+      }
+      if (!e.target.closest('.user-profile-modal') && !e.target.closest('.avatar')) {
+        document.getElementById("user-profile-modal").classList.remove("open");
+      }
       document.getElementById("context-menu").style.display = 'none';
+      document.getElementById("avatar-options").style.display = 'none';
       clearTimeout(holdTimer);
     });
 
@@ -499,20 +832,22 @@
 
     function updateUserList(users) {
       const container = document.getElementById("user-list");
-      container.innerHTML = users.map(user => {
-        const statusClass = user.status === 'En línea' ? 'online' : 
-                           user.status === 'Escribiendo' ? 'typing' : 'offline';
-        return `
-          <div class="user-item" data-user-id="${user.id}" onclick="openPrivateChat('${user.id}', '${user.name}', '${user.status}', 'conv_${[currentUser.id, user.id].sort().join('_')}')">
-            <div class="avatar">${user.name[0].toUpperCase()}</div>
-            <div class="user-info">
-              <span>${sanitizeHTML(user.name)}</span>
-              <span class="status-text ${statusClass}">${user.status}</span>
+      container.innerHTML = users
+        .filter(user => user.id !== currentUser.id) // Excluir al usuario actual
+        .map(user => {
+          const statusClass = user.status === 'En línea' ? 'online' : 
+                             user.status === 'Escribiendo' ? 'typing' : 'offline';
+          return `
+            <div class="user-item" data-user-id="${user.id}" onclick="openPrivateChat('${user.id}', '${user.name}', '${user.status}', 'conv_${[currentUser.id, user.id].sort().join('_')}')">
+              <div class="avatar" onclick="event.stopPropagation(); showUserProfile('${user.id}')">${user.name[0].toUpperCase()}</div>
+              <div class="user-info">
+                <span>${sanitizeHTML(user.name)}</span>
+                <span class="status-text ${statusClass}">${user.status}</span>
+              </div>
+              ${unreadMessages.has(user.id) ? `<span class="user-unread">${unreadMessages.get(user.id)}</span>` : ''}
             </div>
-            ${unreadMessages.has(user.id) ? `<span class="user-unread">${unreadMessages.get(user.id)}</span>` : ''}
-          </div>
-        `;
-      }).join("");
+          `;
+        }).join("");
     }
 
     function updateUnreadCount() {
@@ -653,6 +988,7 @@
             ...user,
             status: user.online ? 'En línea' : 'Desconectado'
           })));
+          loadProfileData(currentUser.id, true); // Cargar perfil propio al iniciar
         })
         .catch(err => console.error(err));
     });
