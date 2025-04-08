@@ -11,7 +11,14 @@
     .container { display: flex; height: 100vh; }
     .sidebar { width: 0; background: white; overflow-y: auto; transition: width 0.3s ease-in-out; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
     .sidebar.open { width: 300px; }
-    .screen { flex: 1; display: none; flex-direction: column; height: 100vh; overflow: hidden; }
+    .screen { 
+      flex: 1; 
+      display: none; 
+      flex-direction: column; 
+      height: 100vh; 
+      overflow: hidden; 
+      position: relative;
+    }
     .active { display: flex; }
     header { display: flex; align-items: center; background: #1877f2; color: white; padding: 1rem; position: sticky; top: 0; z-index: 10; }
     header svg { width: 20px; height: 20px; margin-right: 10px; cursor: pointer; }
@@ -28,6 +35,7 @@
       background-size: cover; 
       display: flex; 
       flex-direction: column; 
+      margin-bottom: 60px;
     }
     .message { 
       max-width: 70%; 
@@ -55,22 +63,54 @@
     .delivered-icon { fill: #999; }
     .seen-icon { fill: #34B7F1; }
     .public-sender { font-size: 0.7rem; color: #555; margin-bottom: 2px; }
-    .input-area { display: flex; align-items: center; padding: 8px 16px; background: white; border-top: 1px solid #ddd; box-shadow: 0 -2px 5px rgba(0,0,0,0.05); }
+    .input-area { 
+      display: flex; 
+      align-items: center; 
+      padding: 8px 16px; 
+      background: white; 
+      border-top: 1px solid #ddd; 
+      box-shadow: 0 -2px 5px rgba(0,0,0,0.05); 
+      position: fixed; 
+      bottom: 0; 
+      left: 0; 
+      right: 0; 
+      z-index: 10;
+    }
     .input-area input { flex: 1; padding: 10px 15px; border: 1px solid #ddd; border-radius: 25px; margin: 0 10px; outline: none; transition: border-color 0.3s; }
     .input-area input:focus { border-color: #1877f2; }
     .input-area button { background: #1877f2; border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.3s; }
     .input-area button:hover { background: #1565c0; }
-    .menu-button { position: absolute; top: 0.5rem; left: 0.5rem; width: 40px; height: 40px; background: transparent; color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; cursor: pointer; transition: all 0.3s; z-index: 1000; font-size: 24px; }
+    .menu-button { 
+      position: absolute; 
+      top: 12px; /* Cambiado de 0.5rem (8px) a 12px (~1mm más abajo) */
+      left: 0.5rem; 
+      width: 40px; 
+      height: 40px; 
+      background: transparent; 
+      color: white; 
+      border-radius: 50%; 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      cursor: pointer; 
+      transition: all 0.3s; 
+      z-index: 1000; 
+      font-size: 24px; 
+    }
     .menu-button:hover { background: rgba(255, 255, 255, 0.2); }
     .menu-button .badge { position: absolute; top: -5px; right: -5px; background: #ff4444; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
     .header-title { font-size: 1.2rem; }
     .header-container { display: flex; flex-direction: column; margin-left: 80px; flex: 1; }
     .status-text { font-size: 0.8rem; }
-    /* Nuevos estilos para colores de estado */
     .status-text.online { color: green; }
     .status-text.typing { color: yellow; }
     .status-text.offline { color: red; }
     .user-unread { position: absolute; right: 30px; background: #ff4444; color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; }
+    .user-info { 
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+    }
     @media (max-width: 600px) {
       .sidebar.open { width: 100%; }
       .chat-box { padding: 0.5rem; }
@@ -206,7 +246,6 @@
       input.value = "";
     }
 
-    // Modificado: No renderiza localmente, espera al socket
     function sendPrivateMessage(e) {
       e.preventDefault();
       const input = document.getElementById("private-message-input");
@@ -218,7 +257,7 @@
         sender: currentUser.name,
         conversation_id: currentChat.conversation_id,
         status: 'sent',
-        timestamp: Date.now() / 1000 // Agregado para unicidad
+        timestamp: Date.now() / 1000
       });
       input.value = "";
     }
@@ -247,7 +286,6 @@
         .catch(err => console.error(err));
     }
 
-    // Modificado: Evita duplicados verificando timestamp
     function renderMessages(messages, containerId, replace = false) {
       const chatBox = document.getElementById(containerId);
       if (replace) chatBox.innerHTML = "";
@@ -277,7 +315,6 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    // Modificado: Agrega colores al estado
     function updateUserList(users) {
       const container = document.getElementById("user-list");
       container.innerHTML = users.map(user => {
@@ -286,7 +323,7 @@
         return `
           <div class="user-item" data-user-id="${user.id}" onclick="openPrivateChat('${user.id}', '${user.name}', '${user.status}', 'conv_${[currentUser.id, user.id].sort().join('_')}')">
             <div class="avatar">${user.name[0].toUpperCase()}</div>
-            <div style="flex: 1;">
+            <div class="user-info">
               <span>${sanitizeHTML(user.name)}</span>
               <span class="status-text ${statusClass}">${user.status}</span>
             </div>
@@ -307,7 +344,6 @@
     }
 
     let debounceTimeout;
-    // Modificado: Actualiza estado en pantalla de conversación
     socket.on('users_update', data => {
       clearTimeout(debounceTimeout);
       debounceTimeout = setTimeout(() => {
@@ -353,7 +389,6 @@
       }
     });
 
-    // Modificado: Usa timestamp para identificar mensajes
     socket.on('message_status_update', data => {
       const messages = document.querySelectorAll(`#private-chat-box .message.sent`);
       messages.forEach(msg => {
