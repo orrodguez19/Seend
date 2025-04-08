@@ -4,6 +4,7 @@ import sqlite3
 import time
 import os
 import uuid
+import base64
 
 # Configuración inicial
 app = Flask(__name__, template_folder='templates')
@@ -18,7 +19,9 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
-        password TEXT NOT NULL
+        password TEXT NOT NULL,
+        avatar TEXT,
+        created_at REAL NOT NULL DEFAULT (strftime('%s', 'now'))
     )''')
 
     c.execute('''CREATE TABLE IF NOT EXISTS conversations (
@@ -89,8 +92,8 @@ def register():
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     try:
-        c.execute("INSERT INTO users (id, username, password) VALUES (?, ?, ?)", 
-                  (user_id, username, password))
+        c.execute("INSERT INTO users (id, username, password, created_at) VALUES (?, ?, ?, ?)", 
+                  (user_id, username, password, time.time()))
         conn.commit()
         session['user_id'] = user_id
         session['username'] = username
@@ -162,7 +165,7 @@ def get_conversation_messages(user_id):
             "timestamp": row[2],
             "status": row[3]
         }
-        if row[4]:  # Si hay mensaje al que se responde
+        if row[4]:
             message["replyTo"] = {
                 "sender": row[6],
                 "message": row[4],
@@ -194,7 +197,7 @@ def get_public_messages():
             "message": row[1],
             "timestamp": row[2]
         }
-        if row[3]:  # Si hay mensaje al que se responde
+        if row[3]:
             message["replyTo"] = {
                 "sender": row[5],
                 "message": row[3],
@@ -203,6 +206,67 @@ def get_public_messages():
         messages.append(message)
     conn.close()
     return jsonify({"messages": messages})
+
+@app.route('/api/profile/<user_id>')
+def get_profile(user_id):
+    if 'user_id' not in session:
+        return jsonify({"error": "No autenticado"}), 401
+    conn = sqlite3.connect('chat.db')
+    c = conn.cursor()
+    c.execute("SELECT id, username, created_at, avatar FROM users WHERE id = ?", (user_id,))
+    user = c.fetchone()
+    conn.close()
+    if user:
+        return jsonify({
+            "id": user[0],
+            "username": user[1],
+            "joined": time.strftime('%d/%m/%Y', time.localtime(user[2])),
+            "avatar": user[3],
+            "isOnline": any(u["id"] == user_id for u in connected_users.values()),
+            "isOwnProfile": user_id == session['user_id']
+        })
+    return jsonify({"error": "Usuario no encontrado"}), 404
+
+@app.route('/api/profile/update', methods=['POST'])
+def update_profile():
+    if 'user_id' not in session:
+        return jsonify({"error": "No autenticado"}), 401
+    
+    new_username = request.form.get('username')
+    new_password = request.form.get('password')
+    avatar_file = request.files.get('avatar')
+
+    conn = sqlite3.connect('chat.db')
+    c = conn.cursor()
+    
+    try:
+        update_fields = []
+        update_values = []
+        
+        if new_username:
+            update_fields.append("username = ?")
+            update_values.append(new_username)
+            session['username'] = new_username
+        if new_password:
+            update_fields.append("password = ?")
+            update_values.append(new_password)
+        if avatar_file:
+            avatar_data = base64.b64encode(avatar_file.read()).decode('utf-8')
+            update_fields.append("avatar = ?")
+            update_values.append(avatar_data)
+
+        if update_fields:
+            update_values.append(session['user_id'])
+            query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
+            c.execute(query, update_values)
+            conn.commit()
+            emit('users_update', get_users().json, broadcast=True)
+            return jsonify({"success": "Perfil actualizado"})
+        return jsonify({"error": "No se enviaron datos para actualizar"}), 400
+    except sqlite3.IntegrityError:
+        return jsonify({"error": "Nombre de usuario ya existe"}), 400
+    finally:
+        conn.close()
 
 # Eventos de Socket.IO
 @socketio.on('connect')
