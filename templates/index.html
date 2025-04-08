@@ -9,14 +9,6 @@
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
     body { background: #f0f2f5; color: #333; overflow: hidden; }
     .container { display: flex; height: 100vh; position: relative; }
-    .sidebar { 
-      width: 0; 
-      background: white; 
-      overflow-y: auto; 
-      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
-      box-shadow: 2px 0 5px rgba(0,0,0,0.1); 
-    }
-    .sidebar.open { width: 300px; }
     .screen { 
       flex: 1; 
       display: none; 
@@ -28,10 +20,18 @@
     .active { display: flex; }
     header { display: flex; align-items: center; background: #1877f2; color: white; padding: 1rem; position: sticky; top: 0; z-index: 10; }
     header svg { width: 20px; height: 20px; margin-right: 10px; cursor: pointer; }
-    .chat-list { padding: 1rem; }
-    .chat-item, .user-item { display: flex; align-items: center; padding: 12px; background: white; border-radius: 8px; margin-bottom: 8px; cursor: pointer; position: relative; }
-    .chat-item.fixed { background: #e7f3ff; position: sticky; top: 0; z-index: 5; }
-    .active-chat { background: #e7f3ff; border: 2px solid #1877f2; }
+    .chat-list { padding: 1rem; flex: 1; overflow-y: auto; }
+    .chat-item, .user-item { 
+      display: flex; 
+      align-items: center; 
+      padding: 12px; 
+      background: white; 
+      border-radius: 8px; 
+      margin-bottom: 8px; 
+      cursor: pointer; 
+      position: relative; 
+    }
+    .chat-item:hover, .user-item:hover { background: #f0f0f0; }
     .avatar { 
       width: 40px; 
       height: 40px; 
@@ -86,7 +86,6 @@
     .sent-icon { fill: #999; }
     .delivered-icon { fill: #999; }
     .seen-icon { fill: #34B7F1; }
-    .public-sender { font-size: 0.7rem; color: #FFFFFF; margin-bottom: 2px; }
     .reply-reference { font-size: 0.8rem; color: #ccc; background: rgba(255,255,255,0.1); padding: 4px; border-radius: 5px; margin-bottom: 4px; }
     .context-menu { 
       position: absolute; 
@@ -153,33 +152,47 @@
       transition: background-color 0.3s cubic-bezier(0.25, 0.1, 0.25, 1); 
     }
     .input-area button:hover { background: #1565c0; }
-    .menu-button { 
-      position: absolute; 
-      top: 12px; 
-      left: 0.5rem; 
-      width: 40px; 
-      height: 40px; 
-      background: transparent; 
-      color: white; 
-      border-radius: 50%; 
-      display: flex; 
-      justify-content: center; 
-      align-items: center; 
-      cursor: pointer; 
-      transition: background-color 0.3s cubic-bezier(0.25, 0.1, 0.25, 1); 
-      z-index: 1000; 
-      font-size: 24px; 
-    }
-    .menu-button:hover { background: rgba(255, 255, 255, 0.2); }
-    .menu-button .badge { position: absolute; top: -5px; right: -5px; background: #ff4444; color: white; border-radius: 50%; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; font-size: 12px; }
     .header-title { font-size: 1.2rem; }
-    .header-container { display: flex; flex-direction: column; margin-left: 80px; flex: 1; }
+    .header-container { display: flex; flex-direction: column; margin-left: 10px; flex: 1; }
     .status-text { font-size: 0.8rem; }
     .status-text.online { color: green; }
     .status-text.typing { color: yellow; }
     .status-text.offline { color: red; }
-    .user-unread { position: absolute; right: 30px; background: #ff4444; color: white; border-radius: 50%; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; }
+    .user-unread { 
+      position: absolute; 
+      right: 30px; 
+      background: #ff4444; 
+      color: white; 
+      border-radius: 50%; 
+      width: 18px; 
+      height: 18px; 
+      display: none; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 0.7rem; 
+    }
+    .user-unread.visible { display: flex; }
     .user-info { display: flex; flex-direction: column; flex: 1; }
+
+    /* Botón flotante */
+    .floating-btn { 
+      position: fixed; 
+      bottom: 20px; 
+      right: 20px; 
+      width: 60px; 
+      height: 60px; 
+      background: #1877f2; 
+      color: white; 
+      border-radius: 50%; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      font-size: 2rem; 
+      cursor: pointer; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.3); 
+      z-index: 1000; 
+    }
+    .floating-btn:hover { background: #1565c0; }
 
     /* Panel de perfil propio */
     .profile-panel { 
@@ -236,7 +249,15 @@
     .detail-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
     .detail-label { font-weight: 500; }
     .detail-value { color: #666; }
-    .edit-btn, .logout-btn { 
+    .detail-value.editable { 
+      border: 1px solid #ddd; 
+      padding: 5px; 
+      border-radius: 5px; 
+      width: 60%; 
+      outline: none; 
+    }
+    .detail-value.editable:focus { border-color: #1877f2; }
+    .edit-btn { 
       width: 100%; 
       padding: 12px; 
       margin: 10px 0; 
@@ -245,35 +266,22 @@
       font-size: 1rem; 
       cursor: pointer; 
       transition: background 0.3s; 
+      background: #1877f2; 
+      color: white; 
     }
-    .edit-btn { background: #1877f2; color: white; }
     .edit-btn:hover { background: #1565c0; }
-    .logout-btn { background: #ff4444; color: white; }
-    .logout-btn:hover { background: #cc0000; }
-    .edit-form { display: none; padding-top: 20px; }
-    .edit-form.active { display: block; }
-    .edit-form input { 
-      width: 100%; 
-      padding: 10px; 
-      margin: 10px 0; 
-      border: 1px solid #ddd; 
-      border-radius: 5px; 
-      outline: none; 
-    }
-    .edit-form input:focus { border-color: #1877f2; }
-    .edit-form button { 
+    .logout-btn { 
       width: 100%; 
       padding: 12px; 
       margin: 10px 0; 
       border: none; 
       border-radius: 25px; 
-      background: #1877f2; 
+      background: #ff4444; 
       color: white; 
       cursor: pointer; 
+      transition: background 0.3s; 
     }
-    .edit-form button:hover { background: #1565c0; }
-    .edit-form .cancel-edit { background: #ccc; }
-    .edit-form .cancel-edit:hover { background: #999; }
+    .logout-btn:hover { background: #cc0000; }
     .avatar-options { 
       position: absolute; 
       top: 90px; 
@@ -329,59 +337,97 @@
     }
     .modal-close-btn:hover { background: #cc0000; }
 
+    /* Botón de regreso */
+    .back-btn { 
+      width: 40px; 
+      height: 40px; 
+      background: transparent; 
+      color: white; 
+      border: none; 
+      border-radius: 50%; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      cursor: pointer; 
+      transition: background 0.3s; 
+    }
+    .back-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+    /* Formulario de grupo */
+    .group-form { 
+      position: fixed; 
+      top: 50%; 
+      left: 50%; 
+      transform: translate(-50%, -50%); 
+      width: 350px; 
+      background: white; 
+      border-radius: 10px; 
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3); 
+      padding: 20px; 
+      z-index: 6000; 
+      display: none; 
+    }
+    .group-form.open { display: block; }
+    .group-form h3 { margin-bottom: 15px; }
+    .group-form input { 
+      width: 100%; 
+      padding: 10px; 
+      margin: 10px 0; 
+      border: 1px solid #ddd; 
+      border-radius: 5px; 
+      outline: none; 
+    }
+    .group-form input:focus { border-color: #1877f2; }
+    .group-form .user-checkboxes { max-height: 200px; overflow-y: auto; margin: 10px 0; }
+    .group-form .user-checkboxes label { display: flex; align-items: center; margin: 5px 0; }
+    .group-form button { 
+      width: 100%; 
+      padding: 12px; 
+      margin: 10px 0; 
+      border: none; 
+      border-radius: 25px; 
+      cursor: pointer; 
+      transition: background 0.3s; 
+    }
+    .group-form .create-btn { background: #1877f2; color: white; }
+    .group-form .create-btn:hover { background: #1565c0; }
+    .group-form .cancel-btn { background: #ccc; }
+    .group-form .cancel-btn:hover { background: #999; }
+
     @media (max-width: 600px) {
-      .sidebar.open { width: 100%; }
       .chat-box { padding: 0.5rem; }
       .profile-panel { width: 100%; right: -100%; }
       .user-profile-modal { width: 90%; }
+      .floating-btn { width: 50px; height: 50px; font-size: 1.5rem; }
+      .group-form { width: 90%; }
     }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="sidebar" id="sidebar">
-      <div class="chat-list" id="chat-list">
-        <div class="chat-item fixed" id="public-chat-item" onclick="showPublicChat()">
-          <div class="avatar">CP</div>
-          <div>Chat Público</div>
-        </div>
-        <div id="user-list"></div>
-      </div>
-    </div>
-
-    <div class="screen active" id="screen-public-chat">
+    <!-- Pantalla de Chats -->
+    <div class="screen active" id="screen-chats">
       <header>
-        <div class="menu-button" onclick="toggleSidebar()">
-          ☰
-          <span class="badge" id="unread-count" style="display: none;">0</span>
-        </div>
         <div class="header-container">
-          <h2 class="header-title" id="header-title">Chat Público</h2>
-          <div id="public-chat-status" style="font-size: 0.8rem;">Grupo</div>
+          <h2 class="header-title">Chats</h2>
         </div>
         <div class="profile-avatar" id="header-avatar" onclick="toggleProfilePanel()">U</div>
       </header>
-      <div class="chat-box" id="public-chat-box"></div>
-      <form class="input-area" onsubmit="sendPublicMessage(event)">
-        <input id="public-message-input" placeholder="Escribe un mensaje público..." autocomplete="off">
-        <button type="submit">
-          <svg viewBox="0 0 24 24" width="24" height="24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill="white"/></svg>
-        </button>
-      </form>
+      <div class="chat-list" id="chat-list"></div>
+      <div class="floating-btn" onclick="showUsersScreen()">+</div>
     </div>
 
+    <!-- Pantalla de conversación privada -->
     <div class="screen" id="screen-private-chat">
       <header>
-        <div class="menu-button" onclick="toggleSidebar()">
-          ☰
-          <span class="badge" id="unread-count-private" style="display: none;">0</span>
-        </div>
-        <svg onclick="showPublicChat()" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="white"/></svg>
+        <button class="back-btn" onclick="showChatsScreen()">
+          <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="white"/></svg>
+        </button>
+        <div class="avatar" id="chat-avatar" onclick="showUserProfile(currentChat.id)">U</div>
         <div class="header-container">
           <div id="chat-username" class="header-title"></div>
-          <div id="chat-status" style="font-size: 0.8rem;"></div>
+          <div id="chat-status" class="status-text"></div>
         </div>
-        <div class="profile-avatar" id="header-avatar-private" onclick="toggleProfilePanel()">U</div>
       </header>
       <div class="chat-box" id="private-chat-box"></div>
       <form class="input-area" onsubmit="sendPrivateMessage(event)">
@@ -390,6 +436,19 @@
           <svg viewBox="0 0 24 24" width="24" height="24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill="white"/></svg>
         </button>
       </form>
+    </div>
+
+    <!-- Pantalla de usuarios -->
+    <div class="screen" id="screen-users">
+      <header>
+        <button class="back-btn" onclick="showChatsScreen()">
+          <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="white"/></svg>
+        </button>
+        <div class="header-container">
+          <h2 class="header-title">Nuevo Chat</h2>
+        </div>
+      </header>
+      <div class="chat-list" id="user-list"></div>
     </div>
 
     <!-- Panel de perfil propio -->
@@ -405,7 +464,7 @@
       <div class="profile-details">
         <div class="detail-item">
           <span class="detail-label">Nombre de usuario</span>
-          <span class="detail-value" id="profile-username">usuario123</span>
+          <span class="detail-value" id="profile-username" contenteditable="false">usuario123</span>
         </div>
         <div class="detail-item">
           <span class="detail-label">ID de usuario</span>
@@ -416,14 +475,8 @@
           <span class="detail-value" id="profile-joined">01/01/2025</span>
         </div>
       </div>
-      <button class="edit-btn" id="edit-btn" onclick="toggleEditForm()">Editar perfil</button>
+      <button class="edit-btn" id="edit-btn" onclick="toggleEditProfile()">Editar perfil</button>
       <button class="logout-btn" id="logout-btn" onclick="window.location.href='/logout'">Cerrar sesión</button>
-      <form class="edit-form" id="edit-form">
-        <input type="text" id="edit-username" placeholder="Nuevo nombre de usuario" required>
-        <input type="password" id="edit-password" placeholder="Nueva contraseña" required>
-        <button type="submit" onclick="saveProfile(event)">Guardar cambios</button>
-        <button type="button" class="cancel-edit" onclick="toggleEditForm()">Cancelar</button>
-      </form>
       <div class="avatar-options" id="avatar-options">
         <button onclick="chooseAvatar()">Escoger foto de la galería</button>
       </div>
@@ -454,6 +507,15 @@
         </div>
       </div>
     </div>
+
+    <!-- Formulario de creación de grupo -->
+    <div class="group-form" id="group-form">
+      <h3>Crear nuevo grupo</h3>
+      <input type="text" id="group-name" placeholder="Nombre del grupo" required>
+      <div class="user-checkboxes" id="group-users"></div>
+      <button class="create-btn" onclick="createGroup()">Crear grupo</button>
+      <button class="cancel-btn" onclick="closeGroupForm()">Cancelar</button>
+    </div>
   </div>
 
   <div id="context-menu" class="context-menu">
@@ -481,21 +543,11 @@
     const typingUsers = new Set();
     let unreadMessages = new Map();
     let typingTimeout;
-    let deletedPublicMessages = JSON.parse(localStorage.getItem('deletedPublicMessages')) || [];
     let deletedPrivateMessages = JSON.parse(localStorage.getItem('deletedPrivateMessages')) || [];
     let replyingTo = null;
     let selectedMessage = null;
     let holdTimer;
-
-    function toggleSidebar() {
-      const sidebar = document.getElementById("sidebar");
-      sidebar.classList.toggle("open");
-    }
-
-    function hideSidebar() {
-      const sidebar = document.getElementById("sidebar");
-      sidebar.classList.remove("open");
-    }
+    let isEditingProfile = false;
 
     function sanitizeHTML(str) {
       const temp = document.createElement('div');
@@ -503,38 +555,36 @@
       return temp.innerHTML;
     }
 
-    function showPublicChat() {
-      currentChat = null;
-      replyingTo = null;
-      document.getElementById("screen-public-chat").classList.add("active");
+    function showChatsScreen() {
+      document.getElementById("screen-chats").classList.add("active");
       document.getElementById("screen-private-chat").classList.remove("active");
-      document.getElementById("header-title").textContent = "Chat Público";
-      document.getElementById("public-chat-status").textContent = "Grupo";
-      document.getElementById("public-chat-item").classList.add("active-chat");
-      document.querySelectorAll(".user-item").forEach(item => item.classList.remove("active-chat"));
-      loadPublicMessages();
-      hideSidebar();
+      document.getElementById("screen-users").classList.remove("active");
+      loadChats();
     }
 
-    function openPrivateChat(userId, userName, status, conversationId) {
+    function showPrivateChat(userId, userName, conversationId) {
       currentChat = { 
         id: userId, 
         name: userName,
         conversation_id: conversationId
       };
       document.getElementById("chat-username").textContent = userName;
-      document.getElementById("chat-status").textContent = status === "En línea" || status === "Escribiendo" ? status : "Desconectado";
-      document.getElementById("screen-public-chat").classList.remove("active");
+      document.getElementById("chat-status").textContent = typingUsers.has(userId) ? "Escribiendo" : "Desconectado";
+      document.getElementById("screen-chats").classList.remove("active");
       document.getElementById("screen-private-chat").classList.add("active");
-      document.getElementById("public-chat-item").classList.remove("active-chat");
-      document.querySelectorAll(".user-item").forEach(item => {
-        item.classList.toggle("active-chat", item.getAttribute("data-user-id") === userId);
-      });
+      document.getElementById("screen-users").classList.remove("active");
       loadPrivateMessages(userId);
-      hideSidebar();
       unreadMessages.delete(userId);
-      updateUnreadCount();
+      updateChatList();
       socket.emit('mark_all_as_seen', { conversation_id: currentChat.conversation_id, receiver_id: currentUser.id });
+      loadChatAvatar(userId, document.getElementById("chat-avatar"));
+    }
+
+    function showUsersScreen() {
+      document.getElementById("screen-chats").classList.remove("active");
+      document.getElementById("screen-private-chat").classList.remove("active");
+      document.getElementById("screen-users").classList.add("active");
+      loadUsers();
     }
 
     function toggleProfilePanel() {
@@ -542,6 +592,10 @@
       panel.classList.toggle("open");
       if (panel.classList.contains("open")) {
         loadProfileData(currentUser.id, true);
+        isEditingProfile = false;
+        document.getElementById("edit-btn").textContent = "Editar perfil";
+        document.getElementById("profile-username").contentEditable = "false";
+        document.getElementById("profile-username").classList.remove("editable");
       }
     }
 
@@ -564,7 +618,7 @@
             avatarElement.innerHTML = `<img src="data:image/jpeg;base64,${data.avatar}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
           } else {
             avatarElement.textContent = data.username[0].toUpperCase();
-            avatarElement.innerHTML = data.username[0].toUpperCase(); // Limpiar cualquier imagen previa
+            avatarElement.innerHTML = data.username[0].toUpperCase();
           }
           document.getElementById(`${prefix}-name`).textContent = data.username;
           document.getElementById(`${prefix}-username`).textContent = data.username;
@@ -573,22 +627,35 @@
           document.getElementById(`${prefix}-status`).textContent = data.isOnline ? "En línea" : "Desconectado";
           document.getElementById(`${prefix}-status`).className = `profile-status ${data.isOnline ? 'status-online' : 'status-offline'}`;
           if (isOwnProfile) {
-            const headerAvatars = [document.getElementById("header-avatar"), document.getElementById("header-avatar-private")];
-            headerAvatars.forEach(el => {
-              if (data.avatar) {
-                el.innerHTML = `<img src="data:image/jpeg;base64,${data.avatar}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
-              } else {
-                el.textContent = data.username[0].toUpperCase();
-              }
-            });
+            const headerAvatar = document.getElementById("header-avatar");
+            if (data.avatar) {
+              headerAvatar.innerHTML = `<img src="data:image/jpeg;base64,${data.avatar}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+            } else {
+              headerAvatar.textContent = data.username[0].toUpperCase();
+            }
           }
         })
         .catch(err => console.error("Error al cargar perfil:", err));
     }
 
+    function loadChatAvatar(userId, element) {
+      fetch(`/api/profile/${userId}`)
+        .then(res => res.json())
+        .then(data => {
+          if (data.avatar) {
+            element.innerHTML = `<img src="data:image/jpeg;base64,${data.avatar}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+          } else {
+            element.textContent = data.username[0].toUpperCase();
+          }
+        })
+        .catch(err => console.error("Error al cargar avatar del chat:", err));
+    }
+
     function toggleAvatarOptions() {
-      const options = document.getElementById("avatar-options");
-      options.style.display = options.style.display === "block" ? "none" : "block";
+      if (isEditingProfile) {
+        const options = document.getElementById("avatar-options");
+        options.style.display = options.style.display === "block" ? "none" : "block";
+      }
     }
 
     function chooseAvatar() {
@@ -608,6 +675,7 @@
             .then(data => {
               if (data.success) {
                 loadProfileData(currentUser.id, true);
+                updateChatList();
                 alert("Avatar actualizado con éxito");
               } else {
                 alert(data.error || "Error al actualizar el avatar");
@@ -620,62 +688,49 @@
       toggleAvatarOptions();
     }
 
-    function toggleEditForm() {
-      const form = document.getElementById("edit-form");
-      form.classList.toggle("active");
-      if (form.classList.contains("active")) {
-        document.getElementById("edit-username").value = currentUser.name;
-        document.getElementById("edit-password").value = "";
-      }
-    }
-
-    function saveProfile(event) {
-      event.preventDefault();
-      const newUsername = document.getElementById("edit-username").value.trim();
-      const newPassword = document.getElementById("edit-password").value.trim();
-
-      if (newUsername || newPassword) {
-        const formData = new FormData();
-        if (newUsername) formData.append("username", newUsername);
-        if (newPassword) formData.append("password", newPassword);
-        fetch('/api/profile/update', {
-          method: 'POST',
-          body: formData
-        })
-          .then(res => res.json())
-          .then(data => {
-            if (data.success) {
-              if (newUsername) currentUser.name = newUsername;
-              loadProfileData(currentUser.id, true);
-              toggleEditForm();
-              alert("Perfil actualizado con éxito");
-            } else {
-              alert(data.error || "Error al actualizar el perfil");
-            }
-          })
-          .catch(err => console.error("Error al guardar perfil:", err));
+    function toggleEditProfile() {
+      const editBtn = document.getElementById("edit-btn");
+      const usernameField = document.getElementById("profile-username");
+      
+      if (!isEditingProfile) {
+        // Entrar en modo edición
+        editBtn.textContent = "Guardar cambios";
+        usernameField.contentEditable = "true";
+        usernameField.classList.add("editable");
+        usernameField.focus();
+        isEditingProfile = true;
       } else {
-        alert("Por favor, completa al menos un campo para actualizar.");
+        // Guardar cambios
+        const newUsername = usernameField.textContent.trim();
+        if (newUsername && newUsername !== currentUser.name) {
+          const formData = new FormData();
+          formData.append("username", newUsername);
+          fetch('/api/profile/update', {
+            method: 'POST',
+            body: formData
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                currentUser.name = newUsername;
+                loadProfileData(currentUser.id, true);
+                updateChatList();
+                alert("Perfil actualizado con éxito");
+              } else {
+                alert(data.error || "Error al actualizar el perfil");
+                usernameField.textContent = currentUser.name; // Revertir si falla
+              }
+            })
+            .catch(err => {
+              console.error("Error al guardar perfil:", err);
+              usernameField.textContent = currentUser.name; // Revertir si falla
+            });
+        }
+        editBtn.textContent = "Editar perfil";
+        usernameField.contentEditable = "false";
+        usernameField.classList.remove("editable");
+        isEditingProfile = false;
       }
-    }
-
-    function sendPublicMessage(e) {
-      e.preventDefault();
-      const input = document.getElementById("public-message-input");
-      const message = input.value.trim();
-      if (!message) return;
-      const msgData = { 
-        message: message,
-        sender: currentUser.name,
-        timestamp: Date.now() / 1000
-      };
-      if (replyingTo) {
-        msgData.replyTo = replyingTo;
-        replyingTo = null;
-        input.placeholder = "Escribe un mensaje público...";
-      }
-      socket.emit('public_message', msgData);
-      input.value = "";
     }
 
     function sendPrivateMessage(e) {
@@ -699,15 +754,18 @@
       }
       socket.emit('private_message', msgData);
       input.value = "";
+      updateChatList();
     }
 
-    function loadPublicMessages() {
-      fetch('/api/public_messages')
+    function loadChats() {
+      fetch('/api/conversations')
         .then(res => {
-          if (!res.ok) throw new Error('Error al cargar mensajes públicos');
+          if (!res.ok) throw new Error('Error al cargar conversaciones');
           return res.json();
         })
-        .then(data => renderMessages(data.messages.filter(msg => !deletedPublicMessages.includes(msg.timestamp)), "public-chat-box", true))
+        .then(data => {
+          updateChatList(data.conversations);
+        })
         .catch(err => console.error(err));
     }
 
@@ -725,6 +783,18 @@
         .catch(err => console.error(err));
     }
 
+    function loadUsers() {
+      fetch('/api/users')
+        .then(res => {
+          if (!res.ok) throw new Error('Error al cargar usuarios');
+          return res.json();
+        })
+        .then(data => {
+          updateUserList(data.users);
+        })
+        .catch(err => console.error(err));
+    }
+
     function renderMessages(messages, containerId, replace = false) {
       const chatBox = document.getElementById(containerId);
       if (replace) chatBox.innerHTML = "";
@@ -735,12 +805,11 @@
           msgElement.className = `message ${isSent ? 'sent' : 'received'}`;
           msgElement.setAttribute('data-timestamp', msg.timestamp);
           msgElement.innerHTML = `
-            ${containerId === "public-chat-box" && !isSent ? `<div class="public-sender">${sanitizeHTML(msg.sender)}</div>` : ''}
             ${msg.replyTo ? `<div class="reply-reference">${sanitizeHTML(msg.replyTo.sender)}: ${sanitizeHTML(msg.replyTo.message.substring(0, 20))}...</div>` : ''}
             <div class="message-content">${sanitizeHTML(msg.message)}</div>
             <div class="message-meta">
               <span class="message-time">${new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-              ${isSent && containerId === "private-chat-box" ? `
+              ${isSent ? `
                 <span class="message-status">
                   ${msg.status === 'sent' ? '<svg class="status-icon sent-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg>' : 
                     msg.status === 'delivered' ? '<svg class="status-icon delivered-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/><path d="M5 7l1.4 1.4L15 17"/></svg>' : 
@@ -778,6 +847,9 @@
       if (!e.target.closest('.user-profile-modal') && !e.target.closest('.avatar')) {
         document.getElementById("user-profile-modal").classList.remove("open");
       }
+      if (!e.target.closest('.group-form')) {
+        document.getElementById("group-form").classList.remove("open");
+      }
       document.getElementById("context-menu").style.display = 'none';
       document.getElementById("avatar-options").style.display = 'none';
       clearTimeout(holdTimer);
@@ -786,10 +858,10 @@
     function handleReply() {
       if (!selectedMessage) return;
       const timestamp = selectedMessage.getAttribute('data-timestamp');
-      const sender = selectedMessage.querySelector('.public-sender')?.textContent || currentUser.name;
+      const sender = currentUser.name;
       const message = selectedMessage.querySelector('.message-content').textContent;
       replyingTo = { timestamp, sender, message };
-      const input = currentChat ? document.getElementById("private-message-input") : document.getElementById("public-message-input");
+      const input = document.getElementById("private-message-input");
       input.placeholder = `Respondiendo a ${sender}: ${message.substring(0, 20)}...`;
       input.focus();
       document.getElementById("context-menu").style.display = 'none';
@@ -809,10 +881,8 @@
     function deleteForMe() {
       if (!selectedMessage) return;
       const timestamp = selectedMessage.getAttribute('data-timestamp');
-      const containerId = currentChat ? "private-chat-box" : "public-chat-box";
-      const deletedList = containerId === "public-chat-box" ? deletedPublicMessages : deletedPrivateMessages;
-      deletedList.push(timestamp);
-      localStorage.setItem(containerId === "public-chat-box" ? 'deletedPublicMessages' : 'deletedPrivateMessages', JSON.stringify(deletedList));
+      deletedPrivateMessages.push(timestamp);
+      localStorage.setItem('deletedPrivateMessages', JSON.stringify(deletedPrivateMessages));
       selectedMessage.remove();
       hideConfirmDialog();
     }
@@ -820,44 +890,93 @@
     function deleteForAll() {
       if (!selectedMessage) return;
       const timestamp = selectedMessage.getAttribute('data-timestamp');
-      const containerId = currentChat ? "private-chat-box" : "public-chat-box";
-      if (containerId === "public-chat-box") {
-        socket.emit('delete_public_message', { timestamp });
-      } else {
-        socket.emit('delete_private_message', { conversation_id: currentChat.conversation_id, timestamp });
-      }
+      socket.emit('delete_private_message', { conversation_id: currentChat.conversation_id, timestamp });
       selectedMessage.remove();
       hideConfirmDialog();
     }
 
-    function updateUserList(users) {
-      const container = document.getElementById("user-list");
-      container.innerHTML = users
-        .filter(user => user.id !== currentUser.id) // Excluir al usuario actual
-        .map(user => {
-          const statusClass = user.status === 'En línea' ? 'online' : 
-                             user.status === 'Escribiendo' ? 'typing' : 'offline';
-          return `
-            <div class="user-item" data-user-id="${user.id}" onclick="openPrivateChat('${user.id}', '${user.name}', '${user.status}', 'conv_${[currentUser.id, user.id].sort().join('_')}')">
-              <div class="avatar" onclick="event.stopPropagation(); showUserProfile('${user.id}')">${user.name[0].toUpperCase()}</div>
-              <div class="user-info">
-                <span>${sanitizeHTML(user.name)}</span>
-                <span class="status-text ${statusClass}">${user.status}</span>
-              </div>
-              ${unreadMessages.has(user.id) ? `<span class="user-unread">${unreadMessages.get(user.id)}</span>` : ''}
+    function updateChatList(conversations = null) {
+      if (!conversations) {
+        loadChats();
+        return;
+      }
+      const container = document.getElementById("chat-list");
+      container.innerHTML = conversations.map(conv => {
+        const statusClass = typingUsers.has(conv.user_id) ? 'typing' : 
+                            conv.online ? 'online' : 'offline';
+        return `
+          <div class="chat-item" data-user-id="${conv.user_id}" onclick="showPrivateChat('${conv.user_id}', '${conv.username}', '${conv.id}')">
+            <div class="avatar" id="avatar-${conv.user_id}" onclick="event.stopPropagation(); showUserProfile('${conv.user_id}')">${conv.username[0].toUpperCase()}</div>
+            <div class="user-info">
+              <span>${sanitizeHTML(conv.username)}</span>
+              <span class="status-text ${statusClass}">${typingUsers.has(conv.user_id) ? 'Escribiendo' : conv.online ? 'En línea' : 'Desconectado'}</span>
             </div>
-          `;
-        }).join("");
+            <span class="user-unread ${conv.unread_count > 0 ? 'visible' : ''}">${conv.unread_count}</span>
+          </div>
+        `;
+      }).join("");
+      conversations.forEach(conv => loadChatAvatar(conv.user_id, document.getElementById(`avatar-${conv.user_id}`)));
     }
 
-    function updateUnreadCount() {
-      const unreadCountPublic = document.getElementById("unread-count");
-      const unreadCountPrivate = document.getElementById("unread-count-private");
-      const totalUnread = Array.from(unreadMessages.values()).reduce((a, b) => a + b, 0);
-      unreadCountPublic.textContent = totalUnread;
-      unreadCountPrivate.textContent = totalUnread;
-      unreadCountPublic.style.display = totalUnread > 0 ? 'flex' : 'none';
-      unreadCountPrivate.style.display = totalUnread > 0 ? 'flex' : 'none';
+    function updateUserList(users) {
+      const container = document.getElementById("user-list");
+      container.innerHTML = `
+        <div class="user-item" onclick="showGroupForm()">
+          <div class="avatar">+</div>
+          <div class="user-info">
+            <span>+ Nuevo grupo</span>
+          </div>
+        </div>
+      ` + users.map(user => {
+        const statusClass = user.online ? 'online' : 'offline';
+        return `
+          <div class="user-item" data-user-id="${user.id}" onclick="showPrivateChat('${user.id}', '${user.name}', 'conv_${[currentUser.id, user.id].sort().join('_')}')">
+            <div class="avatar" onclick="event.stopPropagation(); showUserProfile('${user.id}')">${user.name[0].toUpperCase()}</div>
+            <div class="user-info">
+              <span>${sanitizeHTML(user.name)}</span>
+              <span class="status-text ${statusClass}">${user.online ? 'En línea' : 'Desconectado'}</span>
+            </div>
+          </div>
+        `;
+      }).join("");
+    }
+
+    function showGroupForm() {
+      const form = document.getElementById("group-form");
+      form.classList.add("open");
+      document.getElementById("group-name").value = "";
+      fetch('/api/users')
+        .then(res => res.json())
+        .then(data => {
+          const container = document.getElementById("group-users");
+          container.innerHTML = data.users.map(user => `
+            <label>
+              <input type="checkbox" value="${user.id}" data-name="${user.name}"> ${sanitizeHTML(user.name)}
+            </label>
+          `).join("");
+        })
+        .catch(err => console.error("Error al cargar usuarios para grupo:", err));
+    }
+
+    function closeGroupForm() {
+      document.getElementById("group-form").classList.remove("open");
+    }
+
+    function createGroup() {
+      const groupName = document.getElementById("group-name").value.trim();
+      const selectedUsers = Array.from(document.querySelectorAll('#group-users input:checked'))
+        .map(input => ({ id: input.value, name: input.dataset.name }));
+      
+      if (!groupName || selectedUsers.length < 1) {
+        alert("Por favor, ingresa un nombre y selecciona al menos un usuario.");
+        return;
+      }
+
+      // Simulación de creación de grupo (sin backend por ahora)
+      console.log("Grupo creado:", { name: groupName, users: selectedUsers });
+      alert(`Grupo "${groupName}" creado con ${selectedUsers.length + 1} miembros (incluyéndote).`);
+      closeGroupForm();
+      // Aquí podrías redirigir a una pantalla de chat de grupo si estuviera implementada
     }
 
     let debounceTimeout;
@@ -868,20 +987,11 @@
           ...user,
           status: typingUsers.has(user.id) ? 'Escribiendo' : user.online ? 'En línea' : 'Desconectado'
         }));
-        updateUserList(updatedUsers);
-        if (currentChat) {
-          const currentUserData = updatedUsers.find(u => u.id === currentChat.id);
-          if (currentUserData) {
-            document.getElementById("chat-status").textContent = currentUserData.status;
-          }
+        if (document.getElementById("screen-users").classList.contains("active")) {
+          updateUserList(updatedUsers);
         }
+        loadChats();
       }, 100);
-    });
-
-    socket.on('public_message', msg => {
-      if (document.getElementById("screen-public-chat").classList.contains("active") && !deletedPublicMessages.includes(msg.timestamp)) {
-        renderMessages([msg], "public-chat-box");
-      }
     });
 
     socket.on('private_message', msg => {
@@ -893,17 +1003,11 @@
           socket.emit('message_status', { conversation_id: currentChat.conversation_id, status: 'seen', timestamp: msg.timestamp });
         }
       } else if (msg.sender !== currentUser.name) {
-        const senderId = msg.sender_id || data.users.find(u => u.name === msg.sender)?.id;
+        const senderId = msg.sender_id || msg.sender === currentUser.name ? null : msg.conversation_id.split('_')[1] === currentUser.id ? msg.conversation_id.split('_')[2] : msg.conversation_id.split('_')[1];
         if (senderId) {
           const count = unreadMessages.get(senderId) || 0;
           unreadMessages.set(senderId, count + 1);
-          updateUnreadCount();
-          fetch('/api/users')
-            .then(res => res.json())
-            .then(data => updateUserList(data.users.map(user => ({
-              ...user,
-              status: typingUsers.has(user.id) ? 'Escribiendo' : user.online ? 'En línea' : 'Desconectado'
-            }))));
+          loadChats();
         }
       }
     });
@@ -933,11 +1037,7 @@
           statusSpan.innerHTML = '<svg class="status-icon seen-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/><path d="M5 7l1.4 1.4L15 17"/></svg>';
         }
       });
-    });
-
-    socket.on('delete_public_message', data => {
-      const messageElement = document.querySelector(`#public-chat-box .message[data-timestamp="${data.timestamp}"]`);
-      if (messageElement) messageElement.remove();
+      loadChats();
     });
 
     socket.on('delete_private_message', data => {
@@ -947,18 +1047,7 @@
       }
     });
 
-    socket.on('public_typing', data => {
-      if (document.getElementById("screen-public-chat").classList.contains("active")) {
-        const publicStatus = document.getElementById("public-chat-status");
-        publicStatus.textContent = `${sanitizeHTML(data.sender)} está escribiendo...`;
-        clearTimeout(typingTimeout);
-        typingTimeout = setTimeout(() => {
-          publicStatus.textContent = "Grupo";
-        }, 2000);
-      }
-    });
-
-    socket.on('typing', data => {
+        socket.on('typing', data => {
       if (data.conversation_id === currentChat?.conversation_id && data.user_id !== currentUser.id) {
         typingUsers.add(data.user_id);
         document.getElementById("chat-status").textContent = "Escribiendo";
