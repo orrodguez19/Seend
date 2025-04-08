@@ -9,7 +9,13 @@
     * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Poppins', sans-serif; }
     body { background: #f0f2f5; color: #333; overflow: hidden; }
     .container { display: flex; height: 100vh; }
-    .sidebar { width: 0; background: white; overflow-y: auto; transition: width 0.3s ease-in-out; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
+    .sidebar { 
+      width: 0; 
+      background: white; 
+      overflow-y: auto; 
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1); 
+      box-shadow: 2px 0 5px rgba(0,0,0,0.1); 
+    }
     .sidebar.open { width: 300px; }
     .screen { 
       flex: 1; 
@@ -43,14 +49,18 @@
       margin-bottom: 10px; 
       border-radius: 10px; 
       display: block; 
+      position: relative;
+      user-select: none; /* Evitar selección accidental */
     }
     .sent { 
-      background: #DCF8C6; 
+      background: #FFFFFF; 
+      color: #333; 
       align-self: flex-end; 
       border-bottom-right-radius: 2px; 
     }
     .received { 
-      background: #FFFFFF; 
+      background: #1877f2; 
+      color: #FFFFFF; 
       align-self: flex-start; 
       border-bottom-left-radius: 2px; 
     }
@@ -62,7 +72,58 @@
     .sent-icon { fill: #999; }
     .delivered-icon { fill: #999; }
     .seen-icon { fill: #34B7F1; }
-    .public-sender { font-size: 0.7rem; color: #555; margin-bottom: 2px; }
+    .public-sender { font-size: 0.7rem; color: #FFFFFF; margin-bottom: 2px; }
+    .reply-reference { 
+      font-size: 0.8rem; 
+      color: #ccc; 
+      background: rgba(255,255,255,0.1); 
+      padding: 4px; 
+      border-radius: 5px; 
+      margin-bottom: 4px; 
+    }
+    .context-menu { 
+      position: absolute; 
+      background: white; 
+      border: 1px solid #ddd; 
+      border-radius: 5px; 
+      box-shadow: 0 2px 5px rgba(0,0,0,0.2); 
+      z-index: 1000; 
+      display: none; 
+    }
+    .context-menu button { 
+      display: block; 
+      width: 100%; 
+      padding: 8px 12px; 
+      border: none; 
+      background: none; 
+      text-align: left; 
+      cursor: pointer; 
+    }
+    .context-menu button:hover { background: #f0f0f0; }
+    .confirm-dialog { 
+      position: fixed; 
+      top: 50%; 
+      left: 50%; 
+      transform: translate(-50%, -50%); 
+      background: white; 
+      border: 1px solid #ddd; 
+      border-radius: 5px; 
+      padding: 20px; 
+      box-shadow: 0 2px 10px rgba(0,0,0,0.3); 
+      z-index: 2000; 
+      display: none; 
+    }
+    .confirm-dialog p { margin-bottom: 15px; }
+    .confirm-dialog button { 
+      padding: 8px 16px; 
+      margin: 0 5px; 
+      border: none; 
+      border-radius: 5px; 
+      cursor: pointer; 
+    }
+    .confirm-dialog .cancel { background: #ccc; }
+    .confirm-dialog .delete-mine { background: #1877f2; color: white; }
+    .confirm-dialog .delete-all { background: #ff4444; color: white; }
     .input-area { 
       display: flex; 
       align-items: center; 
@@ -76,13 +137,32 @@
       right: 0; 
       z-index: 10;
     }
-    .input-area input { flex: 1; padding: 10px 15px; border: 1px solid #ddd; border-radius: 25px; margin: 0 10px; outline: none; transition: border-color 0.3s; }
+    .input-area input { 
+      flex: 1; 
+      padding: 10px 15px; 
+      border: 1px solid #ddd; 
+      border-radius: 25px; 
+      margin: 0 10px; 
+      outline: none; 
+      transition: border-color 0.3s cubic-bezier(0.25, 0.1, 0.25, 1); 
+    }
     .input-area input:focus { border-color: #1877f2; }
-    .input-area button { background: #1877f2; border: none; border-radius: 50%; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.3s; }
+    .input-area button { 
+      background: #1877f2; 
+      border: none; 
+      border-radius: 50%; 
+      width: 40px; 
+      height: 40px; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      cursor: pointer; 
+      transition: background-color 0.3s cubic-bezier(0.25, 0.1, 0.25, 1); 
+    }
     .input-area button:hover { background: #1565c0; }
     .menu-button { 
       position: absolute; 
-      top: 12px; /* Cambiado de 0.5rem (8px) a 12px (~1mm más abajo) */
+      top: 12px; 
       left: 0.5rem; 
       width: 40px; 
       height: 40px; 
@@ -93,7 +173,7 @@
       justify-content: center; 
       align-items: center; 
       cursor: pointer; 
-      transition: all 0.3s; 
+      transition: background-color 0.3s cubic-bezier(0.25, 0.1, 0.25, 1); 
       z-index: 1000; 
       font-size: 24px; 
     }
@@ -172,6 +252,18 @@
     </div>
   </div>
 
+  <div id="context-menu" class="context-menu">
+    <button onclick="handleReply()">Responder</button>
+    <button onclick="showConfirmDialog()">Eliminar</button>
+  </div>
+
+  <div id="confirm-dialog" class="confirm-dialog">
+    <p>¿Estás seguro que deseas eliminar este mensaje?</p>
+    <button class="cancel" onclick="hideConfirmDialog()">Cancelar</button>
+    <button class="delete-mine" onclick="deleteForMe()">Eliminar para mí</button>
+    <button class="delete-all" onclick="deleteForAll()">Eliminar para todos</button>
+  </div>
+
   <script>
     const socket = io();
     let currentUser = {
@@ -185,6 +277,11 @@
     const typingUsers = new Set();
     let unreadMessages = new Map();
     let typingTimeout;
+    let deletedPublicMessages = JSON.parse(localStorage.getItem('deletedPublicMessages')) || [];
+    let deletedPrivateMessages = JSON.parse(localStorage.getItem('deletedPrivateMessages')) || [];
+    let replyingTo = null;
+    let selectedMessage = null;
+    let holdTimer;
 
     function toggleSidebar() {
       const sidebar = document.getElementById("sidebar");
@@ -204,6 +301,7 @@
 
     function showPublicChat() {
       currentChat = null;
+      replyingTo = null;
       document.getElementById("screen-public-chat").classList.add("active");
       document.getElementById("screen-private-chat").classList.remove("active");
       document.getElementById("header-title").textContent = "Chat Público";
@@ -232,6 +330,7 @@
       hideSidebar();
       unreadMessages.delete(userId);
       updateUnreadCount();
+      socket.emit('mark_all_as_seen', { conversation_id: currentChat.conversation_id, receiver_id: currentUser.id });
     }
 
     function sendPublicMessage(e) {
@@ -239,10 +338,17 @@
       const input = document.getElementById("public-message-input");
       const message = input.value.trim();
       if (!message) return;
-      socket.emit('public_message', { 
+      const msgData = { 
         message: message,
-        sender: currentUser.name
-      });
+        sender: currentUser.name,
+        timestamp: Date.now() / 1000
+      };
+      if (replyingTo) {
+        msgData.replyTo = replyingTo;
+        replyingTo = null;
+        input.placeholder = "Escribe un mensaje público...";
+      }
+      socket.emit('public_message', msgData);
       input.value = "";
     }
 
@@ -251,14 +357,21 @@
       const input = document.getElementById("private-message-input");
       const message = input.value.trim();
       if (!message || !currentChat?.id) return;
-      socket.emit('private_message', {
+      const timestamp = Date.now() / 1000;
+      const msgData = {
         receiver_id: currentChat.id,
         message: message,
         sender: currentUser.name,
         conversation_id: currentChat.conversation_id,
         status: 'sent',
-        timestamp: Date.now() / 1000
-      });
+        timestamp: timestamp
+      };
+      if (replyingTo) {
+        msgData.replyTo = replyingTo;
+        replyingTo = null;
+        input.placeholder = "Escribe un mensaje...";
+      }
+      socket.emit('private_message', msgData);
       input.value = "";
     }
 
@@ -268,7 +381,7 @@
           if (!res.ok) throw new Error('Error al cargar mensajes públicos');
           return res.json();
         })
-        .then(data => renderMessages(data.messages, "public-chat-box", true))
+        .then(data => renderMessages(data.messages.filter(msg => !deletedPublicMessages.includes(msg.timestamp)), "public-chat-box", true))
         .catch(err => console.error(err));
     }
 
@@ -280,7 +393,7 @@
         })
         .then(data => {
           if (data.error) return window.location.href = '/';
-          renderMessages(data.messages, "private-chat-box", true);
+          renderMessages(data.messages.filter(msg => !deletedPrivateMessages.includes(msg.timestamp)), "private-chat-box", true);
           if (data.conversation_id) currentChat.conversation_id = data.conversation_id;
         })
         .catch(err => console.error(err));
@@ -297,6 +410,7 @@
           msgElement.setAttribute('data-timestamp', msg.timestamp);
           msgElement.innerHTML = `
             ${containerId === "public-chat-box" && !isSent ? `<div class="public-sender">${sanitizeHTML(msg.sender)}</div>` : ''}
+            ${msg.replyTo ? `<div class="reply-reference">${sanitizeHTML(msg.replyTo.sender)}: ${sanitizeHTML(msg.replyTo.message.substring(0, 20))}...</div>` : ''}
             <div class="message-content">${sanitizeHTML(msg.message)}</div>
             <div class="message-meta">
               <span class="message-time">${new Date(msg.timestamp * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
@@ -309,10 +423,78 @@
               ` : ''}
             </div>
           `;
+          msgElement.addEventListener('mousedown', handleLongPress);
+          msgElement.addEventListener('touchstart', handleLongPress);
           chatBox.appendChild(msgElement);
         }
       });
       chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function handleLongPress(e) {
+      e.preventDefault();
+      clearTimeout(holdTimer);
+      holdTimer = setTimeout(() => {
+        selectedMessage = e.target.closest('.message');
+        if (!selectedMessage) return;
+        const contextMenu = document.getElementById("context-menu");
+        const rect = selectedMessage.getBoundingClientRect();
+        contextMenu.style.top = `${rect.bottom + window.scrollY}px`;
+        contextMenu.style.left = `${rect.left + window.scrollX}px`;
+        contextMenu.style.display = 'block';
+      }, 500); // 500ms para considerar "presión prolongada"
+    }
+
+    document.addEventListener('click', () => {
+      document.getElementById("context-menu").style.display = 'none';
+      clearTimeout(holdTimer);
+    });
+
+    function handleReply() {
+      if (!selectedMessage) return;
+      const timestamp = selectedMessage.getAttribute('data-timestamp');
+      const sender = selectedMessage.querySelector('.public-sender')?.textContent || currentUser.name;
+      const message = selectedMessage.querySelector('.message-content').textContent;
+      replyingTo = { timestamp, sender, message };
+      const input = currentChat ? document.getElementById("private-message-input") : document.getElementById("public-message-input");
+      input.placeholder = `Respondiendo a ${sender}: ${message.substring(0, 20)}...`;
+      input.focus();
+      document.getElementById("context-menu").style.display = 'none';
+    }
+
+    function showConfirmDialog() {
+      if (!selectedMessage) return;
+      document.getElementById("context-menu").style.display = 'none';
+      document.getElementById("confirm-dialog").style.display = 'block';
+    }
+
+    function hideConfirmDialog() {
+      document.getElementById("confirm-dialog").style.display = 'none';
+      selectedMessage = null;
+    }
+
+    function deleteForMe() {
+      if (!selectedMessage) return;
+      const timestamp = selectedMessage.getAttribute('data-timestamp');
+      const containerId = currentChat ? "private-chat-box" : "public-chat-box";
+      const deletedList = containerId === "public-chat-box" ? deletedPublicMessages : deletedPrivateMessages;
+      deletedList.push(timestamp);
+      localStorage.setItem(containerId === "public-chat-box" ? 'deletedPublicMessages' : 'deletedPrivateMessages', JSON.stringify(deletedList));
+      selectedMessage.remove();
+      hideConfirmDialog();
+    }
+
+    function deleteForAll() {
+      if (!selectedMessage) return;
+      const timestamp = selectedMessage.getAttribute('data-timestamp');
+      const containerId = currentChat ? "private-chat-box" : "public-chat-box";
+      if (containerId === "public-chat-box") {
+        socket.emit('delete_public_message', { timestamp });
+      } else {
+        socket.emit('delete_private_message', { conversation_id: currentChat.conversation_id, timestamp });
+      }
+      selectedMessage.remove();
+      hideConfirmDialog();
     }
 
     function updateUserList(users) {
@@ -362,19 +544,21 @@
     });
 
     socket.on('public_message', msg => {
-      if (document.getElementById("screen-public-chat").classList.contains("active")) {
+      if (document.getElementById("screen-public-chat").classList.contains("active") && !deletedPublicMessages.includes(msg.timestamp)) {
         renderMessages([msg], "public-chat-box");
       }
     });
 
     socket.on('private_message', msg => {
       if (currentChat && msg.conversation_id === currentChat.conversation_id) {
-        renderMessages([msg], "private-chat-box");
+        if (!deletedPrivateMessages.includes(msg.timestamp)) {
+          renderMessages([msg], "private-chat-box");
+        }
         if (msg.sender !== currentUser.name) {
           socket.emit('message_status', { conversation_id: currentChat.conversation_id, status: 'seen', timestamp: msg.timestamp });
         }
       } else if (msg.sender !== currentUser.name) {
-        const senderId = data.users.find(u => u.name === msg.sender)?.id;
+        const senderId = msg.sender_id || data.users.find(u => u.name === msg.sender)?.id;
         if (senderId) {
           const count = unreadMessages.get(senderId) || 0;
           unreadMessages.set(senderId, count + 1);
@@ -406,6 +590,28 @@
       });
     });
 
+    socket.on('all_messages_seen', data => {
+      const messages = document.querySelectorAll(`#private-chat-box .message.sent`);
+      messages.forEach(msg => {
+        const statusSpan = msg.querySelector('.message-status');
+        if (statusSpan) {
+          statusSpan.innerHTML = '<svg class="status-icon seen-icon" viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/><path d="M5 7l1.4 1.4L15 17"/></svg>';
+        }
+      });
+    });
+
+    socket.on('delete_public_message', data => {
+      const messageElement = document.querySelector(`#public-chat-box .message[data-timestamp="${data.timestamp}"]`);
+      if (messageElement) messageElement.remove();
+    });
+
+    socket.on('delete_private_message', data => {
+      if (currentChat && data.conversation_id === currentChat.conversation_id) {
+        const messageElement = document.querySelector(`#private-chat-box .message[data-timestamp="${data.timestamp}"]`);
+        if (messageElement) messageElement.remove();
+      }
+    });
+
     socket.on('public_typing', data => {
       if (document.getElementById("screen-public-chat").classList.contains("active")) {
         const publicStatus = document.getElementById("public-chat-status");
@@ -418,7 +624,7 @@
     });
 
     socket.on('typing', data => {
-      if (data.conversation_id === currentChat?.conversation_id) {
+      if (data.conversation_id === currentChat?.conversation_id && data.user_id !== currentUser.id) {
         typingUsers.add(data.user_id);
         document.getElementById("chat-status").textContent = "Escribiendo";
         clearTimeout(typingTimeout);
@@ -457,7 +663,7 @@
 
     document.getElementById("private-message-input").addEventListener('input', () => {
       if (currentChat) {
-        socket.emit('typing', { receiver_id: currentChat.id });
+        socket.emit('typing', { receiver_id: currentChat.id, user_id: currentUser.id, conversation_id: currentChat.conversation_id });
       }
     });
   </script>
