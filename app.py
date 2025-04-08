@@ -26,12 +26,21 @@ def init_db():
 
     c.execute('''CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
-        user1_id TEXT NOT NULL,
-        user2_id TEXT NOT NULL,
+        user1_id TEXT,
+        user2_id TEXT,
+        group_name TEXT,
+        is_group INTEGER DEFAULT 0,
         created_at REAL NOT NULL,
         FOREIGN KEY (user1_id) REFERENCES users(id),
-        FOREIGN KEY (user2_id) REFERENCES users(id),
-        UNIQUE(user1_id, user2_id)
+        FOREIGN KEY (user2_id) REFERENCES users(id)
+    )''')
+
+    c.execute('''CREATE TABLE IF NOT EXISTS conversation_members (
+        conversation_id TEXT,
+        user_id TEXT,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        PRIMARY KEY (conversation_id, user_id)
     )''')
 
     c.execute('''CREATE TABLE IF NOT EXISTS messages (
@@ -43,15 +52,6 @@ def init_db():
         status TEXT DEFAULT 'sent',
         reply_to_timestamp REAL,
         FOREIGN KEY (conversation_id) REFERENCES conversations(id),
-        FOREIGN KEY (sender_id) REFERENCES users(id)
-    )''')
-
-    c.execute('''CREATE TABLE IF NOT EXISTS public_messages (
-        id TEXT PRIMARY KEY,
-        sender_id TEXT NOT NULL,
-        message TEXT NOT NULL,
-        timestamp REAL NOT NULL,
-        reply_to_timestamp REAL,
         FOREIGN KEY (sender_id) REFERENCES users(id)
     )''')
 
@@ -124,31 +124,51 @@ def get_users():
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     c.execute("SELECT id, username FROM users WHERE id != ?", (session['user_id'],))
-    users = [{
-        "id": row[0],
-        "name": row[1],
-        "online": any(u["id"] == row[0] for u in connected_users.values())
-    } for row in c.fetchall()]
+    users = [{"id": row[0], "name": row[1], "online": any(u["id"] == row[0] for u in connected_users.values())} for row in c.fetchall()]
     conn.close()
     return jsonify({"users": users})
 
-@app.route('/api/conversations/<user_id>')
-def get_conversation_messages(user_id):
+@app.route('/api/conversations')
+def get_conversations():
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
 
-    user_ids = sorted([session['user_id'], user_id])
-    conversation_id = f"conv_{user_ids[0]}_{user_ids[1]}"
+    conn = sqlite3.connect('chat.db')
+    c = conn.cursor()
+    c.execute("""
+        SELECT c.id, c.group_name, c.is_group, u.id as user_id, u.username, COUNT(m.id) as unread_count
+        FROM conversations c
+        LEFT JOIN conversation_members cm ON c.id = cm.conversation_id AND cm.user_id != ?
+        LEFT JOIN users u ON (c.is_group = 0 AND (u.id = c.user1_id OR u.id = c.user2_id) AND u.id != ?) OR (c.is_group = 1 AND u.id = cm.user_id)
+        LEFT JOIN messages m ON c.id = m.conversation_id AND m.sender_id != ? AND m.status != 'seen'
+        WHERE cm.user_id = ? OR c.user1_id = ? OR c.user2_id = ?
+        GROUP BY c.id, u.id, u.username, c.group_name, c.is_group
+    """, (session['user_id'], session['user_id'], session['user_id'], session['user_id'], session['user_id'], session['user_id']))
+    conversations = c.fetchall()
+    result = []
+    for conv in conversations:
+        online = any(u["id"] == conv[3] for u in connected_users.values()) if not conv[2] else False
+        result.append({
+            "id": conv[0],
+            "name": conv[1] if conv[2] else conv[4],
+            "is_group": bool(conv[2]),
+            "user_id": conv[3] if not conv[2] else None,
+            "unread_count": conv[5],
+            "online": online
+        })
+    conn.close()
+    return jsonify({"conversations": result})
+
+@app.route('/api/conversations/<conversation_id>')
+def get_conversation_messages(conversation_id):
+    if 'user_id' not in session:
+        return jsonify({"error": "No autenticado"}), 401
 
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
-
-    c.execute("INSERT OR IGNORE INTO conversations (id, user1_id, user2_id, created_at) VALUES (?, ?, ?, ?)",
-              (conversation_id, user_ids[0], user_ids[1], time.time()))
-    conn.commit()
-
     c.execute("""
-        SELECT u.username as sender, m.message, m.timestamp, m.status, m2.message as reply_message, m2.timestamp as reply_timestamp, u2.username as reply_sender
+        SELECT u.username as sender, m.message, m.timestamp, m.status, m2.message as reply_message, 
+               m2.timestamp as reply_timestamp, u2.username as reply_sender
         FROM messages m
         JOIN users u ON m.sender_id = u.id
         LEFT JOIN messages m2 ON m.reply_to_timestamp = m2.timestamp AND m.conversation_id = m2.conversation_id
@@ -156,56 +176,11 @@ def get_conversation_messages(user_id):
         WHERE m.conversation_id = ?
         ORDER BY m.timestamp ASC
     """, (conversation_id,))
-
-    messages = []
-    for row in c.fetchall():
-        message = {
-            "sender": row[0],
-            "message": row[1],
-            "timestamp": row[2],
-            "status": row[3]
-        }
-        if row[4]:
-            message["replyTo"] = {
-                "sender": row[6],
-                "message": row[4],
-                "timestamp": row[5]
-            }
-        messages.append(message)
+    messages = [{"sender": row[0], "message": row[1], "timestamp": row[2], "status": row[3],
+                 "replyTo": {"sender": row[6], "message": row[4], "timestamp": row[5]} if row[4] else None}
+                for row in c.fetchall()]
     conn.close()
     return jsonify({"messages": messages, "conversation_id": conversation_id})
-
-@app.route('/api/public_messages')
-def get_public_messages():
-    if 'user_id' not in session:
-        return jsonify({"error": "No autenticado"}), 401
-
-    conn = sqlite3.connect('chat.db')
-    c = conn.cursor()
-    c.execute("""
-        SELECT u.username as sender, pm.message, pm.timestamp, pm2.message as reply_message, pm2.timestamp as reply_timestamp, u2.username as reply_sender
-        FROM public_messages pm
-        JOIN users u ON pm.sender_id = u.id
-        LEFT JOIN public_messages pm2 ON pm.reply_to_timestamp = pm2.timestamp
-        LEFT JOIN users u2 ON pm2.sender_id = u2.id
-        ORDER BY pm.timestamp ASC
-    """)
-    messages = []
-    for row in c.fetchall():
-        message = {
-            "sender": row[0],
-            "message": row[1],
-            "timestamp": row[2]
-        }
-        if row[3]:
-            message["replyTo"] = {
-                "sender": row[5],
-                "message": row[3],
-                "timestamp": row[4]
-            }
-        messages.append(message)
-    conn.close()
-    return jsonify({"messages": messages})
 
 @app.route('/api/profile/<user_id>')
 def get_profile(user_id):
@@ -231,25 +206,21 @@ def get_profile(user_id):
 def update_profile():
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
-    
+
     new_username = request.form.get('username')
-    new_password = request.form.get('password')
     avatar_file = request.files.get('avatar')
 
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
-    
+
     try:
         update_fields = []
         update_values = []
-        
+
         if new_username:
             update_fields.append("username = ?")
             update_values.append(new_username)
             session['username'] = new_username
-        if new_password:
-            update_fields.append("password = ?")
-            update_values.append(new_password)
         if avatar_file:
             avatar_data = base64.b64encode(avatar_file.read()).decode('utf-8')
             update_fields.append("avatar = ?")
@@ -268,15 +239,42 @@ def update_profile():
     finally:
         conn.close()
 
+@app.route('/api/groups', methods=['POST'])
+def create_group():
+    if 'user_id' not in session:
+        return jsonify({"error": "No autenticado"}), 401
+
+    data = request.get_json()
+    group_name = data.get('name')
+    members = data.get('members', [])
+
+    if not group_name or len(members) < 2:
+        return jsonify({"error": "Nombre del grupo y al menos dos miembros son requeridos"}), 400
+
+    conn = sqlite3.connect('chat.db')
+    c = conn.cursor()
+    conversation_id = f"conv_{uuid.uuid4()}"
+    try:
+        c.execute("INSERT INTO conversations (id, group_name, is_group, created_at) VALUES (?, ?, 1, ?)",
+                  (conversation_id, group_name, time.time()))
+        for member_id in members:
+            c.execute("INSERT INTO conversation_members (conversation_id, user_id) VALUES (?, ?)",
+                      (conversation_id, member_id))
+        conn.commit()
+        emit('users_update', get_users().json, broadcast=True)
+        return jsonify({"success": "Grupo creado", "conversation_id": conversation_id})
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        return jsonify({"error": "Error al crear el grupo"}), 500
+    finally:
+        conn.close()
+
 # Eventos de Socket.IO
 @socketio.on('connect')
 def handle_connect():
     if 'user_id' not in session:
         return False
-    connected_users[request.sid] = {
-        "id": session['user_id'],
-        "name": session['username']
-    }
+    connected_users[request.sid] = {"id": session['user_id'], "name": session['username']}
     emit('users_update', get_users().json, broadcast=True)
 
 @socketio.on('disconnect')
@@ -284,48 +282,6 @@ def handle_disconnect():
     if request.sid in connected_users:
         del connected_users[request.sid]
     emit('users_update', get_users().json, broadcast=True)
-
-@socketio.on('public_message')
-def handle_public_message(data):
-    if 'user_id' not in session:
-        return
-
-    message = data.get('message')
-    sender = data.get('sender')
-    timestamp = data.get('timestamp')
-    reply_to_timestamp = data.get('replyTo', {}).get('timestamp') if data.get('replyTo') else None
-    if not message or not sender or not timestamp:
-        return
-
-    conn = sqlite3.connect('chat.db')
-    c = conn.cursor()
-    message_id = f"pubmsg_{uuid.uuid4()}"
-    c.execute("""
-        INSERT INTO public_messages (id, sender_id, message, timestamp, reply_to_timestamp)
-        VALUES (?, ?, ?, ?, ?)
-    """, (message_id, session['user_id'], message, timestamp, reply_to_timestamp))
-    conn.commit()
-    conn.close()
-
-    message_data = {
-        "sender": sender,
-        "message": message,
-        "timestamp": timestamp
-    }
-    if reply_to_timestamp:
-        conn = sqlite3.connect('chat.db')
-        c = conn.cursor()
-        c.execute("SELECT u.username, message, timestamp FROM public_messages pm JOIN users u ON pm.sender_id = u.id WHERE pm.timestamp = ?", (reply_to_timestamp,))
-        reply_data = c.fetchone()
-        conn.close()
-        if reply_data:
-            message_data["replyTo"] = {
-                "sender": reply_data[0],
-                "message": reply_data[1],
-                "timestamp": reply_data[2]
-            }
-
-    emit('public_message', message_data, broadcast=True)
 
 @socketio.on('private_message')
 def handle_private_message(data):
@@ -338,13 +294,14 @@ def handle_private_message(data):
     conversation_id = data.get('conversation_id')
     timestamp = data.get('timestamp')
     reply_to_timestamp = data.get('replyTo', {}).get('timestamp') if data.get('replyTo') else None
-    if not receiver_id or not message or not conversation_id or not timestamp:
+
+    if not message or not conversation_id or not timestamp:
         return
 
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     message_id = f"msg_{uuid.uuid4()}"
-    receiver_sid = next((sid for sid, user in connected_users.items() if user['id'] == receiver_id), None)
+    receiver_sid = next((sid for sid, user in connected_users.items() if user['id'] == receiver_id), None) if receiver_id else None
     initial_status = 'delivered' if receiver_sid else 'sent'
     c.execute("""
         INSERT INTO messages (id, conversation_id, sender_id, message, timestamp, status, reply_to_timestamp)
@@ -357,33 +314,21 @@ def handle_private_message(data):
         "message": message,
         "timestamp": timestamp,
         "conversation_id": conversation_id,
-        "status": initial_status
+        "status": initial_status,
+        "replyTo": data.get('replyTo')
     }
-    if reply_to_timestamp:
-        c.execute("""
-            SELECT u.username, m.message, m.timestamp 
-            FROM messages m 
-            JOIN users u ON m.sender_id = u.id 
-            WHERE m.conversation_id = ? AND m.timestamp = ?
-        """, (conversation_id, reply_to_timestamp))
-        reply_data = c.fetchone()
-        if reply_data:
-            message_data["replyTo"] = {
-                "sender": reply_data[0],
-                "message": reply_data[1],
-                "timestamp": reply_data[2]
-            }
     conn.close()
 
     sender_sid = request.sid
     emit('private_message', message_data, room=sender_sid)
-    if receiver_sid:
-        emit('private_message', message_data, room=receiver_sid)
-        emit('message_status_update', {
-            "conversation_id": conversation_id,
-            "status": initial_status,
-            "timestamp": timestamp
-        }, room=sender_sid)
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM conversation_members WHERE conversation_id = ? AND user_id != ?", (conversation_id, session['user_id']))
+    members = [row[0] for row in c.fetchall()]
+    conn.close()
+    for member_id in members:
+        member_sid = next((sid for sid, user in connected_users.items() if user['id'] == member_id), None)
+        if member_sid:
+            emit('private_message', message_data, room=member_sid)
 
 @socketio.on('message_status')
 def handle_message_status(data):
@@ -403,22 +348,18 @@ def handle_message_status(data):
     """, (status, conversation_id, session['user_id'], timestamp))
     conn.commit()
 
-    c.execute("""
-        SELECT timestamp, status 
-        FROM messages 
-        WHERE conversation_id = ? AND timestamp = ?
-    """, (conversation_id, timestamp))
+    c.execute("SELECT timestamp, status FROM messages WHERE conversation_id = ? AND timestamp = ?", (conversation_id, timestamp))
     updated_message = c.fetchone()
     conn.close()
 
     if updated_message:
-        sender_sid = next((sid for sid, user in connected_users.items() if user['id'] != session['user_id'] and conversation_id.startswith(f"conv_{min(user['id'], session['user_id'])}_{max(user['id'], session['user_id'])}")), None)
-        if sender_sid:
-            emit('message_status_update', {
-                "conversation_id": conversation_id,
-                "status": updated_message[1],
-                "timestamp": updated_message[0]
-            }, room=sender_sid)
+        for sid, user in connected_users.items():
+            if user['id'] != session['user_id']:
+                emit('message_status_update', {
+                    "conversation_id": conversation_id,
+                    "status": updated_message[1],
+                    "timestamp": updated_message[0]
+                }, room=sid)
 
 @socketio.on('mark_all_as_seen')
 def handle_mark_all_as_seen(data):
@@ -426,8 +367,6 @@ def handle_mark_all_as_seen(data):
         return
 
     conversation_id = data.get('conversation_id')
-    receiver_id = data.get('receiver_id')
-
     conn = sqlite3.connect('chat.db')
     c = conn.cursor()
     c.execute("""
@@ -437,34 +376,16 @@ def handle_mark_all_as_seen(data):
     """, (conversation_id, session['user_id']))
     conn.commit()
 
-    c.execute("""
-        SELECT timestamp, status 
-        FROM messages 
-        WHERE conversation_id = ? AND sender_id != ?
-    """, (conversation_id, session['user_id']))
+    c.execute("SELECT timestamp, status FROM messages WHERE conversation_id = ? AND sender_id != ?", (conversation_id, session['user_id']))
     updated_messages = c.fetchall()
     conn.close()
 
-    sender_sid = next((sid for sid, user in connected_users.items() if user['id'] == receiver_id), None)
-    if sender_sid:
-        emit('all_messages_seen', {
-            "conversation_id": conversation_id,
-            "messages": [{"timestamp": m[0], "status": m[1]} for m in updated_messages]
-        }, room=sender_sid)
-
-@socketio.on('delete_public_message')
-def handle_delete_public_message(data):
-    if 'user_id' not in session:
-        return
-
-    timestamp = data.get('timestamp')
-    conn = sqlite3.connect('chat.db')
-    c = conn.cursor()
-    c.execute("DELETE FROM public_messages WHERE timestamp = ? AND sender_id = ?", (timestamp, session['user_id']))
-    conn.commit()
-    conn.close()
-
-    emit('delete_public_message', {"timestamp": timestamp}, broadcast=True)
+    for sid, user in connected_users.items():
+        if user['id'] != session['user_id']:
+            emit('all_messages_seen', {
+                "conversation_id": conversation_id,
+                "messages": [{"timestamp": m[0], "status": m[1]} for m in updated_messages]
+            }, room=sid)
 
 @socketio.on('delete_private_message')
 def handle_delete_private_message(data):
@@ -482,39 +403,30 @@ def handle_delete_private_message(data):
     conn.close()
 
     sender_sid = request.sid
-    receiver_sid = next((sid for sid, user in connected_users.items() if conversation_id.startswith(f"conv_{min(user['id'], session['user_id'])}_{max(user['id'], session['user_id'])}") and user['id'] != session['user_id']), None)
     emit('delete_private_message', {"conversation_id": conversation_id, "timestamp": timestamp}, room=sender_sid)
-    if receiver_sid:
-        emit('delete_private_message', {"conversation_id": conversation_id, "timestamp": timestamp}, room=receiver_sid)
-
-@socketio.on('public_typing')
-def handle_public_typing(data):
-    if 'user_id' not in session:
-        return
-
-    sender = data.get('sender')
-    if not sender:
-        return
-
-    emit('public_typing', {"sender": sender}, broadcast=True, include_self=False)
+    for sid, user in connected_users.items():
+        if sid != sender_sid:
+            emit('delete_private_message', {"conversation_id": conversation_id, "timestamp": timestamp}, room=sid)
 
 @socketio.on('typing')
 def handle_typing(data):
     if 'user_id' not in session:
         return
 
-    receiver_id = data.get('receiver_id')
-    user_id = data.get('user_id')
     conversation_id = data.get('conversation_id')
-    if not receiver_id or not conversation_id:
+    if not conversation_id:
         return
 
-    receiver_sid = next((sid for sid, user in connected_users.items() if user['id'] == receiver_id), None)
-    if receiver_sid:
-        emit('typing', {
-            "user_id": user_id,
-            "conversation_id": conversation_id
-        }, room=receiver_sid)
+    conn = sqlite3.connect('chat.db')
+    c = conn.cursor()
+    c.execute("SELECT user_id FROM conversation_members WHERE conversation_id = ? AND user_id != ?", (conversation_id, session['user_id']))
+    members = [row[0] for row in c.fetchall()]
+    conn.close()
+
+    for member_id in members:
+        receiver_sid = next((sid for sid, user in connected_users.items() if user['id'] == member_id), None)
+        if receiver_sid:
+            emit('typing', {"user_id": session['user_id'], "conversation_id": conversation_id}, room=receiver_sid)
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)), debug=False)
