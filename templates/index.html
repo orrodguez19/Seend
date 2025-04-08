@@ -61,8 +61,7 @@
       flex: 1; 
       overflow-y: auto; 
       padding: 1rem; 
-      background: #FFFFFF no-repeat center center fixed; 
-      background-size: cover; 
+      background: #FFFFFF; 
       display: flex; 
       flex-direction: column; 
       margin-bottom: 60px;
@@ -173,8 +172,6 @@
     }
     .user-unread.visible { display: flex; }
     .user-info { display: flex; flex-direction: column; flex: 1; }
-
-    /* Botón flotante */
     .floating-btn { 
       position: fixed; 
       bottom: 20px; 
@@ -193,8 +190,6 @@
       z-index: 1000; 
     }
     .floating-btn:hover { background: #1565c0; }
-
-    /* Panel de perfil propio */
     .profile-panel { 
       position: fixed; 
       top: 0; 
@@ -303,8 +298,6 @@
       cursor: pointer; 
     }
     .avatar-options button:hover { background: #f0f0f0; }
-
-    /* Modal de perfil de otros usuarios */
     .user-profile-modal { 
       position: fixed; 
       top: 50%; 
@@ -336,8 +329,6 @@
       font-size: 0.9rem; 
     }
     .modal-close-btn:hover { background: #cc0000; }
-
-    /* Botón de regreso */
     .back-btn { 
       width: 40px; 
       height: 40px; 
@@ -352,8 +343,6 @@
       transition: background 0.3s; 
     }
     .back-btn:hover { background: rgba(255, 255, 255, 0.2); }
-
-    /* Formulario de grupo */
     .group-form { 
       position: fixed; 
       top: 50%; 
@@ -393,7 +382,6 @@
     .group-form .create-btn:hover { background: #1565c0; }
     .group-form .cancel-btn { background: #ccc; }
     .group-form .cancel-btn:hover { background: #999; }
-
     @media (max-width: 600px) {
       .chat-box { padding: 0.5rem; }
       .profile-panel { width: 100%; right: -100%; }
@@ -417,21 +405,21 @@
       <div class="floating-btn" onclick="showUsersScreen()">+</div>
     </div>
 
-    <!-- Pantalla de conversación privada -->
-    <div class="screen" id="screen-private-chat">
+    <!-- Pantalla de conversación -->
+    <div class="screen" id="screen-chat">
       <header>
         <button class="back-btn" onclick="showChatsScreen()">
           <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6" fill="white"/></svg>
         </button>
-        <div class="avatar" id="chat-avatar" onclick="showUserProfile(currentChat.id)">U</div>
+        <div class="avatar" id="chat-avatar">U</div>
         <div class="header-container">
           <div id="chat-username" class="header-title"></div>
           <div id="chat-status" class="status-text"></div>
         </div>
       </header>
-      <div class="chat-box" id="private-chat-box"></div>
-      <form class="input-area" onsubmit="sendPrivateMessage(event)">
-        <input id="private-message-input" placeholder="Escribe un mensaje..." autocomplete="off">
+      <div class="chat-box" id="chat-box"></div>
+      <form class="input-area" onsubmit="sendMessage(event)">
+        <input id="message-input" placeholder="Escribe un mensaje..." autocomplete="off">
         <button type="submit">
           <svg viewBox="0 0 24 24" width="24" height="24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z" fill="white"/></svg>
         </button>
@@ -543,7 +531,7 @@
     const typingUsers = new Set();
     let unreadMessages = new Map();
     let typingTimeout;
-    let deletedPrivateMessages = JSON.parse(localStorage.getItem('deletedPrivateMessages')) || [];
+    let deletedMessages = JSON.parse(localStorage.getItem('deletedMessages')) || [];
     let replyingTo = null;
     let selectedMessage = null;
     let holdTimer;
@@ -557,32 +545,28 @@
 
     function showChatsScreen() {
       document.getElementById("screen-chats").classList.add("active");
-      document.getElementById("screen-private-chat").classList.remove("active");
+      document.getElementById("screen-chat").classList.remove("active");
       document.getElementById("screen-users").classList.remove("active");
       loadChats();
     }
 
-    function showPrivateChat(userId, userName, conversationId) {
-      currentChat = { 
-        id: userId, 
-        name: userName,
-        conversation_id: conversationId
-      };
-      document.getElementById("chat-username").textContent = userName;
-      document.getElementById("chat-status").textContent = typingUsers.has(userId) ? "Escribiendo" : "Desconectado";
+    function showChat(conversationId, name, isGroup = false, userId = null) {
+      currentChat = { id: conversationId, name, isGroup, userId };
+      document.getElementById("chat-username").textContent = name;
+      document.getElementById("chat-status").textContent = isGroup ? "" : (typingUsers.has(userId) ? "Escribiendo" : "Desconectado");
       document.getElementById("screen-chats").classList.remove("active");
-      document.getElementById("screen-private-chat").classList.add("active");
+      document.getElementById("screen-chat").classList.add("active");
       document.getElementById("screen-users").classList.remove("active");
-      loadPrivateMessages(userId);
-      unreadMessages.delete(userId);
+      loadMessages(conversationId);
+      unreadMessages.delete(conversationId);
       updateChatList();
-      socket.emit('mark_all_as_seen', { conversation_id: currentChat.conversation_id, receiver_id: currentUser.id });
-      loadChatAvatar(userId, document.getElementById("chat-avatar"));
+      socket.emit('mark_all_as_seen', { conversation_id: conversationId });
+      if (!isGroup && userId) loadChatAvatar(userId, document.getElementById("chat-avatar"));
     }
 
     function showUsersScreen() {
       document.getElementById("screen-chats").classList.remove("active");
-      document.getElementById("screen-private-chat").classList.remove("active");
+      document.getElementById("screen-chat").classList.remove("active");
       document.getElementById("screen-users").classList.add("active");
       loadUsers();
     }
@@ -618,7 +602,6 @@
             avatarElement.innerHTML = `<img src="data:image/jpeg;base64,${data.avatar}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
           } else {
             avatarElement.textContent = data.username[0].toUpperCase();
-            avatarElement.innerHTML = data.username[0].toUpperCase();
           }
           document.getElementById(`${prefix}-name`).textContent = data.username;
           document.getElementById(`${prefix}-username`).textContent = data.username;
@@ -681,7 +664,10 @@
                 alert(data.error || "Error al actualizar el avatar");
               }
             })
-            .catch(err => console.error("Error al subir avatar:", err));
+            .catch(err => {
+              console.error("Error al subir avatar:", err);
+              alert("Error al subir el avatar");
+            });
         }
       };
       input.click();
@@ -693,14 +679,12 @@
       const usernameField = document.getElementById("profile-username");
       
       if (!isEditingProfile) {
-        // Entrar en modo edición
         editBtn.textContent = "Guardar cambios";
         usernameField.contentEditable = "true";
         usernameField.classList.add("editable");
         usernameField.focus();
         isEditingProfile = true;
       } else {
-        // Guardar cambios
         const newUsername = usernameField.textContent.trim();
         if (newUsername && newUsername !== currentUser.name) {
           const formData = new FormData();
@@ -718,12 +702,13 @@
                 alert("Perfil actualizado con éxito");
               } else {
                 alert(data.error || "Error al actualizar el perfil");
-                usernameField.textContent = currentUser.name; // Revertir si falla
+                usernameField.textContent = currentUser.name;
               }
             })
             .catch(err => {
               console.error("Error al guardar perfil:", err);
-              usernameField.textContent = currentUser.name; // Revertir si falla
+              usernameField.textContent = currentUser.name;
+              alert("Error al guardar el perfil");
             });
         }
         editBtn.textContent = "Editar perfil";
@@ -733,17 +718,17 @@
       }
     }
 
-    function sendPrivateMessage(e) {
+    function sendMessage(e) {
       e.preventDefault();
-      const input = document.getElementById("private-message-input");
+      const input = document.getElementById("message-input");
       const message = input.value.trim();
       if (!message || !currentChat?.id) return;
       const timestamp = Date.now() / 1000;
       const msgData = {
-        receiver_id: currentChat.id,
+        receiver_id: currentChat.userId,
         message: message,
         sender: currentUser.name,
-        conversation_id: currentChat.conversation_id,
+        conversation_id: currentChat.id,
         status: 'sent',
         timestamp: timestamp
       };
@@ -769,16 +754,15 @@
         .catch(err => console.error(err));
     }
 
-    function loadPrivateMessages(userId) {
-      fetch(`/api/conversations/${userId}`)
+    function loadMessages(conversationId) {
+      fetch(`/api/conversations/${conversationId}`)
         .then(res => {
           if (!res.ok) throw new Error('Error al cargar conversación');
           return res.json();
         })
         .then(data => {
           if (data.error) return window.location.href = '/';
-          renderMessages(data.messages.filter(msg => !deletedPrivateMessages.includes(msg.timestamp)), "private-chat-box", true);
-          if (data.conversation_id) currentChat.conversation_id = data.conversation_id;
+          renderMessages(data.messages.filter(msg => !deletedMessages.includes(msg.timestamp)), "chat-box", true);
         })
         .catch(err => console.error(err));
     }
@@ -798,6 +782,7 @@
     function renderMessages(messages, containerId, replace = false) {
       const chatBox = document.getElementById(containerId);
       if (replace) chatBox.innerHTML = "";
+      const fragment = document.createDocumentFragment();
       messages.forEach(msg => {
         if (!chatBox.querySelector(`[data-timestamp="${msg.timestamp}"]`)) {
           const isSent = msg.sender === currentUser.name;
@@ -820,9 +805,10 @@
           `;
           msgElement.addEventListener('mousedown', handleLongPress);
           msgElement.addEventListener('touchstart', handleLongPress);
-          chatBox.appendChild(msgElement);
+          fragment.appendChild(msgElement);
         }
       });
+      chatBox.appendChild(fragment);
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
@@ -858,10 +844,10 @@
     function handleReply() {
       if (!selectedMessage) return;
       const timestamp = selectedMessage.getAttribute('data-timestamp');
-      const sender = currentUser.name;
+      const sender = selectedMessage.querySelector('.message-content').textContent === currentUser.name ? currentUser.name : selectedMessage.querySelector('.message-content').textContent;
       const message = selectedMessage.querySelector('.message-content').textContent;
       replyingTo = { timestamp, sender, message };
-      const input = document.getElementById("private-message-input");
+      const input = document.getElementById("message-input");
       input.placeholder = `Respondiendo a ${sender}: ${message.substring(0, 20)}...`;
       input.focus();
       document.getElementById("context-menu").style.display = 'none';
@@ -881,8 +867,8 @@
     function deleteForMe() {
       if (!selectedMessage) return;
       const timestamp = selectedMessage.getAttribute('data-timestamp');
-      deletedPrivateMessages.push(timestamp);
-      localStorage.setItem('deletedPrivateMessages', JSON.stringify(deletedPrivateMessages));
+      deletedMessages.push(timestamp);
+      localStorage.setItem('deletedMessages', JSON.stringify(deletedMessages));
       selectedMessage.remove();
       hideConfirmDialog();
     }
@@ -890,7 +876,7 @@
     function deleteForAll() {
       if (!selectedMessage) return;
       const timestamp = selectedMessage.getAttribute('data-timestamp');
-      socket.emit('delete_private_message', { conversation_id: currentChat.conversation_id, timestamp });
+      socket.emit('delete_private_message', { conversation_id: currentChat.id, timestamp });
       selectedMessage.remove();
       hideConfirmDialog();
     }
@@ -902,20 +888,21 @@
       }
       const container = document.getElementById("chat-list");
       container.innerHTML = conversations.map(conv => {
-        const statusClass = typingUsers.has(conv.user_id) ? 'typing' : 
-                            conv.online ? 'online' : 'offline';
+        const statusClass = conv.is_group ? '' : (typingUsers.has(conv.user_id) ? 'typing' : conv.online ? 'online' : 'offline');
         return `
-          <div class="chat-item" data-user-id="${conv.user_id}" onclick="showPrivateChat('${conv.user_id}', '${conv.username}', '${conv.id}')">
-            <div class="avatar" id="avatar-${conv.user_id}" onclick="event.stopPropagation(); showUserProfile('${conv.user_id}')">${conv.username[0].toUpperCase()}</div>
+          <div class="chat-item" data-conv-id="${conv.id}" onclick="showChat('${conv.id}', '${conv.name}', ${conv.is_group}, '${conv.user_id || ''}')">
+            <div class="avatar" id="avatar-${conv.id}" ${!conv.is_group ? `onclick="event.stopPropagation(); showUserProfile('${conv.user_id}')"` : ''}>${conv.name[0].toUpperCase()}</div>
             <div class="user-info">
-              <span>${sanitizeHTML(conv.username)}</span>
-              <span class="status-text ${statusClass}">${typingUsers.has(conv.user_id) ? 'Escribiendo' : conv.online ? 'En línea' : 'Desconectado'}</span>
+              <span>${sanitizeHTML(conv.name)}</span>
+              <span class="status-text ${statusClass}">${conv.is_group ? '' : (typingUsers.has(conv.user_id) ? 'Escribiendo' : conv.online ? 'En línea' : 'Desconectado')}</span>
             </div>
             <span class="user-unread ${conv.unread_count > 0 ? 'visible' : ''}">${conv.unread_count}</span>
           </div>
         `;
       }).join("");
-      conversations.forEach(conv => loadChatAvatar(conv.user_id, document.getElementById(`avatar-${conv.user_id}`)));
+      conversations.forEach(conv => {
+        if (!conv.is_group && conv.user_id) loadChatAvatar(conv.user_id, document.getElementById(`avatar-${conv.id}`));
+      });
     }
 
     function updateUserList(users) {
@@ -930,7 +917,7 @@
       ` + users.map(user => {
         const statusClass = user.online ? 'online' : 'offline';
         return `
-          <div class="user-item" data-user-id="${user.id}" onclick="showPrivateChat('${user.id}', '${user.name}', 'conv_${[currentUser.id, user.id].sort().join('_')}')">
+          <div class="user-item" data-user-id="${user.id}" onclick="showChat('conv_${[currentUser.id, user.id].sort().join('_')}', '${user.name}', false, '${user.id}')">
             <div class="avatar" onclick="event.stopPropagation(); showUserProfile('${user.id}')">${user.name[0].toUpperCase()}</div>
             <div class="user-info">
               <span>${sanitizeHTML(user.name)}</span>
@@ -965,55 +952,59 @@
     function createGroup() {
       const groupName = document.getElementById("group-name").value.trim();
       const selectedUsers = Array.from(document.querySelectorAll('#group-users input:checked'))
-        .map(input => ({ id: input.value, name: input.dataset.name }));
+        .map(input => input.value);
       
       if (!groupName || selectedUsers.length < 1) {
         alert("Por favor, ingresa un nombre y selecciona al menos un usuario.");
         return;
       }
 
-      // Simulación de creación de grupo (sin backend por ahora)
-      console.log("Grupo creado:", { name: groupName, users: selectedUsers });
-      alert(`Grupo "${groupName}" creado con ${selectedUsers.length + 1} miembros (incluyéndote).`);
-      closeGroupForm();
-      // Aquí podrías redirigir a una pantalla de chat de grupo si estuviera implementada
+      fetch('/api/groups', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: groupName, members: [currentUser.id, ...selectedUsers] })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success) {
+            alert(`Grupo "${groupName}" creado con éxito.`);
+            closeGroupForm();
+            showChat(data.conversation_id, groupName, true);
+            loadChats();
+          } else {
+            alert(data.error || "Error al crear el grupo");
+          }
+        })
+        .catch(err => {
+          console.error("Error al crear grupo:", err);
+          alert("Error al crear el grupo");
+        });
     }
 
-    let debounceTimeout;
     socket.on('users_update', data => {
-      clearTimeout(debounceTimeout);
-      debounceTimeout = setTimeout(() => {
-        const updatedUsers = data.users.map(user => ({
-          ...user,
-          status: typingUsers.has(user.id) ? 'Escribiendo' : user.online ? 'En línea' : 'Desconectado'
-        }));
-        if (document.getElementById("screen-users").classList.contains("active")) {
-          updateUserList(updatedUsers);
-        }
-        loadChats();
-      }, 100);
+      if (document.getElementById("screen-users").classList.contains("active")) {
+        updateUserList(data.users);
+      }
+      loadChats();
     });
 
     socket.on('private_message', msg => {
-      if (currentChat && msg.conversation_id === currentChat.conversation_id) {
-        if (!deletedPrivateMessages.includes(msg.timestamp)) {
-          renderMessages([msg], "private-chat-box");
+      if (currentChat && msg.conversation_id === currentChat.id) {
+        if (!deletedMessages.includes(msg.timestamp)) {
+          renderMessages([msg], "chat-box");
         }
         if (msg.sender !== currentUser.name) {
-          socket.emit('message_status', { conversation_id: currentChat.conversation_id, status: 'seen', timestamp: msg.timestamp });
+          socket.emit('message_status', { conversation_id: currentChat.id, status: 'seen', timestamp: msg.timestamp });
         }
       } else if (msg.sender !== currentUser.name) {
-        const senderId = msg.sender_id || msg.sender === currentUser.name ? null : msg.conversation_id.split('_')[1] === currentUser.id ? msg.conversation_id.split('_')[2] : msg.conversation_id.split('_')[1];
-        if (senderId) {
-          const count = unreadMessages.get(senderId) || 0;
-          unreadMessages.set(senderId, count + 1);
-          loadChats();
-        }
+        const count = unreadMessages.get(msg.conversation_id) || 0;
+        unreadMessages.set(msg.conversation_id, count + 1);
+        loadChats();
       }
     });
 
     socket.on('message_status_update', data => {
-      const messages = document.querySelectorAll(`#private-chat-box .message.sent`);
+      const messages = document.querySelectorAll(`#chat-box .message.sent`);
       messages.forEach(msg => {
         const timestamp = msg.getAttribute('data-timestamp');
         if (timestamp === String(data.timestamp)) {
@@ -1030,7 +1021,7 @@
     });
 
     socket.on('all_messages_seen', data => {
-      const messages = document.querySelectorAll(`#private-chat-box .message.sent`);
+      const messages = document.querySelectorAll(`#chat-box .message.sent`);
       messages.forEach(msg => {
         const statusSpan = msg.querySelector('.message-status');
         if (statusSpan) {
@@ -1041,54 +1032,40 @@
     });
 
     socket.on('delete_private_message', data => {
-      if (currentChat && data.conversation_id === currentChat.conversation_id) {
-        const messageElement = document.querySelector(`#private-chat-box .message[data-timestamp="${data.timestamp}"]`);
+      if (currentChat && data.conversation_id === currentChat.id) {
+        const messageElement = document.querySelector(`#chat-box .message[data-timestamp="${data.timestamp}"]`);
         if (messageElement) messageElement.remove();
       }
     });
 
-        socket.on('typing', data => {
-      if (data.conversation_id === currentChat?.conversation_id && data.user_id !== currentUser.id) {
+    socket.on('typing', data => {
+      if (data.conversation_id === currentChat?.id && data.user_id !== currentUser.id) {
         typingUsers.add(data.user_id);
-        document.getElementById("chat-status").textContent = "Escribiendo";
+        document.getElementById("chat-status").textContent = currentChat.isGroup ? "Escribiendo..." : "Escribiendo";
         clearTimeout(typingTimeout);
         typingTimeout = setTimeout(() => {
           typingUsers.delete(data.user_id);
-          fetch('/api/users')
-            .then(res => res.json())
-            .then(data => {
-              const userOnline = data.users.some(u => u.id === currentChat.id && u.online);
-              document.getElementById("chat-status").textContent = userOnline ? "En línea" : "Desconectado";
-            });
+          document.getElementById("chat-status").textContent = currentChat.isGroup ? "" : "Desconectado";
+          if (!currentChat.isGroup) {
+            fetch('/api/users')
+              .then(res => res.json())
+              .then(data => {
+                const userOnline = data.users.some(u => u.id === currentChat.userId && u.online);
+                document.getElementById("chat-status").textContent = userOnline ? "En línea" : "Desconectado";
+              });
+          }
         }, 2000);
       }
     });
 
     document.addEventListener('DOMContentLoaded', () => {
-      showPublicChat();
-      fetch('/api/users')
-        .then(res => {
-          if (!res.ok) throw new Error('Error al cargar usuarios');
-          return res.json();
-        })
-        .then(data => {
-          if (data.error) return window.location.href = '/';
-          updateUserList(data.users.map(user => ({
-            ...user,
-            status: user.online ? 'En línea' : 'Desconectado'
-          })));
-          loadProfileData(currentUser.id, true); // Cargar perfil propio al iniciar
-        })
-        .catch(err => console.error(err));
+      showChatsScreen();
+      loadProfileData(currentUser.id, true);
     });
 
-    document.getElementById("public-message-input").addEventListener('input', () => {
-      socket.emit('public_typing', { sender: currentUser.name });
-    });
-
-    document.getElementById("private-message-input").addEventListener('input', () => {
+    document.getElementById("message-input").addEventListener('input', () => {
       if (currentChat) {
-        socket.emit('typing', { receiver_id: currentChat.id, user_id: currentUser.id, conversation_id: currentChat.conversation_id });
+        socket.emit('typing', { conversation_id: currentChat.id });
       }
     });
   </script>
