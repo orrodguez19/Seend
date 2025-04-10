@@ -1,189 +1,80 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Seend - Autenticación</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: 'Poppins', sans-serif;
-    }
-
-    body {
-      background: #f0f2f5;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      height: 100vh;
-      overflow: hidden;
-    }
-
-    .container {
-      background: white;
-      padding: 2rem;
-      border-radius: 15px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-      width: 100%;
-      max-width: 400px;
-      position: relative;
-      animation: fadeIn 0.5s ease-in-out;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(-20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .welcome {
-      text-align: center;
-      margin-bottom: 1.5rem;
-    }
-
-    .avatar {
-      width: 60px;
-      height: 60px;
-      border-radius: 50%;
-      background: #1877f2;
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 2rem;
-      font-weight: 600;
-      margin: 0 auto 0.5rem;
-      box-shadow: 0 2px 10px rgba(24, 119, 242, 0.3);
-    }
-
-    .welcome-text {
-      color: #333;
-      font-size: 1.2rem;
-      font-weight: 600;
-    }
-
-    .welcome-subtext {
-      color: #666;
-      font-size: 0.9rem;
-      margin-top: 0.3rem;
-    }
-
-    h2 {
-      text-align: center;
-      color: #1877f2;
-      margin-bottom: 1rem;
-      font-weight: 600;
-    }
-
-    form {
-      display: flex;
-      flex-direction: column;
-    }
-
-    input {
-      margin-bottom: 1rem;
-      padding: 0.75rem;
-      border: 1px solid #ddd;
-      border-radius: 10px;
-      font-size: 1rem;
-      background: #f9fafb;
-      transition: border-color 0.3s;
-    }
-
-    input:focus {
-      outline: none;
-      border-color: #1877f2;
-      box-shadow: 0 0 5px rgba(24, 119, 242, 0.3);
-    }
-
-    button {
-      padding: 0.75rem;
-      border: none;
-      border-radius: 10px;
-      background: #1877f2;
-      color: white;
-      font-size: 1rem;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background 0.3s, transform 0.2s;
-    }
-
-    button:hover {
-      background: #155dc0;
-      transform: scale(1.02);
-    }
-
-    .toggle-link {
-      text-align: center;
-      margin-top: 1rem;
-      color: #1877f2;
-      cursor: pointer;
-      font-size: 0.9rem;
-      transition: color 0.3s;
-    }
-
-    .toggle-link:hover {
-      color: #155dc0;
-      text-decoration: underline;
-    }
-
-    .error {
-      color: #e63946;
-      font-size: 0.9rem;
-      text-align: center;
-      margin-bottom: 1rem;
-      background: #fee2e2;
-      padding: 0.5rem;
-      border-radius: 5px;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seend - En mantenimiento</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f0f8ff;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #1e3a8a;
+            text-align: center;
+        }
+        
+        .container {
+            max-width: 600px;
+            padding: 40px;
+            background-color: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(30, 58, 138, 0.1);
+        }
+        
+        .logo {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #2563eb;
+            margin-bottom: 20px;
+        }
+        
+        .maintenance-message {
+            font-size: 2rem;
+            font-weight: 600;
+            margin: 20px 0;
+            color: #1e40af;
+        }
+        
+        .description {
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 30px;
+            color: #4b5563;
+        }
+        
+        .icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            color: #3b82f6;
+        }
+        
+        .contact {
+            font-size: 0.9rem;
+            color: #6b7280;
+            margin-top: 30px;
+        }
+    </style>
 </head>
 <body>
-  <div class="container">
-    <div class="welcome">
-      <div class="avatar">S</div>
-      <div class="welcome-text">¡Bienvenido a Seend!</div>
-      <div class="welcome-subtext">Conéctate y chatea con tus amigos</div>
+    <div class="container">
+        <div class="logo">Seend</div>
+        <div class="icon">🔧</div>
+        <h1 class="maintenance-message">Plataforma en mantenimiento</h1>
+        <p class="description">
+            Estamos trabajando para mejorar tu experiencia. 
+            La plataforma estará disponible nuevamente muy pronto.
+            Gracias por tu paciencia.
+        </p>
+        <p class="contact">
+            Para más información, contáctanos en Telegram: 
+            <a href="mailto:https://t.me/seendmessenger" style="color: #3b82f6;">https://t.me/seendmessenger</a>
+        </p>
     </div>
-
-    <h2 id="form-title">Iniciar Sesión</h2>
-
-    {% if error %}
-      <div class="error">{{ error }}</div>
-    {% endif %}
-
-    <form id="auth-form" method="POST" action="/login">
-      <input type="text" name="username" placeholder="Usuario" required>
-      <input type="password" name="password" placeholder="Contraseña" required>
-      <button type="submit">Continuar</button>
-    </form>
-
-    <div class="toggle-link" onclick="toggleForm()">¿No tienes cuenta? Regístrate</div>
-  </div>
-
-  <script>
-    let isLogin = true;
-
-    function toggleForm() {
-      const form = document.getElementById('auth-form');
-      const title = document.getElementById('form-title');
-      const toggle = document.querySelector('.toggle-link');
-
-      if (isLogin) {
-        form.action = "/register";
-        title.textContent = "Registro";
-        toggle.textContent = "¿Ya tienes cuenta? Inicia sesión";
-      } else {
-        form.action = "/login";
-        title.textContent = "Iniciar Sesión";
-        toggle.textContent = "¿No tienes cuenta? Regístrate aquí";
-      }
-
-      isLogin = !isLogin;
-    }
-  </script>
 </body>
 </html>
