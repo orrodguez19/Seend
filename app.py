@@ -4,14 +4,12 @@ import sqlite3
 import time
 import os
 import uuid
-import base64
+import requests
 
-# Configuración inicial
 app = Flask(__name__, template_folder='templates', static_folder='public')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'secret!')
 socketio = SocketIO(app)
 
-# Inicialización de la base de datos SQLite
 def get_db_connection():
     conn = sqlite3.connect('chat.db', check_same_thread=False)
     conn.row_factory = sqlite3.Row
@@ -20,15 +18,16 @@ def get_db_connection():
 def init_db():
     conn = get_db_connection()
     c = conn.cursor()
-
     c.execute('''CREATE TABLE IF NOT EXISTS users (
         id TEXT PRIMARY KEY,
         username TEXT UNIQUE NOT NULL,
         password TEXT NOT NULL,
         avatar TEXT,
+        birthday TEXT,
+        gender TEXT,
+        home TEXT,
         created_at REAL NOT NULL DEFAULT (strftime('%s', 'now'))
     )''')
-
     c.execute('''CREATE TABLE IF NOT EXISTS conversations (
         id TEXT PRIMARY KEY,
         user1_id TEXT,
@@ -39,7 +38,6 @@ def init_db():
         FOREIGN KEY (user1_id) REFERENCES users(id),
         FOREIGN KEY (user2_id) REFERENCES users(id)
     )''')
-
     c.execute('''CREATE TABLE IF NOT EXISTS conversation_members (
         conversation_id TEXT,
         user_id TEXT,
@@ -47,7 +45,6 @@ def init_db():
         FOREIGN KEY (user_id) REFERENCES users(id),
         PRIMARY KEY (conversation_id, user_id)
     )''')
-
     c.execute('''CREATE TABLE IF NOT EXISTS messages (
         id TEXT PRIMARY KEY,
         conversation_id TEXT NOT NULL,
@@ -60,14 +57,12 @@ def init_db():
         FOREIGN KEY (conversation_id) REFERENCES conversations(id),
         FOREIGN KEY (sender_id) REFERENCES users(id)
     )''')
-
     conn.commit()
     conn.close()
 
 init_db()
 connected_users = {}
 
-# Rutas de autenticación
 @app.route('/')
 def auth():
     return render_template('auth.html', error=request.args.get('error'))
@@ -76,13 +71,11 @@ def auth():
 def login():
     username = request.form['username']
     password = request.form['password']
-
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("SELECT id, username FROM users WHERE username = ? AND password = ?", (username, password))
     user = c.fetchone()
     conn.close()
-
     if user:
         session['user_id'] = user['id']
         session['username'] = user['username']
@@ -94,7 +87,6 @@ def register():
     username = request.form['username']
     password = request.form['password']
     user_id = str(uuid.uuid4())
-
     conn = get_db_connection()
     c = conn.cursor()
     try:
@@ -115,19 +107,16 @@ def logout():
     session.clear()
     return redirect(url_for('auth'))
 
-# Ruta principal del chat
 @app.route('/chat')
 def index():
     if 'user_id' not in session:
         return redirect(url_for('auth'))
     return render_template('index.html', user_id=session['user_id'], username=session['username'])
 
-# API Endpoints
 @app.route('/api/users')
 def get_users():
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
-
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("SELECT id, username FROM users WHERE id != ?", (session['user_id'],))
@@ -140,7 +129,6 @@ def get_users():
 def get_conversations():
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
-
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("""
@@ -154,7 +142,6 @@ def get_conversations():
         GROUP BY c.id, c.group_name, c.is_group, c.user1_id, c.user2_id
     """, (session['user_id'], session['user_id'], session['user_id'], session['user_id']))
     conversations = c.fetchall()
-
     result = []
     for conv in conversations:
         if conv['is_group']:
@@ -181,7 +168,6 @@ def get_conversations():
 def get_conversation_messages(conversation_id):
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
-
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("""
@@ -212,10 +198,9 @@ def get_conversation_messages(conversation_id):
 def get_profile(user_id):
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
-
     conn = get_db_connection()
     c = conn.cursor()
-    c.execute("SELECT id, username, created_at, avatar FROM users WHERE id = ?", (user_id,))
+    c.execute("SELECT id, username, created_at, avatar, birthday, gender, home FROM users WHERE id = ?", (user_id,))
     user = c.fetchone()
     conn.close()
     if user:
@@ -224,6 +209,9 @@ def get_profile(user_id):
             "username": user['username'],
             "joined": time.strftime('%d/%m/%Y', time.localtime(user['created_at'])),
             "avatar": user['avatar'],
+            "birthday": user['birthday'],
+            "gender": user['gender'],
+            "home": user['home'],
             "isOnline": user['id'] in connected_users,
             "isOwnProfile": user_id == session['user_id']
         })
@@ -233,36 +221,45 @@ def get_profile(user_id):
 def update_profile():
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
-
     new_username = request.form.get('username')
     new_id = request.form.get('id')
+    birthday = request.form.get('birthday')
+    gender = request.form.get('gender')
+    home = request.form.get('home')
     avatar_file = request.files.get('avatar')
-
     conn = get_db_connection()
     c = conn.cursor()
-
     try:
         update_fields = []
         update_values = []
-
         if new_username and new_username != session['username']:
             update_fields.append("username = ?")
             update_values.append(new_username)
         if new_id and new_id != session['user_id']:
             update_fields.append("id = ?")
             update_values.append(new_id)
+        if birthday:
+            update_fields.append("birthday = ?")
+            update_values.append(birthday)
+        if gender:
+            update_fields.append("gender = ?")
+            update_values.append(gender)
+        if home:
+            update_fields.append("home = ?")
+            update_values.append(home)
         if avatar_file:
-            avatar_data = base64.b64encode(avatar_file.read()).decode('utf-8')
-            update_fields.append("avatar = ?")
-            update_values.append(avatar_data)
-
+            response = requests.put(f"https://transfer.sh/{avatar_file.filename}", data=avatar_file.read())
+            if response.status_code == 200:
+                avatar_url = response.text.strip()
+                update_fields.append("avatar = ?")
+                update_values.append(avatar_url)
+            else:
+                return jsonify({"error": "Error al subir el avatar"}), 500
         if update_fields:
             update_values.append(session['user_id'])
             query = f"UPDATE users SET {', '.join(update_fields)} WHERE id = ?"
             c.execute(query, update_values)
             conn.commit()
-
-            # Actualizar sesión si se cambió el ID o username
             if new_username:
                 session['username'] = new_username
             if new_id:
@@ -270,8 +267,11 @@ def update_profile():
                 if session['user_id'] in connected_users:
                     del connected_users[session['user_id']]
                 connected_users[new_id] = new_id
-
             socketio.emit('users_update', get_users().get_json(), broadcast=True)
+            socketio.emit('profile_updated', {
+                "user_id": session['user_id'],
+                "username": session['username']
+            }, broadcast=True)
             return jsonify({"success": True})
         return jsonify({"error": "No se enviaron datos para actualizar"}), 400
     except sqlite3.IntegrityError:
@@ -284,7 +284,6 @@ def update_profile():
 def delete_profile():
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
-
     conn = get_db_connection()
     c = conn.cursor()
     try:
@@ -303,21 +302,18 @@ def delete_profile():
 def create_group():
     if 'user_id' not in session:
         return jsonify({"error": "No autenticado"}), 401
-
     data = request.get_json()
     group_name = data.get('name')
     members = data.get('members', [])
-
     if not group_name or len(members) < 1:
         return jsonify({"error": "Nombre del grupo y al menos un miembro son requeridos"}), 400
-
     conn = get_db_connection()
     c = conn.cursor()
     conversation_id = f"conv_{uuid.uuid4()}"
     try:
         c.execute("INSERT INTO conversations (id, group_name, is_group, created_at) VALUES (?, ?, 1, ?)",
                   (conversation_id, group_name, time.time()))
-        for member_id in members + [session['user_id']]:  # Incluir al creador
+        for member_id in members + [session['user_id']]:
             c.execute("INSERT OR IGNORE INTO conversation_members (conversation_id, user_id) VALUES (?, ?)",
                       (conversation_id, member_id))
         conn.commit()
@@ -329,7 +325,66 @@ def create_group():
     finally:
         conn.close()
 
-# Eventos de Socket.IO
+@app.route('/api/upload', methods=['POST'])
+def upload_file():
+    if 'user_id' not in session:
+        return jsonify({"error": "No autenticado"}), 401
+    if 'file' not in request.files:
+        return jsonify({"error": "No se envió archivo"}), 400
+    file = request.files['file']
+    conversation_id = request.form.get('conversation_id')
+    receiver_id = request.form.get('receiver_id')
+    is_group = request.form.get('is_group') == 'true'
+    timestamp = float(request.form.get('timestamp', time.time()))
+    
+    response = requests.put(f"https://transfer.sh/{file.filename}", data=file.read())
+    if response.status_code != 200:
+        return jsonify({"error": "Error al subir el archivo a transfer.sh"}), 500
+    
+    file_url = response.text.strip()
+    
+    conn = get_db_connection()
+    c = conn.cursor()
+    message_id = f"msg_{uuid.uuid4()}"
+    initial_status = 'delivered' if receiver_id in connected_users else 'sent'
+    c.execute("""
+        INSERT INTO messages (id, conversation_id, sender_id, message, image, timestamp, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (message_id, conversation_id, session['user_id'], "Multimedia", file_url, timestamp, initial_status))
+    conn.commit()
+
+    message_data = {
+        "sender": session['username'],
+        "message": "Multimedia",
+        "image": file_url,
+        "timestamp": timestamp,
+        "conversation_id": conversation_id,
+        "status": initial_status
+    }
+
+    emit('private_message', message_data, room=session['user_id'])
+
+    c.execute("SELECT is_group FROM conversations WHERE id = ?", (conversation_id,))
+    is_group_result = c.fetchone()
+    if is_group_result and is_group_result['is_group']:
+        c.execute("SELECT user_id FROM conversation_members WHERE conversation_id = ? AND user_id != ?", 
+                  (conversation_id, session['user_id']))
+        members = [row['user_id'] for row in c.fetchall()]
+        for member_id in members:
+            if member_id in connected_users:
+                emit('private_message', message_data, room=member_id)
+    else:
+        if receiver_id and receiver_id in connected_users:
+            emit('private_message', message_data, room=receiver_id)
+            emit('message_status_update', {
+                "conversation_id": conversation_id,
+                "timestamp": timestamp,
+                "status": "delivered"
+            }, room=session['user_id'])
+    
+    conn.close()
+    return jsonify({"success": True, "url": file_url})
+
 @socketio.on('connect')
 def handle_connect():
     if 'user_id' not in session:
@@ -348,7 +403,6 @@ def handle_disconnect():
 def handle_private_message(data):
     if 'user_id' not in session:
         return
-
     receiver_id = data.get('receiver_id')
     message = data.get('message')
     image = data.get('image')
@@ -357,11 +411,8 @@ def handle_private_message(data):
     timestamp = data.get('timestamp')
     reply_to = data.get('replyTo', {})
     is_group = data.get('isGroup', False)
-
     if not message or not timestamp:
         return
-
-    # Crear conversation_id para chats individuales si no existe
     if not is_group and not conversation_id:
         if not receiver_id:
             return
@@ -372,8 +423,6 @@ def handle_private_message(data):
                   (conversation_id, session['user_id'], receiver_id, time.time()))
         conn.commit()
         conn.close()
-
-    # Guardar mensaje
     conn = get_db_connection()
     c = conn.cursor()
     message_id = f"msg_{uuid.uuid4()}"
@@ -384,7 +433,6 @@ def handle_private_message(data):
     """, (message_id, conversation_id, session['user_id'], message, image, timestamp, initial_status, 
           reply_to.get('timestamp') if reply_to else None))
     conn.commit()
-
     message_data = {
         "sender": sender,
         "message": message,
@@ -394,11 +442,7 @@ def handle_private_message(data):
         "status": initial_status,
         "replyTo": reply_to if reply_to else None
     }
-
-    # Enviar al remitente
     emit('private_message', message_data, room=session['user_id'])
-
-    # Enviar a los destinatarios
     c.execute("SELECT is_group FROM conversations WHERE id = ?", (conversation_id,))
     is_group_result = c.fetchone()
     if is_group_result and is_group_result['is_group']:
@@ -411,17 +455,20 @@ def handle_private_message(data):
     else:
         if receiver_id and receiver_id in connected_users:
             emit('private_message', message_data, room=receiver_id)
+            emit('message_status_update', {
+                "conversation_id": conversation_id,
+                "timestamp": timestamp,
+                "status": "delivered"
+            }, room=session['user_id'])
     conn.close()
 
 @socketio.on('message_status')
 def handle_message_status(data):
     if 'user_id' not in session:
         return
-
     conversation_id = data.get('conversation_id')
     status = data.get('status')
     timestamp = data.get('timestamp')
-
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("""
@@ -430,12 +477,10 @@ def handle_message_status(data):
         WHERE conversation_id = ? AND sender_id != ? AND timestamp = ? AND status != 'seen'
     """, (status, conversation_id, session['user_id'], timestamp))
     conn.commit()
-
     c.execute("SELECT timestamp, status FROM messages WHERE conversation_id = ? AND timestamp = ?", 
               (conversation_id, timestamp))
     updated_message = c.fetchone()
     conn.close()
-
     if updated_message:
         conn = get_db_connection()
         c = conn.cursor()
@@ -458,86 +503,6 @@ def handle_message_status(data):
 def handle_mark_all_as_seen(data):
     if 'user_id' not in session:
         return
-
     conversation_id = data.get('conversation_id')
     conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("""
-        UPDATE messages 
-        SET status = 'seen' 
-        WHERE conversation_id = ? AND sender_id != ? AND status != 'seen'
-    """, (conversation_id, session['user_id']))
-    conn.commit()
-
-    c.execute("SELECT timestamp, status FROM messages WHERE conversation_id = ? AND sender_id != ?", 
-              (conversation_id, session['user_id']))
-    updated_messages = c.fetchall()
-    conn.close()
-
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT user_id FROM conversation_members WHERE conversation_id = ? 
-        UNION SELECT user1_id FROM conversations WHERE id = ? 
-        UNION SELECT user2_id FROM conversations WHERE id = ?
-    """, (conversation_id, conversation_id, conversation_id))
-    members = [row['user_id'] for row in c.fetchall()]
-    conn.close()
-    for member_id in members:
-        if member_id in connected_users and member_id != session['user_id']:
-            emit('all_messages_seen', {
-                "conversation_id": conversation_id,
-                "messages": [{"timestamp": m['timestamp'], "status": m['status']} for m in updated_messages]
-            }, room=member_id)
-
-@socketio.on('delete_private_message')
-def handle_delete_private_message(data):
-    if 'user_id' not in session:
-        return
-
-    conversation_id = data.get('conversation_id')
-    timestamp = data.get('timestamp')
-
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("DELETE FROM messages WHERE conversation_id = ? AND timestamp = ? AND sender_id = ?", 
-              (conversation_id, timestamp, session['user_id']))
-    conn.commit()
-
-    c.execute("""
-        SELECT user_id FROM conversation_members WHERE conversation_id = ? 
-        UNION SELECT user1_id FROM conversations WHERE id = ? 
-        UNION SELECT user2_id FROM conversations WHERE id = ?
-    """, (conversation_id, conversation_id, conversation_id))
-    members = [row['user_id'] for row in c.fetchall()]
-    conn.close()
-
-    for member_id in members:
-        if member_id in connected_users:
-            emit('delete_private_message', {"conversation_id": conversation_id, "timestamp": timestamp}, room=member_id)
-
-@socketio.on('typing')
-def handle_typing(data):
-    if 'user_id' not in session:
-        return
-
-    conversation_id = data.get('conversation_id')
-    if not conversation_id:
-        return
-
-    conn = get_db_connection()
-    c = conn.cursor()
-    c.execute("""
-        SELECT user_id FROM conversation_members WHERE conversation_id = ? 
-        UNION SELECT user1_id FROM conversations WHERE id = ? 
-        UNION SELECT user2_id FROM conversations WHERE id = ?
-    """, (conversation_id, conversation_id, conversation_id))
-    members = [row['user_id'] for row in c.fetchall()]
-    conn.close()
-
-    for member_id in members:
-        if member_id in connected_users and member_id != session['user_id']:
-            emit('typing', {"user_id": session['user_id'], "conversation_id": conversation_id}, room=member_id)
-
-if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)), debug=True)
+    c = co
