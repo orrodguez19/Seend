@@ -505,4 +505,78 @@ def handle_mark_all_as_seen(data):
         return
     conversation_id = data.get('conversation_id')
     conn = get_db_connection()
-    c = co
+    c = conn.cursor()
+    c.execute("""
+        UPDATE messages 
+        SET status = 'seen' 
+        WHERE conversation_id = ? AND sender_id != ? AND status != 'seen'
+    """, (conversation_id, session['user_id']))
+    conn.commit()
+    c.execute("SELECT timestamp, status FROM messages WHERE conversation_id = ? AND sender_id != ?", 
+              (conversation_id, session['user_id']))
+    updated_messages = c.fetchall()
+    conn.close()
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT user_id FROM conversation_members WHERE conversation_id = ? 
+        UNION SELECT user1_id FROM conversations WHERE id = ? 
+        UNION SELECT user2_id FROM conversations WHERE id = ?
+    """, (conversation_id, conversation_id, conversation_id))
+    members = [row['user_id'] for row in c.fetchall()]
+    conn.close()
+    for member_id in members:
+        if member_id in connected_users and member_id != session['user_id']:
+            emit('all_messages_seen', {
+                "conversation_id": conversation_id,
+                "messages": [{"timestamp": m['timestamp'], "status": m['status']} for m in updated_messages]
+            }, room=member_id)
+
+@socketio.on('delete_private_message')
+def handle_delete_private_message(data):
+    if 'user_id' not in session:
+        return
+    conversation_id = data.get('conversation_id')
+    timestamp = data.get('timestamp')
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("DELETE FROM messages WHERE conversation_id = ? AND timestamp = ? AND sender_id = ?", 
+              (conversation_id, timestamp, session['user_id']))
+    conn.commit()
+    c.execute("""
+        SELECT user_id FROM conversation_members WHERE conversation_id = ? 
+        UNION SELECT user1_id FROM conversations WHERE id = ? 
+        UNION SELECT user2_id FROM conversations WHERE id = ?
+    """, (conversation_id, conversation_id, conversation_id))
+    members = [row['user_id'] for row in c.fetchall()]
+    conn.close()
+    for member_id in members:
+        if member_id in connected_users:
+            emit('delete_private_message', {"conversation_id": conversation_id, "timestamp": timestamp}, room=member_id)
+
+@socketio.on('typing')
+def handle_typing(data):
+    if 'user_id' not in session:
+        return
+    conversation_id = data.get('conversation_id')
+    if not conversation_id:
+        return
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("""
+        SELECT user_id FROM conversation_members WHERE conversation_id = ? 
+        UNION SELECT user1_id FROM conversations WHERE id = ? 
+        UNION SELECT user2_id FROM conversations WHERE id = ?
+    """, (conversation_id, conversation_id, conversation_id))
+    members = [row['user_id'] for row in c.fetchall()]
+    conn.close()
+    for member_id in members:
+        if member_id in connected_users and member_id != session['user_id']:
+            emit('typing', {"user_id": session['username'], "conversation_id": conversation_id}, room=member_id)
+
+@socketio.on('profile_updated')
+def handle_profile_updated(data):
+    socketio.emit('profile_updated', data, broadcast=True)
+
+if __name__ == '__main__':
+    socketio.run(app, host='0.0.0.0', port=int(os.environ.get('PORT', 10000)), debug=True)
